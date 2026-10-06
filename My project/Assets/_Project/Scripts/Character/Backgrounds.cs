@@ -28,6 +28,24 @@ namespace Backpacking.Character
             _ => "A balanced all-rounder with the standard kit. A good place to start.",
         };
 
+        /// <summary>
+        /// The person from the roster who looks the part, for a man or a woman: picking a background in the
+        /// creator switches to them (you can still step to anyone else).
+        /// </summary>
+        public static string DefaultHiker(Background background, bool female) => (background, female) switch
+        {
+            (Background.Ranger, false) => "Male_Adult_05",
+            (Background.Ranger, true) => "Female_Adult_04",
+            (Background.Angler, false) => "Male_Adult_07",
+            (Background.Angler, true) => "Female_Adult_14",
+            (Background.Ultralight, false) => "Male_Adult_18",
+            (Background.Ultralight, true) => "Female_Adult_12",
+            (Background.Forager, false) => "Wood_Male_01",
+            (Background.Forager, true) => "Female_Adult_07",
+            (_, false) => "Male_Adult_04",
+            (_, true) => "Female_Adult_17",
+        };
+
         /// <summary>Lasting bonuses. Applied on every start and load.</summary>
         public static void ApplyTraits(Background background)
         {

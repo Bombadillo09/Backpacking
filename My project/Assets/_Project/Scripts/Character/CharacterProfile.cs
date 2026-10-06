@@ -18,7 +18,7 @@ namespace Backpacking.Character
     {
         public string name = "Sam";
         [Tooltip("Which person from the roster (CharacterLibrary.Hiker.id).")]
-        public string hiker = "Male_Adult_05";
+        public string hiker = "Male_Adult_04"; // the Weekend Hiker look, matching the default background
         public Color packColour = new(0.18f, 0.32f, 0.42f);
         public Background background;
 

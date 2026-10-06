@@ -41,9 +41,9 @@ namespace Backpacking.UI
 
         public bool IsOpen { get; private set; }
         /// <summary>Whether to run the tutorial on the trip about to start.</summary>
-        public bool TutorialWanted => tutorialToggle == null || tutorialToggle.value;
+        public bool TutorialWanted { get; private set; } = true;
 
-        Toggle tutorialToggle;
+        Button tutorialYes, tutorialNo;
 
         void Start()
         {
@@ -68,6 +68,8 @@ namespace Backpacking.UI
             EnsureStage();
             previewCamera.enabled = true;
             nameField.SetValueWithoutNotify(profile.name);
+            // On for a first trip, off once you've done it.
+            TutorialWanted = PlayerPrefs.GetInt("tutorial.done", 0) == 0;
             Refresh();
             IsOpen = true;
             screen.SetVisible(true);
@@ -135,6 +137,8 @@ namespace Backpacking.UI
                 Button button = UIBuild.Button(Backgrounds.Name(background), () =>
                 {
                     profile.background = chosen;
+                    // Each background has its own look; switch to it, keeping the body.
+                    profile.hiker = Backgrounds.DefaultHiker(chosen, Female);
                     Refresh();
                 });
                 backgroundButtons.Add((button, background));
@@ -152,7 +156,9 @@ namespace Backpacking.UI
                 UIBuild.Text("BACKGROUND", "heading"),
                 backgrounds,
                 backgroundText,
-                Row("Tutorial", tutorialToggle = new Toggle { value = PlayerPrefs.GetInt("tutorial.done", 0) == 0 }),
+                Row("Tutorial", UIBuild.Box("row").With(
+                    tutorialYes = UIBuild.Button("Yes", () => SetTutorial(true)),
+                    tutorialNo = UIBuild.Button("No", () => SetTutorial(false)))),
                 UIBuild.Box("footer").With(
                     UIBuild.Button("Back", Back),
                     UIBuild.Button("Start trip", StartTrip, "primary")));
@@ -184,6 +190,13 @@ namespace Backpacking.UI
             }
             swatchRows[key] = buttons;
             return row;
+        }
+
+        void SetTutorial(bool wanted)
+        {
+            TutorialWanted = wanted;
+            Select(tutorialYes, wanted);
+            Select(tutorialNo, !wanted);
         }
 
         bool Female => library != null && library.Find(profile.hiker) is { female: true };
@@ -228,6 +241,8 @@ namespace Backpacking.UI
             Select(femaleButton, Female);
             hikerLabel.text = current != null ? current.label : "";
             HighlightSwatch("pack", profile.packColour);
+            Select(tutorialYes, TutorialWanted);
+            Select(tutorialNo, !TutorialWanted);
             foreach ((Button button, Background background) in backgroundButtons)
                 Select(button, background == profile.background);
             backgroundText.text = Backgrounds.Description(profile.background);
