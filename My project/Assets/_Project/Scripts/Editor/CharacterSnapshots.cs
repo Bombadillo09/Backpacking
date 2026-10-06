@@ -156,6 +156,17 @@ namespace Backpacking.EditorTools
 
                 Pose(0f, false, 1.2f);
                 Shot("1-idle", new Vector3(1.6f, 1.4f, 3.2f), new Vector3(0f, 0.95f, 0f));
+                {
+                    Transform hand = animator.GetBoneTransform(HumanBodyBones.RightHand);
+                    Vector3 at = root.transform.InverseTransformPoint(hand.position);
+                    Shot("1e-hand-front", root.transform.TransformPoint(at + new Vector3(0.15f, 0.05f, 0.35f)), hand.position);
+                    Shot("1f-hand-side", root.transform.TransformPoint(at + new Vector3(0.4f, 0.05f, 0f)), hand.position);
+                    foreach (HumanBodyBones bone in new[] { HumanBodyBones.RightThumbProximal, HumanBodyBones.RightThumbIntermediate, HumanBodyBones.RightThumbDistal, HumanBodyBones.RightIndexProximal })
+                    {
+                        Transform t = animator.GetBoneTransform(bone);
+                        report.AppendLine($"{bone}: {(t != null ? t.name + " local " + t.localEulerAngles : "unmapped")}");
+                    }
+                }
                 if (rosterOnly)
                     return report.ToString();
                 // Standing in first person, as the player sees it: body set back behind the eyes, looking down.

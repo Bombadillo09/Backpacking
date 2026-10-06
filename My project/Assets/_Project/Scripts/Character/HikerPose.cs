@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Backpacking.Character
@@ -25,6 +26,13 @@ namespace Backpacking.Character
         float lowerBody;
         readonly RaycastHit[] hits = new RaycastHit[8];
         Quaternion leftToesRest = Quaternion.identity, rightToesRest = Quaternion.identity;
+        readonly List<(HumanBodyBones bone, Quaternion rest)> thumbsRest = new();
+
+        static readonly HumanBodyBones[] Thumbs =
+        {
+            HumanBodyBones.LeftThumbProximal, HumanBodyBones.LeftThumbIntermediate, HumanBodyBones.LeftThumbDistal,
+            HumanBodyBones.RightThumbProximal, HumanBodyBones.RightThumbIntermediate, HumanBodyBones.RightThumbDistal,
+        };
 
         void Awake()
         {
@@ -37,6 +45,12 @@ namespace Backpacking.Character
                     leftToesRest = left.localRotation;
                 if (right != null)
                     rightToesRest = right.localRotation;
+                foreach (HumanBodyBones thumb in Thumbs)
+                {
+                    Transform t = animator.GetBoneTransform(thumb);
+                    if (t != null)
+                        thumbsRest.Add((thumb, t.localRotation));
+                }
             }
             // The object the hiker stands on: the avatar root, whose origin is at the soles.
             ground = transform.parent != null ? transform.parent : transform;
@@ -48,6 +62,11 @@ namespace Backpacking.Character
                 return;
             float scale = ground.lossyScale.y;
             MeasureLegs();
+
+            // The animation library's thumbs retarget onto the Rocketbox Biped hands bent backwards, so they keep
+            // the model's own relaxed rest pose; the fingers still curl with the clips.
+            foreach ((HumanBodyBones bone, Quaternion rest) in thumbsRest)
+                animator.SetBoneLocalRotation(bone, rest);
 
             lookWeight = Mathf.MoveTowards(lookWeight, LookTarget.HasValue ? 1f : 0f, Time.deltaTime * 3f);
             if (lookWeight > 0f && LookTarget.HasValue)
