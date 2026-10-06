@@ -2,7 +2,6 @@ using Backpacking.Navigation;
 using Backpacking.Player;
 using Backpacking.World;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.UIElements;
 
 namespace Backpacking.UI
@@ -22,7 +21,8 @@ namespace Backpacking.UI
         const string HelpText =
             "WASD move · Shift sprint · C crouch · Space jump\n" +
             "M map · Q compass · Tab backpack · E interact\n" +
-            "Hold T fast-forward time · F5 save · F9 load · Esc menu";
+            "Hold T fast-forward time · F5 save · F9 load · Esc menu\n" +
+            "Gamepad: Y interact · View backpack · D-pad map/compass · LB fast-forward · Start menu";
 
         readonly Bindings bindings = new();
         VisualElement info;
@@ -69,8 +69,7 @@ namespace Backpacking.UI
 
         void Update()
         {
-            Keyboard keyboard = Keyboard.current;
-            bool fastForward = keyboard != null && keyboard.tKey.isPressed && !PlayerControlLock.CursorNeeded;
+            bool fastForward = GameInput.FastForwardHeld && !PlayerControlLock.CursorNeeded;
             if (fastForward)
                 timeOfDay.RequestSpeed(this, fastForwardMultiplier);
             else

@@ -54,9 +54,8 @@ namespace Backpacking.Interaction
         {
             if (MenuOpen)
             {
-                Mouse mouse = Mouse.current;
-                bool cancel = interactAction.WasPressedThisFrame() || (mouse != null && mouse.rightButton.wasPressedThisFrame);
-                if (cancel)
+                // Right-click, B and Esc close it through the UI's cancel handling.
+                if (interactAction.WasPressedThisFrame())
                     CloseMenu();
                 return;
             }
@@ -174,6 +173,8 @@ namespace Backpacking.Interaction
                 }, "menu");
                 button.SetEnabled(option.Enabled);
                 menuOptions.Add(button);
+                if (menuOptions.childCount == 1)
+                    menuOptions.FocusFirstButton();
                 // An empty reason greys an option out with nothing to explain, e.g. a status line.
                 if (!string.IsNullOrEmpty(option.DisabledReason))
                     menuOptions.Add(UIBuild.Text(option.DisabledReason, "reason").Classes("menu-reason"));

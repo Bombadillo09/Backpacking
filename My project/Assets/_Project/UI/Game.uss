@@ -159,6 +159,12 @@
     border-color: rgba(224, 123, 57, 0.6);
 }
 
+/* Shows which button a gamepad has selected. */
+.layer .button:focus {
+    border-color: var(--accent);
+    border-width: 2px;
+}
+
 .layer .button:active {
     background-color: var(--accent-dark);
 }

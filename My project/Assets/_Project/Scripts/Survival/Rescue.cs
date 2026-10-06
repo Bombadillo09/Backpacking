@@ -103,6 +103,7 @@ namespace Backpacking.Survival
                 Time.timeScale = 0f;
                 PlayerControlLock.Lock(this, needsCursor: true);
                 SetStage(Stage.Report);
+                reportPanel.FocusFirstButton();
             }
             else if (stage == Stage.FadingIn && elapsed >= FadeInSeconds)
                 SetStage(Stage.None);

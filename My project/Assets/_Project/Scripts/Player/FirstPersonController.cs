@@ -87,6 +87,7 @@ namespace Backpacking.Player
             jumpAction = map.FindAction("Jump", throwIfNotFound: true);
             sprintAction = map.FindAction("Sprint", throwIfNotFound: true);
             crouchAction = map.FindAction("Crouch", throwIfNotFound: true);
+            GameInput.Initialize(inputActions);
         }
 
         void OnEnable()

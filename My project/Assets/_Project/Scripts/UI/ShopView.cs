@@ -4,7 +4,6 @@ using Backpacking.Player;
 using Backpacking.Survival;
 using Backpacking.Trade;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.UIElements;
 
 namespace Backpacking.UI
@@ -57,6 +56,7 @@ namespace Backpacking.UI
             BuildBuyList();
             sellKey = null;
             screen.SetVisible(true);
+            screen.FocusFirstButton();
             PlayerControlLock.Lock(this, needsCursor: true);
             GameUI.ClaimEscape(this, Close);
         }
@@ -73,8 +73,7 @@ namespace Backpacking.UI
         {
             if (!IsOpen)
                 return;
-            Keyboard keyboard = Keyboard.current;
-            if (keyboard != null && keyboard.tabKey.wasPressedThisFrame)
+            if (GameInput.BackpackPressed)
             {
                 Close();
                 return;

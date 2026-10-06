@@ -5,7 +5,6 @@ using Backpacking.Interaction;
 using Backpacking.Player;
 using Backpacking.Survival;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.UIElements;
 
 namespace Backpacking.UI
@@ -19,7 +18,6 @@ namespace Backpacking.UI
         [SerializeField] Vitals vitals;
         [SerializeField] CampPlacer placer;
         [SerializeField] PlayerActivity activity;
-        [SerializeField] Key toggleKey = Key.Tab;
         [SerializeField] float cleanRabbitMinutes = 15f;
         [SerializeField] int meatPerRabbit = 2;
 
@@ -90,8 +88,7 @@ namespace Backpacking.UI
 
         void Update()
         {
-            Keyboard keyboard = Keyboard.current;
-            if (keyboard != null && keyboard[toggleKey].wasPressedThisFrame)
+            if (GameInput.BackpackPressed)
             {
                 if (IsOpen)
                     Close();
@@ -112,6 +109,7 @@ namespace Backpacking.UI
             IsOpen = true;
             foodKey = clothingKey = null;
             screen.SetVisible(true);
+            screen.FocusFirstButton();
             PlayerControlLock.Lock(this, needsCursor: true);
             GameUI.ClaimEscape(this, Close);
         }

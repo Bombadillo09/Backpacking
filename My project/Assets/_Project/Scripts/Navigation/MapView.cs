@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using Backpacking.UI;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.UIElements;
 
 namespace Backpacking.Navigation
@@ -14,7 +13,6 @@ namespace Backpacking.Navigation
     {
         [SerializeField] Terrain terrain;
         [SerializeField] Transform player;
-        [SerializeField] Key toggleKey = Key.M;
 
         [Header("Map Rendering")]
         [SerializeField] int resolution = 1024;
@@ -55,8 +53,7 @@ namespace Backpacking.Navigation
 
         void Update()
         {
-            Keyboard keyboard = Keyboard.current;
-            if (keyboard != null && keyboard[toggleKey].wasPressedThisFrame && !Player.PlayerControlLock.CursorNeeded)
+            if (Player.GameInput.MapPressed && !Player.PlayerControlLock.CursorNeeded)
                 SetOpen(!IsOpen);
 
             if (!IsOpen)

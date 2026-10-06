@@ -1,6 +1,7 @@
 using System;
 using Backpacking.Camp;
 using Backpacking.Player;
+using Backpacking.World;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
@@ -32,8 +33,6 @@ namespace Backpacking.Audio
 
         FirstPersonController player;
         AudioSource source;
-        Terrain terrain;
-        Surface[] layerSurfaces;
         float distanceSinceStep;
         float airTime;
         int lastVariant;
@@ -46,32 +45,6 @@ namespace Backpacking.Audio
             source = go.AddComponent<AudioSource>();
             source.playOnAwake = false;
             source.spatialBlend = 0f;
-        }
-
-        void Start()
-        {
-            terrain = Terrain.activeTerrain;
-            if (terrain == null)
-                return;
-            TerrainLayer[] layers = terrain.terrainData.terrainLayers;
-            layerSurfaces = new Surface[layers.Length];
-            for (int i = 0; i < layers.Length; i++)
-                layerSurfaces[i] = Classify(layers[i] != null ? layers[i].name : "");
-        }
-
-        /// <summary>Guesses how a ground layer sounds underfoot from its name.</summary>
-        static Surface Classify(string layerName)
-        {
-            string lower = layerName.ToLowerInvariant();
-            if (lower.Contains("rock") || lower.Contains("stone") || lower.Contains("gravel"))
-                return Surface.Hard;
-            if (lower.Contains("snow"))
-                return Surface.Snow;
-            if (lower.Contains("grass") || lower.Contains("meadow") || lower.Contains("dirt"))
-                return Surface.Soft;
-            if (lower.Contains("leaf") || lower.Contains("leaves") || lower.Contains("litter") || lower.Contains("forest") || lower.Contains("forrest"))
-                return Surface.Leaves;
-            return Surface.Soft;
         }
 
         void Update()
@@ -142,22 +115,7 @@ namespace Backpacking.Audio
                 && ground.collider is not TerrainCollider)
                 return Surface.Hard;
 
-            return terrain != null && layerSurfaces != null ? TerrainSurface(feet) : Surface.Soft;
-        }
-
-        Surface TerrainSurface(Vector3 position)
-        {
-            TerrainData data = terrain.terrainData;
-            Vector3 local = position - terrain.transform.position;
-            int x = Mathf.Clamp((int)(local.x / data.size.x * data.alphamapWidth), 0, data.alphamapWidth - 1);
-            int z = Mathf.Clamp((int)(local.z / data.size.z * data.alphamapHeight), 0, data.alphamapHeight - 1);
-            float[,,] weights = data.GetAlphamaps(x, z, 1, 1);
-
-            int strongest = 0;
-            for (int layer = 1; layer < weights.GetLength(2); layer++)
-                if (weights[0, 0, layer] > weights[0, 0, strongest])
-                    strongest = layer;
-            return strongest < layerSurfaces.Length ? layerSurfaces[strongest] : Surface.Soft;
+            return GroundCover.At(feet);
         }
     }
 }

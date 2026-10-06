@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
+using Backpacking.Player;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.UIElements;
 
 namespace Backpacking.UI
@@ -21,6 +21,8 @@ namespace Backpacking.UI
 
         /// <summary>Raised when Esc is pressed and no screen is open to close.</summary>
         public static event Action EscapeUnhandled;
+        /// <summary>Raised when cancel (right-click / B) is pressed and no screen is open to close.</summary>
+        public static event Action CancelUnhandled;
 
         VisualElement root;
         VisualElement effects, hud, screens, overlay, menus;
@@ -40,6 +42,7 @@ namespace Backpacking.UI
             current = null;
             escapeStack.Clear();
             EscapeUnhandled = null;
+            CancelUnhandled = null;
         }
 
         void Awake() => current = this;
@@ -80,8 +83,11 @@ namespace Backpacking.UI
 
         void Update()
         {
-            Keyboard keyboard = Keyboard.current;
-            if (keyboard == null || !keyboard.escapeKey.wasPressedThisFrame)
+            // Esc / Start, or right-click / B, both close the newest screen. With nothing open,
+            // Esc pauses while cancel only steps back through the menus.
+            bool escape = GameInput.PausePressed;
+            bool cancel = GameInput.CancelPressed;
+            if (!escape && !cancel)
                 return;
 
             if (escapeStack.Count > 0)
@@ -91,8 +97,10 @@ namespace Backpacking.UI
                 escapeStack.RemoveAt(escapeStack.Count - 1);
                 close();
             }
-            else
+            else if (escape)
                 EscapeUnhandled?.Invoke();
+            else
+                CancelUnhandled?.Invoke();
         }
 
         /// <summary>Lets Esc close a screen. Call when it opens; call <see cref="ReleaseEscape"/> when it closes.</summary>
@@ -183,6 +191,25 @@ namespace Backpacking.UI
             foreach (VisualElement child in element.Children())
                 child.IgnoreMouse();
             return element;
+        }
+
+        /// <summary>Gives keyboard/gamepad focus to the first usable button, so a gamepad can navigate the screen.</summary>
+        public static void FocusFirstButton(this VisualElement container)
+        {
+            // Wait a frame: elements shown this frame haven't been laid out yet and can't take focus.
+            container.schedule.Execute(() =>
+            {
+                Button first = container.Query<Button>().Where(button => button.enabledInHierarchy && IsShown(button, container)).First();
+                first?.Focus();
+            });
+        }
+
+        static bool IsShown(VisualElement element, VisualElement container)
+        {
+            for (VisualElement e = element; e != null && e != container.parent; e = e.parent)
+                if (e.style.display == DisplayStyle.None)
+                    return false;
+            return true;
         }
 
         public static void SetVisible(this VisualElement element, bool visible)

@@ -94,13 +94,6 @@ namespace Backpacking.Gathering
             if (!IsFishing)
                 return;
 
-            Mouse mouse = Mouse.current;
-            if (mouse != null && mouse.rightButton.wasPressedThisFrame)
-            {
-                Stop();
-                return;
-            }
-
             bool hook = interactAction.WasPressedThisFrame();
             timer -= Time.deltaTime;
 
@@ -169,7 +162,7 @@ namespace Backpacking.Gathering
             result.SetVisible(showResult);
             if (showResult)
                 result.SetText(lastResult);
-            status.SetText($"Fishing...  {timeOfDay.ClockText}   Caught: {caughtThisSession}     ·     E to hook  ·  Right-click or Esc to stop");
+            status.SetText($"Fishing...  {timeOfDay.ClockText}   Caught: {caughtThisSession}     ·     E / Y to hook  ·  Right-click, B or Esc to stop");
         }
     }
 }

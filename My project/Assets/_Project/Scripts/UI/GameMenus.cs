@@ -14,10 +14,12 @@ namespace Backpacking.UI
     {
         [SerializeField] SaveSystem saves;
 
+        // Keyboard and mouse | gamepad | what it does.
         const string ControlsText =
-            "WASD|Walk\nShift|Sprint\nC|Crouch\nSpace|Jump\nMouse|Look around\n" +
-            "E|Interact, hook a fish\nTab|Backpack, leave a shop\nM|Map\nQ|Compass\n" +
-            "Hold T|Fast-forward time\nRight-click|Cancel placing, stop fishing\nF5 / F9|Quick-save / quick-load\nEsc|Close screen, pause";
+            "WASD|Left stick|Walk\nMouse|Right stick|Look around\nShift|Left stick press|Sprint\n" +
+            "C|Right stick press|Crouch\nSpace|A|Jump\nE|Y|Interact, place gear, hook a fish\n" +
+            "Tab|View|Backpack, leave a shop\nM|D-pad up|Map\nQ|D-pad down|Compass\nHold T|Hold LB|Fast-forward time\n" +
+            "Right-click|B|Back, cancel placing, stop fishing\nEsc|Start|Close screen, pause\nF5 / F9|-|Quick-save / quick-load";
 
         enum Page { None, Title, Pause, Settings, Controls, Confirm }
 
@@ -37,12 +39,14 @@ namespace Backpacking.UI
         void OnEnable()
         {
             GameUI.EscapeUnhandled += OnEscape;
+            GameUI.CancelUnhandled += OnCancel;
             GameSettings.Changed += ApplyAudio;
         }
 
         void OnDisable()
         {
             GameUI.EscapeUnhandled -= OnEscape;
+            GameUI.CancelUnhandled -= OnCancel;
             GameSettings.Changed -= ApplyAudio;
             AudioListener.pause = false;
         }
@@ -150,14 +154,21 @@ namespace Backpacking.UI
 
         VisualElement BuildControls()
         {
-            VisualElement panel = UIBuild.Box("panel", "menu-panel").With(UIBuild.Text("Controls", "title"));
+            VisualElement panel = UIBuild.Box("panel", "menu-panel").With(
+                UIBuild.Text("Controls", "title"),
+                UIBuild.Box("row").With(
+                    UIBuild.Text("Keyboard & mouse", "controls-key", "small"),
+                    UIBuild.Text("Gamepad", "controls-key", "small")));
             foreach (string line in ControlsText.Split('\n'))
             {
                 string[] parts = line.Split('|');
-                panel.Add(UIBuild.Box("row").With(UIBuild.Text(parts[0], "controls-key"), UIBuild.Text(parts[1])));
+                panel.Add(UIBuild.Box("row").With(
+                    UIBuild.Text(parts[0], "controls-key"),
+                    UIBuild.Text(parts[1], "controls-key"),
+                    UIBuild.Text(parts[2])));
             }
             panel.Add(UIBuild.Box("footer").With(UIBuild.Button("Back", Back, "primary")));
-            panel.style.width = 560f;
+            panel.style.width = 760f;
             return panel;
         }
 
@@ -180,6 +191,8 @@ namespace Backpacking.UI
 
             if (next == Page.Pause)
                 loadButton.SetEnabled(saves.HasSave);
+            if (next != Page.None)
+                screen.FocusFirstButton();
         }
 
         void Back()
@@ -209,6 +222,13 @@ namespace Backpacking.UI
                     Pause();
             }
             else if (page != Page.Title)
+                Back();
+        }
+
+        /// <summary>Right-click / B steps back out of a menu page, but never pauses or leaves the title.</summary>
+        void OnCancel()
+        {
+            if (page is not Page.None and not Page.Title)
                 Back();
         }
 

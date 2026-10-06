@@ -112,13 +112,8 @@ namespace Backpacking.Camp
             if (!IsPlacing)
                 return;
 
+            // Right-click, B and Esc cancel through the UI's cancel handling.
             Mouse mouse = Mouse.current;
-            if (mouse != null && mouse.rightButton.wasPressedThisFrame)
-            {
-                CancelPlacement();
-                return;
-            }
-
             bool valid = UpdatePreviewPose(out Vector3 position, out Quaternion rotation);
             foreach (Renderer previewRenderer in preview.GetComponentsInChildren<Renderer>())
             {
@@ -294,7 +289,7 @@ namespace Backpacking.Camp
                 return;
             hint.SetVisible(IsPlacing);
             if (IsPlacing)
-                hint.SetText($"{problem ?? "Left-click or E to place"}     ·     Right-click or Esc to cancel");
+                hint.SetText($"{problem ?? "Left-click, E or Y to place"}     ·     Right-click, B or Esc to cancel");
         }
     }
 }

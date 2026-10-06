@@ -3,6 +3,7 @@ using System.Linq;
 using Backpacking.Navigation;
 using Backpacking.Player;
 using Backpacking.UI;
+using Backpacking.Wildlife;
 using Backpacking.World;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -102,6 +103,9 @@ namespace Backpacking.EditorTools
             SetField(hud, "weather", weather);
 
             AddSurvivalSystems(player, timeOfDay, temperature, weather, hud.gameObject, prefabs);
+            var wildlife = world.AddComponent<WildlifeSpawner>();
+            SetField(wildlife, "player", player);
+            SetField(wildlife, "timeOfDay", timeOfDay);
             ScatterGatherables(terrain, route, player.transform.position, prefabs, art);
             ScatterBoulders(terrain, route, art);
             ScatterFallenLogs(terrain, route, art);

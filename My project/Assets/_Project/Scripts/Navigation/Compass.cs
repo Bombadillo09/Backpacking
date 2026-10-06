@@ -1,6 +1,5 @@
 using Backpacking.UI;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.UIElements;
 
 namespace Backpacking.Navigation
@@ -12,7 +11,6 @@ namespace Backpacking.Navigation
     public class Compass : MonoBehaviour
     {
         [SerializeField] Transform holder;
-        [SerializeField] Key toggleKey = Key.Q;
         [Tooltip("How long the needle takes to settle after turning, in seconds.")]
         [SerializeField] float needleSmoothTime = 0.25f;
 
@@ -40,8 +38,7 @@ namespace Backpacking.Navigation
 
         void Update()
         {
-            Keyboard keyboard = Keyboard.current;
-            if (keyboard != null && keyboard[toggleKey].wasPressedThisFrame && !Player.PlayerControlLock.CursorNeeded)
+            if (Player.GameInput.CompassPressed && !Player.PlayerControlLock.CursorNeeded)
                 IsOpen = !IsOpen;
 
             displayedHeading = Mathf.SmoothDampAngle(displayedHeading, HeadingOf(holder), ref needleVelocity, needleSmoothTime);

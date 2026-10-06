@@ -1,19 +1,11 @@
 using System;
 using System.Collections.Generic;
+using Backpacking.World;
 using UnityEngine;
 using Random = System.Random;
 
 namespace Backpacking.Audio
 {
-    public enum Surface
-    {
-        Soft,
-        Leaves,
-        Hard,
-        Snow,
-        Water,
-    }
-
     /// <summary>
     /// Placeholder sounds generated in code, so the game has audio before real recordings are added.
     /// Every component that uses one also has a clip slot; a recording put there replaces the generated sound.
@@ -231,6 +223,42 @@ namespace Backpacking.Audio
                 samples[i] = low * 4f * envelope + snap;
             }
             return Clip("Thunder", Normalise(samples, 0.95f));
+        });
+
+        /// <summary>A deer's alarm snort: a sharp, breathy blast through the nose.</summary>
+        public static AudioClip Snort() => Cached("Snort", () =>
+        {
+            var random = new Random(71);
+            var samples = new float[(int)(0.45f * SampleRate)];
+            var body = new OnePole();
+            var floor = new OnePole();
+            for (int i = 0; i < samples.Length; i++)
+            {
+                float t = (float)i / SampleRate;
+                float noise = Noise(random);
+                float breath = body.LowPass(noise, 1400f - 900f * MathF.Min(1f, t / 0.3f)) - floor.LowPass(noise, 250f);
+                samples[i] = breath * MathF.Min(1f, t / 0.012f) * MathF.Exp(-t / 0.11f);
+            }
+            return Clip("Snort", Normalise(samples, 0.9f));
+        });
+
+        /// <summary>A small flock bursting into flight: a flurry of wingbeats that thins out.</summary>
+        public static AudioClip Flutter() => Cached("Flutter", () =>
+        {
+            var random = new Random(83);
+            var samples = new float[(int)(1.4f * SampleRate)];
+            for (int bird = 0; bird < 5; bird++)
+            {
+                float start = Range(random, 0f, 0.15f);
+                float beatsPerSecond = Range(random, 13f, 18f);
+                for (float t = start; t < samples.Length / (float)SampleRate - 0.05f; t += 1f / beatsPerSecond)
+                {
+                    // Each wingbeat is a soft whump; they fade as the bird gets away.
+                    float level = MathF.Exp(-(t - start) / 0.45f) * Range(random, 0.6f, 1f);
+                    AddGrain(samples, random, (int)(t * SampleRate), Range(random, 0.012f, 0.02f), level, 400f);
+                }
+            }
+            return Clip("Flutter", Normalise(samples, 0.8f));
         });
 
         /// <summary>A heartbeat: lub, then dub.</summary>
