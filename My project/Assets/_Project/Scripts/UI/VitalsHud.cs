@@ -94,6 +94,8 @@ namespace Backpacking.UI
         string Load()
         {
             float weight = backpack.TotalWeight;
+            if (!backpack.IsWorn)
+                return $"Pack off ({weight:0.0} kg on the ground)";
             string load = backpack.IsOverloaded ? "  OVERLOADED" : weight > backpack.ComfortableLoad ? "  heavy" : "";
             return $"Pack {weight:0.0} / {backpack.ComfortableLoad:0} kg{load}";
         }

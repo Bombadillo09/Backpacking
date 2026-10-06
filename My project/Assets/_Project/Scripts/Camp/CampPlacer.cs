@@ -45,7 +45,8 @@ namespace Backpacking.Camp
         [SerializeField] Vitals vitals;
 
         [Header("Rules")]
-        [SerializeField] float pitchMinutes = 15f;
+        [Tooltip("Game minutes to unpack the tent and lay it out flat; the poles and fabric are separate steps.")]
+        [SerializeField] float layOutMinutes = 3f;
         [SerializeField] float fireRingMinutes = 5f;
         [SerializeField] int fireRingFirewood = 3;
 
@@ -92,7 +93,9 @@ namespace Backpacking.Camp
         /// <summary>Why the item can't be placed at all right now (not carried, not enough wood), or null.</summary>
         public string RequirementProblem(CampItem item) => item switch
         {
-            CampItem.Tent => backpack.HasTent ? null : "Tent is already pitched",
+            CampItem.Tent => PackHandling.Current != null && PackHandling.Current.TentBag != null ? null
+                : backpack.HasTent ? "Take your pack off and take the tent bag out of it first"
+                : "Your tent is already out",
             CampItem.Stove => backpack.HasStove ? null : "Stove is already set up",
             CampItem.FireRing => backpack.Firewood >= fireRingFirewood ? null : $"Needs {fireRingFirewood} firewood",
             CampItem.Snare => backpack.Snares > 0 ? null : "No snares left",
@@ -109,7 +112,7 @@ namespace Backpacking.Camp
             if (RestMode.Current != null)
                 RestMode.Current.StandUp();
             placing = item;
-            preview = CreatePreview(PrefabFor(item));
+            preview = item == CampItem.Tent ? CreateTentPreview() : CreatePreview(PrefabFor(item));
             GameUI.ClaimEscape(this, CancelPlacement);
         }
 
@@ -199,6 +202,9 @@ namespace Backpacking.Camp
             {
                 if (overlap is TerrainCollider || overlap.transform.IsChildOf(transform))
                     continue;
+                // Your own pack and tent bag can be moved out of the way.
+                if (overlap.GetComponentInParent<GroundPack>() != null || overlap.GetComponentInParent<TentBag>() != null)
+                    continue;
                 return true;
             }
             return false;
@@ -237,8 +243,12 @@ namespace Backpacking.Camp
             switch (item)
             {
                 case CampItem.Tent:
-                    backpack.HasTent = false;
-                    activity.Begin("Pitching tent", pitchMinutes, () => Spawn(item, position, rotation));
+                    PackHandling.Current.ConsumeTentBag();
+                    activity.Begin("Unpacking the tent and spreading it out", layOutMinutes, () =>
+                    {
+                        Spawn(item, position, rotation).GetComponent<Tent>().Setup(backpack.TentModel, TentStage.LaidOut);
+                        Notifications.Post("Tent laid out. Look at it to assemble and set the poles.", 4f);
+                    });
                     break;
                 case CampItem.FireRing:
                     backpack.TryUseFirewood(fireRingFirewood);
@@ -270,6 +280,19 @@ namespace Backpacking.Camp
             CampItem.Clearing => clearingPrefab,
             _ => stovePrefab,
         };
+
+        /// <summary>Your tent as it'll stand once pitched, see-through, to choose a spot for it.</summary>
+        GameObject CreateTentPreview()
+        {
+            var root = new GameObject("Tent (preview)");
+            TentDesign.Build(root.transform, backpack.TentModel, TentStage.Pitched, tentPrefab.GetComponent<Tent>().Materials);
+            foreach (Renderer previewRenderer in root.GetComponentsInChildren<Renderer>())
+            {
+                previewRenderer.sharedMaterial = previewMaterial;
+                previewRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+            return root;
+        }
 
         /// <summary>
         /// A visual-only copy of a prefab. It's created under an inactive parent so none of its scripts

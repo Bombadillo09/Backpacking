@@ -21,6 +21,10 @@ namespace Backpacking.Trade
         LeatherBoots,
         MountaineeringBoots,
         Antibiotics,
+        // New items go at the end: trading posts store their stock by this number.
+        TwoPersonTent,
+        FoamMat,
+        InflatableMat,
     }
 
     /// <summary>Something a trading post can sell: what it costs and what it does to the backpack.</summary>
@@ -61,6 +65,9 @@ namespace Backpacking.Trade
         const string PantsName = "Insulated pants";
         const string WinterBagName = "Winter down bag";
         const string FourSeasonTentName = "4-season mountain tent";
+        const string TwoPersonTentName = "2-person dome tent";
+        const string FoamMatName = "Closed-cell foam mat";
+        const string AirMatName = "Insulated air mat";
         const string LeatherBootsName = "Leather hiking boots";
         const string MountainBootsName = "Mountaineering boots";
 
@@ -97,9 +104,22 @@ namespace Backpacking.Trade
             [ShopItemId.WinterSleepingBag] = new ShopItem(WinterBagName, "Comfortable down to −12 °C. 1.6 kg (yours is 1.0). Replaces your bag.", 120, true,
                 backpack => backpack.SetSleepingBag(WinterBagName, -12f, 1.6f),
                 backpack => backpack.SleepingBagComfort <= -12f ? "Already owned" : null),
-            [ShopItemId.FourSeasonTent] = new ShopItem(FourSeasonTentName, "+9 °C when sleeping (yours is +5). 2.6 kg (yours is 1.8). Replaces your tent.", 150, true,
-                backpack => backpack.SetTent(FourSeasonTentName, 9f, 2.6f),
-                backpack => backpack.TentShelter >= 9f ? "Already owned" : null),
+            [ShopItemId.TwoPersonTent] = new ShopItem(TwoPersonTentName,
+                "A freestanding dome with two crossing poles. +5 °C when sleeping (the 1-person tent is +4), room for your pack inside. 1.8 kg. Replaces your tent.", 90, true,
+                backpack => backpack.SetTent(TwoPersonTentName, Camp.TentModel.TwoPerson, 5f, 1.8f),
+                backpack => backpack.TentModel >= Camp.TentModel.TwoPerson ? "Your tent is already this good" : TentAwayProblem(backpack)),
+            [ShopItemId.FourSeasonTent] = new ShopItem(FourSeasonTentName,
+                "Three poles and guy lines: stands up to storms. +9 °C when sleeping, room for your pack inside. 2.6 kg. Replaces your tent.", 150, true,
+                backpack => backpack.SetTent(FourSeasonTentName, Camp.TentModel.FourSeason, 9f, 2.6f),
+                backpack => backpack.TentModel >= Camp.TentModel.FourSeason ? "Already owned" : TentAwayProblem(backpack)),
+            [ShopItemId.FoamMat] = new ShopItem(FoamMatName,
+                "Cheap and tough. Keeps the cold ground off you (+3 °C asleep) and you sleep better: 25% more energy back. 0.4 kg.", 15, true,
+                backpack => backpack.SetMat(FoamMatName, 3f, 0.4f, 1.25f),
+                backpack => backpack.MatRecovery >= 1.25f ? "You already have a mat this good" : null),
+            [ShopItemId.InflatableMat] = new ShopItem(AirMatName,
+                "Thick and warm (+6 °C asleep): you wake far more rested, 50% more energy back. 0.5 kg. Replaces your mat.", 55, true,
+                backpack => backpack.SetMat(AirMatName, 6f, 0.5f, 1.5f),
+                backpack => backpack.MatRecovery >= 1.5f ? "Already owned" : null),
             [ShopItemId.LeatherBoots] = new ShopItem(LeatherBootsName,
                 "Stiff, well-fitted boots. Your feet tire about a third slower than in worn boots. Replaces your boots.", 55, true,
                 backpack => backpack.SetBoots(LeatherBootsName, 0.8f, false, 0f),
@@ -111,6 +131,9 @@ namespace Backpacking.Trade
         };
 
         public static ShopItem Get(ShopItemId id) => items[id];
+
+        /// <summary>A tent can only be traded in while it's packed away in your backpack.</summary>
+        static string TentAwayProblem(Backpack backpack) => backpack.HasTent ? null : "Pack your tent away first";
 
         public const int PeltValue = 10;
     }

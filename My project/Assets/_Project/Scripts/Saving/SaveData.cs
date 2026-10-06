@@ -36,6 +36,8 @@ namespace Backpacking.Saving
         public List<BushState> bushes = new();
         public List<VendorState> vendors = new();
         public List<PlacedItemState> placedItems = new();
+        /// <summary>Whether the pack is on your back, and where it and the tent bag lie if not.</summary>
+        public PackState pack;
         /// <summary>Campsites cleared and brush cut with the machete: centre in xyz, radius in w.</summary>
         public List<Vector4> clearings = new();
     }
@@ -64,5 +66,7 @@ namespace Backpacking.Saving
         public float fuelHours;
         public bool burning;
         public bool hasCatch;
+        /// <summary>For a tent, how far it's pitched. Saves from before staged pitching were fully pitched.</summary>
+        public TentStage stage = TentStage.Pitched;
     }
 }

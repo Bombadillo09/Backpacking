@@ -211,6 +211,10 @@ namespace Backpacking.EditorTools
             SetField(placer, "stovePrefab", prefabs.Stove);
             SetField(placer, "snarePrefab", prefabs.Snare);
             SetField(placer, "clearingPrefab", prefabs.ClearingMarker);
+            var packHandling = go.AddComponent<PackHandling>();
+            SetField(packHandling, "backpack", backpack);
+            SetField(packHandling, "groundPackPrefab", prefabs.GroundPack);
+            SetField(packHandling, "tentBagPrefab", prefabs.TentBag);
             var clearing = go.AddComponent<GroundClearing>();
             SetIntArray(clearing, "brushLayers", brushDetailLayers);
             SetFloatArray(clearing, "brushWeights", brushDetailWeights);
@@ -245,6 +249,7 @@ namespace Backpacking.EditorTools
             SetField(saves, "placer", placer);
             SetField(saves, "activity", activity);
             SetField(saves, "weather", weather);
+            SetField(saves, "packHandling", packHandling);
             SetField(interactor, "saves", saves);
 
             var rescue = go.AddComponent<Rescue>();
@@ -327,13 +332,14 @@ namespace Backpacking.EditorTools
             SetField(backpackView, "vitals", vitals);
             SetField(backpackView, "placer", placer);
             SetField(backpackView, "activity", activity);
+            SetField(backpackView, "packHandling", go.GetComponent<PackHandling>());
         }
 
         // ---------- Prefabs ----------
 
         struct CampPrefabs
         {
-            public GameObject Tent, FireRing, Stove, Firewood, Snare, BerryBush, TradingPost, ClearingMarker;
+            public GameObject Tent, FireRing, Stove, Firewood, Snare, BerryBush, TradingPost, ClearingMarker, GroundPack, TentBag;
         }
 
         /// <summary>
@@ -345,7 +351,10 @@ namespace Backpacking.EditorTools
             EnsureFolder(PrefabFolder);
             return new CampPrefabs
             {
-                Tent = GetOrCreatePrefab("Tent", BuildTent),
+                // Renamed when the tent became staged, so the old single-piece prefab isn't reused.
+                Tent = GetOrCreatePrefab("Tent (staged)", BuildTent),
+                GroundPack = GetOrCreatePrefab("Ground Pack", BuildGroundPack),
+                TentBag = GetOrCreatePrefab("Tent Bag", BuildTentBag),
                 FireRing = GetOrCreatePrefab("Fire Ring", BuildFireRing),
                 Stove = GetOrCreatePrefab("Camp Stove", BuildStove),
                 Firewood = GetOrCreatePrefab("Firewood", BuildFirewood),
@@ -441,26 +450,72 @@ namespace Backpacking.EditorTools
         }
 
         /// <summary>A two-person A-frame tent. The open door faces +Z.</summary>
+        /// <summary>
+        /// The tent: just its materials and a collider. Its shape for each model and stage (laid out, poles up,
+        /// pitched) is generated at runtime by TentDesign.
+        /// </summary>
         static GameObject BuildTent()
         {
             var root = new GameObject();
-            root.AddComponent<Tent>();
-            var collider = root.AddComponent<BoxCollider>();
-            collider.center = new Vector3(0f, 0.55f, 0f);
-            collider.size = new Vector3(1.4f, 1.1f, 2.2f);
-
-            Material fabric = GetOrCreateMaterial("TentFabric", new Color(0.2f, 0.42f, 0.3f));
-            Material floor = GetOrCreateMaterial("TentFloor", new Color(0.15f, 0.15f, 0.16f));
-            Material pole = GetOrCreateMaterial("Metal", new Color(0.6f, 0.6f, 0.62f), 0.6f);
-
-            // Walls lean in from 0.7 m either side to meet at a 1.1 m ridge.
-            float lean = Mathf.Atan2(0.7f, 1.1f) * Mathf.Rad2Deg;
-            float wallLength = Mathf.Sqrt(0.7f * 0.7f + 1.1f * 1.1f);
-            AddVisual(PrimitiveType.Cube, root, new Vector3(0f, 0.01f, 0f), Quaternion.identity, new Vector3(1.45f, 0.02f, 2.25f), floor);
-            AddVisual(PrimitiveType.Cube, root, new Vector3(-0.35f, 0.55f, 0f), Quaternion.Euler(0f, 0f, -lean), new Vector3(0.03f, wallLength, 2.2f), fabric);
-            AddVisual(PrimitiveType.Cube, root, new Vector3(0.35f, 0.55f, 0f), Quaternion.Euler(0f, 0f, lean), new Vector3(0.03f, wallLength, 2.2f), fabric);
-            AddVisual(PrimitiveType.Cylinder, root, new Vector3(0f, 1.1f, 0f), Quaternion.Euler(90f, 0f, 0f), new Vector3(0.03f, 1.15f, 0.03f), pole);
+            var tent = root.AddComponent<Tent>();
+            root.AddComponent<BoxCollider>();
+            // Colours come per model at runtime, so the fabrics are white here.
+            SetField(tent, "materials.inner", GetOrCreateMaterial("TentInner", Color.white, 0.2f));
+            SetField(tent, "materials.fly", GetOrCreateMaterial("TentFly", Color.white, 0.35f));
+            SetField(tent, "materials.floor", GetOrCreateMaterial("TentFloor", new Color(0.16f, 0.17f, 0.18f), 0.3f));
+            SetField(tent, "materials.pole", GetOrCreateMaterial("TentPole", new Color(0.12f, 0.12f, 0.13f), 0.6f));
+            SetField(tent, "materials.stake", GetOrCreateMaterial("Metal", new Color(0.6f, 0.6f, 0.62f), 0.6f));
             return root;
+        }
+
+        /// <summary>Your backpack standing on the ground: bag, lid, front pocket, shoulder straps, sleeping roll on top.</summary>
+        static GameObject BuildGroundPack()
+        {
+            var root = new GameObject();
+            root.AddComponent<GroundPack>();
+            var collider = root.AddComponent<BoxCollider>();
+            collider.center = new Vector3(0f, 0.32f, 0f);
+            collider.size = new Vector3(0.38f, 0.64f, 0.3f);
+            // Bag panels are tinted to the hiker's pack colour at runtime.
+            Material bag = GetOrCreateMaterial("PackFabric", Color.white, 0.2f);
+            Material webbing = GetOrCreateMaterial("PackWebbing", new Color(0.1f, 0.1f, 0.11f), 0.2f);
+            Material roll = GetOrCreateMaterial("SleepingRoll", new Color(0.25f, 0.27f, 0.22f), 0.15f);
+            NamedVisual("Bag Main", PrimitiveType.Cube, root, new Vector3(0f, 0.27f, 0f), Quaternion.Euler(-4f, 0f, 0f), new Vector3(0.34f, 0.5f, 0.22f), bag);
+            NamedVisual("Bag Lid", PrimitiveType.Cube, root, new Vector3(0f, 0.54f, -0.01f), Quaternion.Euler(-4f, 0f, 0f), new Vector3(0.36f, 0.08f, 0.25f), bag);
+            NamedVisual("Bag Pocket", PrimitiveType.Cube, root, new Vector3(0f, 0.2f, 0.12f), Quaternion.Euler(-4f, 0f, 0f), new Vector3(0.24f, 0.22f, 0.05f), bag);
+            NamedVisual("Strap L", PrimitiveType.Cube, root, new Vector3(-0.09f, 0.33f, -0.12f), Quaternion.Euler(-8f, 0f, 0f), new Vector3(0.05f, 0.4f, 0.015f), webbing);
+            NamedVisual("Strap R", PrimitiveType.Cube, root, new Vector3(0.09f, 0.33f, -0.12f), Quaternion.Euler(-8f, 0f, 0f), new Vector3(0.05f, 0.4f, 0.015f), webbing);
+            NamedVisual("Hip Belt", PrimitiveType.Cube, root, new Vector3(0f, 0.06f, -0.1f), Quaternion.identity, new Vector3(0.42f, 0.07f, 0.06f), webbing);
+            NamedVisual("Sleeping Roll", PrimitiveType.Cylinder, root, new Vector3(0f, 0.66f, 0f), Quaternion.Euler(0f, 0f, 90f), new Vector3(0.16f, 0.2f, 0.16f), roll);
+            return root;
+        }
+
+        /// <summary>The tent in its stuff sack: a fat cylinder with a cinched end and the pole bag strapped alongside.</summary>
+        static GameObject BuildTentBag()
+        {
+            var root = new GameObject();
+            root.AddComponent<TentBag>();
+            var collider = root.AddComponent<BoxCollider>();
+            collider.center = new Vector3(0f, 0.09f, 0f);
+            collider.size = new Vector3(0.5f, 0.18f, 0.22f);
+            // The sack is tinted to the tent's fly colour at runtime.
+            Material sack = GetOrCreateMaterial("TentSack", Color.white, 0.3f);
+            Material cord = GetOrCreateMaterial("PackWebbing", new Color(0.1f, 0.1f, 0.11f), 0.2f);
+            NamedVisual("Sack", PrimitiveType.Capsule, root, new Vector3(0f, 0.085f, 0f), Quaternion.Euler(0f, 0f, 90f), new Vector3(0.17f, 0.25f, 0.17f), sack);
+            NamedVisual("Cinch", PrimitiveType.Cylinder, root, new Vector3(0.26f, 0.085f, 0f), Quaternion.Euler(0f, 0f, 90f), new Vector3(0.06f, 0.025f, 0.06f), cord);
+            NamedVisual("Pole Bag", PrimitiveType.Cylinder, root, new Vector3(0.02f, 0.05f, 0.11f), Quaternion.Euler(0f, 0f, 90f), new Vector3(0.05f, 0.24f, 0.05f), cord);
+            return root;
+        }
+
+        static void NamedVisual(string name, PrimitiveType type, GameObject parent, Vector3 position, Quaternion rotation, Vector3 scale, Material material)
+        {
+            GameObject part = GameObject.CreatePrimitive(type);
+            part.name = name;
+            part.transform.SetParent(parent.transform, false);
+            part.transform.SetLocalPositionAndRotation(position, rotation);
+            part.transform.localScale = scale;
+            part.GetComponent<Renderer>().sharedMaterial = material;
+            Object.DestroyImmediate(part.GetComponent<Collider>());
         }
 
         static GameObject BuildFireRing()

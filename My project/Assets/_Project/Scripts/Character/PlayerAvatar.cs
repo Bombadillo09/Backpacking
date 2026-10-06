@@ -33,6 +33,7 @@ namespace Backpacking.Character
         static readonly int SeatedId = Animator.StringToHash("Seated");
 
         CharacterProfile profile;
+        Survival.Backpack backpack;
         bool shownFirstPerson;
         float airTime;
         float seated;
@@ -91,6 +92,10 @@ namespace Backpacking.Character
             animator.SetBool(SeatedId, player.Seated);
             UpdatePose();
             UpdateBoots();
+            if (backpack == null)
+                backpack = GetComponent<Survival.Backpack>();
+            if (backpack != null)
+                appearance.SetPackWorn(backpack.IsWorn);
         }
 
         void UpdatePose()

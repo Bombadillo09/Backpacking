@@ -281,8 +281,9 @@ namespace Backpacking.Survival
             UpdateWarmth(hours, sprinting ? sprintingHeat : moving ? walkingHeat : 0f);
             UpdateFeet(hours, moving, sprinting);
 
+            // A mat between you and the ground makes for better sleep.
             if (IsSleeping)
-                energy = Mathf.Min(Max, energy + sleepRecovery * hours);
+                energy = Mathf.Min(Max, energy + sleepRecovery * (InSleepingBag ? backpack.MatRecovery : 1f) * hours);
             else
             {
                 // Being frozen or starving wears you out much faster.
@@ -465,8 +466,9 @@ namespace Backpacking.Survival
             FeltTemperature = air + fire + (inTent ? backpack.TentShelter : 0f) - WindChill - soaked * soakedChill;
 
             float insulation = (backpack.ClothingInsulation + backpack.BootsWarmth + HikerTraits.InsulationBonus) * (1f - soakedInsulationLoss * soaked);
+            // In the bag, a mat stops the ground drawing the heat out of you.
             ComfortTemperature = IsSleeping && InSleepingBag
-                ? backpack.SleepingBagComfort
+                ? backpack.SleepingBagComfort - backpack.MatWarmth
                 : neutralTemperature - insulation - bodyHeat;
 
             float difference = FeltTemperature - ComfortTemperature;
@@ -483,7 +485,7 @@ namespace Backpacking.Survival
             player.SpeedMultiplier = condition * footing * backpack.LoadSpeedMultiplier * HikerTraits.SpeedFactor;
             player.Limp = Mathf.InverseLerp(75f, 15f, feet);
             // From a light day pack (5 kg) up to all you can carry.
-            player.LoadFactor = Mathf.InverseLerp(5f, backpack.MaxLoad, backpack.TotalWeight);
+            player.LoadFactor = Mathf.InverseLerp(5f, backpack.MaxLoad, backpack.CarriedWeight);
             player.CanSprint = energy > criticalThreshold && hydration > criticalThreshold && health > tiredThreshold
                                && feet >= 40f && !backpack.IsOverloaded;
         }

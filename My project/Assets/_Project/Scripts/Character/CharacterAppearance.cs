@@ -30,6 +30,7 @@ namespace Backpacking.Character
         HumanBodyBones[] owners;
         Vector3[] posed;
         Mesh leftShoe, rightShoe;
+        readonly List<GameObject> packParts = new();
         float neckHeight = float.MaxValue;
         bool firstPerson, bootsOn = true;
 
@@ -62,6 +63,7 @@ namespace Backpacking.Character
                 Discard(model);
             ClearOwned();
             Body = shadowBody = bareFeet = null;
+            packParts.Clear();
             firstPerson = false;
             bootsOn = true;
 
@@ -180,6 +182,14 @@ namespace Backpacking.Character
                 shadowBody.enabled = on;
             Body.shadowCastingMode = on ? ShadowCastingMode.Off : ShadowCastingMode.On;
             ApplyMeshes();
+        }
+
+        /// <summary>The backpack on the hiker's back, or not (it's been set down on the ground).</summary>
+        public void SetPackWorn(bool worn)
+        {
+            foreach (GameObject part in packParts)
+                if (part != null && part.activeSelf != worn)
+                    part.SetActive(worn);
         }
 
         /// <summary>Shoes on, or bare feet and lower legs (the shoes are set down elsewhere).</summary>
@@ -575,6 +585,7 @@ namespace Backpacking.Character
             if (sternum[0] != Vector3.zero && sternum[1] != Vector3.zero)
                 Strap(pack, sternum[0], sternum[1], 0.02f, 0.01f, webbing);
             pack.SetParent(chest, true);
+            packParts.Add(pack.gameObject);
 
             Transform waist = Animator.GetBoneTransform(HumanBodyBones.Spine), hips = Animator.GetBoneTransform(HumanBodyBones.Hips);
             if (waist != null && hips != null)
@@ -589,6 +600,7 @@ namespace Backpacking.Character
                         Tinted(library.pack, new Color(0.1f, 0.1f, 0.1f)));
                 }
                 belt.SetParent(hips, true);
+                packParts.Add(belt.gameObject);
             }
         }
 

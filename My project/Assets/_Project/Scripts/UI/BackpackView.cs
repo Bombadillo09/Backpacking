@@ -18,6 +18,7 @@ namespace Backpacking.UI
         [SerializeField] Vitals vitals;
         [SerializeField] CampPlacer placer;
         [SerializeField] PlayerActivity activity;
+        [SerializeField] PackHandling packHandling;
         [SerializeField] float cleanRabbitMinutes = 15f;
         [SerializeField] int meatPerRabbit = 2;
 
@@ -61,7 +62,14 @@ namespace Backpacking.UI
             VisualElement right = UIBuild.Box("column", "next").With(
                 UIBuild.Text("SET UP CAMP", "heading"),
                 UIBuild.Box("row").With(
-                    PlaceButton("Pitch tent", CampItem.Tent),
+                    bindings.ActionButton(() => backpack.IsWorn ? "Take off pack" : "Put pack on", TogglePack, null, Busy),
+                    bindings.ActionButton("Take out tent bag", () =>
+                    {
+                        Close();
+                        packHandling.TakeOutTent();
+                    }, TentBagButtonProblem, Busy)),
+                bindings.Text(TentStatus, "reason"),
+                UIBuild.Box("row").With(
                     PlaceButton("Build fire ring", CampItem.FireRing)),
                 UIBuild.Box("row").With(
                     PlaceButton("Set up stove", CampItem.Stove),
@@ -69,6 +77,9 @@ namespace Backpacking.UI
                 UIBuild.Box("row").With(PlaceButton("Clear campsite (machete)", CampItem.Clearing)),
                 UIBuild.Text("In the woods, clear the brush before pitching the tent or building a fire.", "reason"),
                 bindings.Text(() => $"Tent: {backpack.TentName} (+{backpack.TentShelter:0} °C when sleeping)", "small"),
+                bindings.Text(() => backpack.HasMat
+                    ? $"Sleeping mat: {backpack.MatName} (+{backpack.MatWarmth:0} °C asleep, {(backpack.MatRecovery - 1f) * 100f:0}% more rest)"
+                    : "Sleeping mat: none. Trading posts sell them: warmer nights and better rest.", "small"),
                 bindings.Text(() => $"Sleeping bag: {backpack.SleepingBagName} (comfort {backpack.SleepingBagComfort:0} °C)", "small"),
                 bindings.Text(() => $"Fishing: {(backpack.HasGoodRod ? "telescopic rod" : backpack.HasFishingKit ? "basic hand line" : "none")}", "small"),
                 bindings.Text(() => $"Tools: {(backpack.HasMachete ? "machete" : "none")}", "small"),
@@ -120,6 +131,12 @@ namespace Backpacking.UI
 
         void Open()
         {
+            // Off your back, the pack has to be within reach to get into it.
+            if (packHandling != null && !packHandling.CanReachPack)
+            {
+                Notifications.Post($"Your pack is on the ground {packHandling.PackDistance:0} m away. Go back to it.", 3f);
+                return;
+            }
             placer.CancelPlacement();
             IsOpen = true;
             foodKey = clothingKey = null;
@@ -144,6 +161,31 @@ namespace Backpacking.UI
         }
 
         bool Busy() => activity.IsBusy;
+
+        void TogglePack()
+        {
+            Close();
+            if (backpack.IsWorn)
+                packHandling.SetDown();
+            else
+                packHandling.PickUp();
+        }
+
+        string TentBagButtonProblem() =>
+            !backpack.HasTent ? "" :
+            backpack.IsWorn ? "Take your pack off first" :
+            null;
+
+        string TentStatus()
+        {
+            if (backpack.HasTent)
+                return backpack.IsWorn
+                    ? "To pitch your tent: take your pack off, take out the tent bag, then look at the bag to unpack it where you want it."
+                    : "Take out the tent bag, then look at it to unpack the tent where you want to pitch.";
+            if (packHandling != null && packHandling.TentBag != null)
+                return "Your tent is out in its bag. Look at the bag to unpack it, or to put it back in your pack.";
+            return "Your tent is out. Look at it to carry on pitching it, sleep in it, or take it down.";
+        }
 
         void TakeAntibiotics()
         {

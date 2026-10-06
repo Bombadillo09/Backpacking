@@ -138,8 +138,9 @@ namespace Backpacking.UI
                     Begin = () => startClearings = clearing != null ? clearing.Cleared.Count : 0,
                     Done = () => clearing != null && clearing.Cleared.Count > startClearings },
                 new Step { Title = "Pitch your tent",
-                    Text = $"Backpack > {Key}Pitch tent{End}, then place it on flat, clear ground. Sleeping in it keeps you warm and saves the game.",
-                    Done = () => placer.PlacedItems.Any(item => item.kind == CampItem.Tent) },
+                    Text = $"Open your backpack and choose {Key}Take off pack{End}, then {Key}Take out tent bag{End}. Look at the bag and {Key}unpack{End} it on flat, clear ground. "
+                           + $"Then look at the tent to {Key}set the poles{End}, and again to {Key}put up the fabric{End}. Sleeping in it keeps you warm and saves the game. Put your pack back on before you leave!",
+                    Done = () => placer.PlacedItems.Any(item => item.kind == CampItem.Tent && item.instance.TryGetComponent(out Tent tent) && tent.IsPitched) },
                 new Step { Title = "Light a fire",
                     Text = $"Backpack > {Key}Build fire ring{End}, place it, then look at it and press {Key}E{End} to light it with a match. A fire warms you, dries you, cooks and boils water.",
                     Done = () => FindObjectsByType<Campfire>().Any(fire => fire.IsBurning) },

@@ -38,7 +38,11 @@ namespace Backpacking.Survival
         public int money, pelts;
         public string tentName;
         public float tentShelter, tentWeight;
+        // Saves from before tent models are treated as the 2-person tent they had.
+        public int tentModel = 1;
         public bool hasTent, hasStove;
+        public string matName;
+        public float matWarmth, matWeight, matRecovery = 1f;
         public float gasGrams;
         public int matches, firewood;
         public bool hasFishingKit, hasGoodRod, hasWaterFilter;
@@ -72,10 +76,12 @@ namespace Backpacking.Survival
         [SerializeField, Min(0)] int pelts;
 
         [Header("Shelter & Cooking")]
-        [SerializeField] string tentName = "2-person backpacking tent";
+        [SerializeField] string tentName = "1-person trekking tent";
+        [SerializeField] Camp.TentModel tentModel = Camp.TentModel.OnePerson;
         [Tooltip("°C the tent adds when sleeping in it.")]
-        [SerializeField] float tentShelter = 5f;
-        [SerializeField] float tentWeight = 1.8f;
+        [SerializeField] float tentShelter = 4f;
+        [SerializeField] float tentWeight = 1.2f;
+        [Tooltip("In the pack. False while the tent is out: in its bag on the ground, or pitched.")]
         [SerializeField] bool hasTent = true;
         [SerializeField] bool hasStove = true;
         [SerializeField, Min(0f)] float gasGrams = 230f;
@@ -123,6 +129,15 @@ namespace Backpacking.Survival
         [SerializeField] float sleepingBagComfort = -1f;
         [SerializeField] float sleepingBagWeight = 1f;
 
+        [Header("Sleeping Mat")]
+        [Tooltip("Empty if you have none: you sleep on the bare tent floor.")]
+        [SerializeField] string matName = "";
+        [Tooltip("°C of extra warmth from not losing heat into the ground.")]
+        [SerializeField] float matWarmth;
+        [SerializeField] float matWeight;
+        [Tooltip("Multiplies the energy sleep restores.")]
+        [SerializeField] float matRecovery = 1f;
+
         [Header("Clothing")]
         [SerializeField] List<Garment> clothing = new()
         {
@@ -168,7 +183,14 @@ namespace Backpacking.Survival
         public int Money => money;
         public int Pelts => pelts;
         public string TentName => tentName;
+        public Camp.TentModel TentModel => tentModel;
         public float TentShelter => tentShelter;
+        public bool HasMat => !string.IsNullOrEmpty(matName);
+        public string MatName => HasMat ? matName : "none";
+        public float MatWarmth => HasMat ? matWarmth : 0f;
+        public float MatRecovery => HasMat ? matRecovery : 1f;
+        /// <summary>On your back. False while it's set down on the ground (see Camp.PackHandling).</summary>
+        public bool IsWorn { get; set; } = true;
         public bool HasGoodRod => hasGoodRod;
         public bool HasWaterFilter => hasWaterFilter;
         public bool HasMachete => hasMachete;
@@ -226,7 +248,7 @@ namespace Backpacking.Survival
         {
             get
             {
-                float weight = packWeight + sleepingBagWeight + TotalWater;
+                float weight = packWeight + sleepingBagWeight + TotalWater + (HasMat ? matWeight : 0f);
                 if (hasTent)
                     weight += tentWeight;
                 if (hasStove)
@@ -248,14 +270,29 @@ namespace Backpacking.Survival
             }
         }
 
-        public bool IsOverloaded => TotalWeight > maxLoad;
+        /// <summary>What you're carrying right now: the whole pack, or only what you wear while it's set down.</summary>
+        public float CarriedWeight
+        {
+            get
+            {
+                if (IsWorn)
+                    return TotalWeight;
+                float worn = 0f;
+                foreach (Garment garment in clothing)
+                    if (garment.worn)
+                        worn += garment.weight;
+                return worn;
+            }
+        }
+
+        public bool IsOverloaded => CarriedWeight > maxLoad;
 
         /// <summary>How much the load slows walking: 1 when comfortable, lower when heavy.</summary>
         public float LoadSpeedMultiplier
         {
             get
             {
-                float weight = TotalWeight;
+                float weight = CarriedWeight;
                 if (weight > maxLoad)
                     return overloadedSpeed;
                 return Mathf.Lerp(1f, speedAtMaxLoad, Mathf.InverseLerp(comfortableLoad, maxLoad, weight));
@@ -264,7 +301,7 @@ namespace Backpacking.Survival
 
         /// <summary>Extra effort of walking with this load: 1 when comfortable, more when heavy.</summary>
         public float LoadExertionMultiplier =>
-            1f + exertionAtMaxLoad * Mathf.Clamp01((TotalWeight - comfortableLoad) / (maxLoad - comfortableLoad)) * (IsOverloaded ? 1.5f : 1f);
+            1f + exertionAtMaxLoad * Mathf.Clamp01((CarriedWeight - comfortableLoad) / (maxLoad - comfortableLoad)) * (IsOverloaded ? 1.5f : 1f);
 
         // ---------- Money ----------
 
@@ -289,11 +326,20 @@ namespace Backpacking.Survival
             sleepingBagWeight = weight;
         }
 
-        public void SetTent(string newTentName, float shelter, float weight)
+        public void SetTent(string newTentName, Camp.TentModel model, float shelter, float weight)
         {
             tentName = newTentName;
+            tentModel = model;
             tentShelter = shelter;
             tentWeight = weight;
+        }
+
+        public void SetMat(string newMatName, float warmth, float weight, float recovery)
+        {
+            matName = newMatName;
+            matWarmth = warmth;
+            matWeight = weight;
+            matRecovery = recovery;
         }
 
         public void SetWaterCapacity(float litres) => waterCapacity = Mathf.Max(waterCapacity, litres);
@@ -547,7 +593,12 @@ namespace Backpacking.Survival
             tentName = tentName,
             tentShelter = tentShelter,
             tentWeight = tentWeight,
+            tentModel = (int)tentModel,
             hasTent = hasTent,
+            matName = matName,
+            matWarmth = matWarmth,
+            matWeight = matWeight,
+            matRecovery = matRecovery,
             hasStove = hasStove,
             gasGrams = gasGrams,
             matches = matches,
@@ -580,7 +631,12 @@ namespace Backpacking.Survival
             tentName = state.tentName;
             tentShelter = state.tentShelter;
             tentWeight = state.tentWeight;
+            tentModel = (Camp.TentModel)state.tentModel;
             hasTent = state.hasTent;
+            matName = state.matName;
+            matWarmth = state.matWarmth;
+            matWeight = state.matWeight;
+            matRecovery = state.matRecovery > 0f ? state.matRecovery : 1f;
             hasStove = state.hasStove;
             gasGrams = state.gasGrams;
             matches = state.matches;

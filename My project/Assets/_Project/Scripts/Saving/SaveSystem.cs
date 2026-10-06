@@ -38,6 +38,7 @@ namespace Backpacking.Saving
         [SerializeField] GroundClearing clearing;
         [SerializeField] PlayerAvatar avatar;
         [SerializeField] UI.Tutorial tutorial;
+        [SerializeField] PackHandling packHandling;
         [SerializeField] string fileName = "trip.json";
         [Tooltip("How close to a route stop counts as being 'near' it in the save summary, in metres.")]
         [SerializeField] float nearbyDistance = 400f;
@@ -195,6 +196,8 @@ namespace Backpacking.Saving
 
             if (clearing != null)
                 data.clearings.AddRange(clearing.Cleared);
+            if (packHandling != null)
+                data.pack = packHandling.CaptureState();
 
             foreach ((CampItem kind, GameObject instance) in placer.PlacedItems)
             {
@@ -211,6 +214,8 @@ namespace Backpacking.Saving
                 }
                 if (instance.TryGetComponent(out Snare snare))
                     state.hasCatch = snare.HasCatch;
+                if (instance.TryGetComponent(out Tent tent))
+                    state.stage = tent.Stage;
                 data.placedItems.Add(state);
             }
             return data;
@@ -285,7 +290,12 @@ namespace Backpacking.Saving
                     fire.Restore(item.fuelHours, item.burning);
                 if (instance.TryGetComponent(out Snare snare))
                     snare.HasCatch = item.hasCatch;
+                if (instance.TryGetComponent(out Tent tent))
+                    tent.Setup(backpack.TentModel, item.stage);
             }
+            // Older saves have no pack state: it's on your back.
+            if (packHandling != null)
+                packHandling.RestoreState(data.pack);
 
             Notifications.Post($"Welcome back. {data.summary}.");
         }

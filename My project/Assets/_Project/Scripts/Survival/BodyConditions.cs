@@ -104,7 +104,7 @@ namespace Backpacking.Survival
             if (backpack.IsOverloaded)
                 list.Add(new BodyCondition("Overloaded", BodyPart.Legs, 2,
                     "Your legs are buckling under the pack: very slow, tiring, and hard on your feet.", "Drop or sell something."));
-            else if (backpack.TotalWeight > backpack.ComfortableLoad)
+            else if (backpack.CarriedWeight > backpack.ComfortableLoad)
                 list.Add(new BodyCondition("Heavy pack", BodyPart.Legs, 1,
                     "Slower going, more tiring, and your feet ache sooner.", "Lighten your pack."));
 
