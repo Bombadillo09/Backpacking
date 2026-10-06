@@ -150,6 +150,9 @@ namespace Backpacking.EditorTools
                 if (fromStop.magnitude < (stop.Vendor != null ? PostFlattenRadius : 4f))
                     return true;
             }
+            // Nothing lying on the path itself.
+            if (TrailDistance(position) < 2f)
+                return true;
             return false;
         }
 
@@ -206,6 +209,11 @@ namespace Backpacking.EditorTools
             SetField(placer, "fireRingPrefab", prefabs.FireRing);
             SetField(placer, "stovePrefab", prefabs.Stove);
             SetField(placer, "snarePrefab", prefabs.Snare);
+            SetField(placer, "clearingPrefab", prefabs.ClearingMarker);
+            var clearing = go.AddComponent<GroundClearing>();
+            SetIntArray(clearing, "brushLayers", brushDetailLayers);
+            SetField(placer, "clearing", clearing);
+            SetField(placer, "vitals", vitals);
 
             SetField(interactor, "inputActions", inputActions);
             SetField(interactor, "viewPoint", player.CameraPivot);
@@ -248,6 +256,7 @@ namespace Backpacking.EditorTools
             SetField(trip, "temperature", temperature);
             SetField(trip, "weather", weather);
             SetField(saves, "trip", trip);
+            SetField(saves, "clearing", go.GetComponent<GroundClearing>());
             var journal = hud.AddComponent<JournalView>();
             SetField(journal, "timeOfDay", timeOfDay);
             SetField(journal, "saves", saves);
@@ -278,7 +287,7 @@ namespace Backpacking.EditorTools
 
         struct CampPrefabs
         {
-            public GameObject Tent, FireRing, Stove, Firewood, Snare, BerryBush, TradingPost;
+            public GameObject Tent, FireRing, Stove, Firewood, Snare, BerryBush, TradingPost, ClearingMarker;
         }
 
         /// <summary>
@@ -297,7 +306,18 @@ namespace Backpacking.EditorTools
                 Snare = GetOrCreatePrefab("Snare", BuildSnare),
                 BerryBush = GetOrCreatePrefab("Berry Bush", BuildBerryBush),
                 TradingPost = GetOrCreatePrefab("Trading Post", BuildTradingPost),
+                ClearingMarker = GetOrCreatePrefab("Clearing Marker", BuildClearingMarker),
             };
+        }
+
+        /// <summary>A flat disc the size of the area the machete clears, shown while choosing where.</summary>
+        static GameObject BuildClearingMarker()
+        {
+            var root = new GameObject();
+            // A cylinder primitive is 2 units tall; this one is a thin 8 m wide disc.
+            CreatePart(PrimitiveType.Cylinder, root.transform, new Vector3(0f, 0.03f, 0f), new Vector3(8f, 0.03f, 8f),
+                GetOrCreateMaterial("ClearingMarker", new Color(0.4f, 0.8f, 0.4f)), keepCollider: false);
+            return root;
         }
 
         /// <summary>A stake with a wire loop. Its "Caught" child (a rabbit) is shown when something is caught.</summary>
@@ -565,5 +585,13 @@ namespace Backpacking.EditorTools
             AssetDatabase.CreateAsset(material, path);
             return material;
         }
+
+        static void SetIntArray(Object target, string fieldName, int[] values) =>
+            Modify(target, fieldName, property =>
+            {
+                property.arraySize = values.Length;
+                for (int i = 0; i < values.Length; i++)
+                    property.GetArrayElementAtIndex(i).intValue = values[i];
+            });
     }
 }

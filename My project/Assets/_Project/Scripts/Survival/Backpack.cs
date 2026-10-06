@@ -42,6 +42,8 @@ namespace Backpacking.Survival
         public float gasGrams;
         public int matches, firewood;
         public bool hasFishingKit, hasGoodRod, hasWaterFilter;
+        // Saves from before the machete existed get one.
+        public bool hasMachete = true;
         public int snares;
         public float waterCapacity, safeWater, untreatedWater;
         public string sleepingBagName;
@@ -82,6 +84,8 @@ namespace Backpacking.Survival
         [SerializeField, Min(0)] int snares = 3;
         [Tooltip("With a filter, water from lakes and streams is safe straight away.")]
         [SerializeField] bool hasWaterFilter;
+        [Tooltip("For clearing brush and saplings to make a campsite in the woods.")]
+        [SerializeField] bool hasMachete = true;
 
         [Header("Food")]
         [SerializeField] List<FoodStack> startingFood = new()
@@ -131,6 +135,7 @@ namespace Backpacking.Survival
         [SerializeField] float fishingRodWeight = 0.4f;
         [SerializeField] float snareWeight = 0.05f;
         [SerializeField] float filterWeight = 0.1f;
+        [SerializeField] float macheteWeight = 0.5f;
         [SerializeField] float peltWeight = 0.3f;
         [Tooltip("Up to this weight you move freely.")]
         [SerializeField] float comfortableLoad = 15f;
@@ -150,6 +155,7 @@ namespace Backpacking.Survival
         public float TentShelter => tentShelter;
         public bool HasGoodRod => hasGoodRod;
         public bool HasWaterFilter => hasWaterFilter;
+        public bool HasMachete => hasMachete;
         public bool HasTent { get => hasTent; set => hasTent = value; }
         public bool HasStove { get => hasStove; set => hasStove = value; }
         public float GasGrams => gasGrams;
@@ -210,6 +216,8 @@ namespace Backpacking.Survival
                     weight += hasGoodRod ? fishingRodWeight : fishingKitWeight;
                 if (hasWaterFilter)
                     weight += filterWeight;
+                if (hasMachete)
+                    weight += macheteWeight;
                 foreach (Garment garment in clothing)
                     weight += garment.weight;
                 foreach (FoodItem item in food)
@@ -504,6 +512,7 @@ namespace Backpacking.Survival
             hasFishingKit = hasFishingKit,
             hasGoodRod = hasGoodRod,
             hasWaterFilter = hasWaterFilter,
+            hasMachete = hasMachete,
             snares = snares,
             waterCapacity = waterCapacity,
             safeWater = safeWater,
@@ -530,6 +539,7 @@ namespace Backpacking.Survival
             hasFishingKit = state.hasFishingKit;
             hasGoodRod = state.hasGoodRod;
             hasWaterFilter = state.hasWaterFilter;
+            hasMachete = state.hasMachete;
             snares = state.snares;
             waterCapacity = state.waterCapacity;
             safeWater = state.safeWater;

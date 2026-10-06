@@ -75,6 +75,7 @@ namespace Backpacking.EditorTools
                 EditorUtility.ClearProgressBar();
             }
             CreateRoute(route, terrain, prefabs.TradingPost);
+            CreateTrail(terrain, art);
             Light sun = CreateDirectionalLight("Sun", Color.white, 1.3f, LightShadows.Soft);
             Light moon = CreateDirectionalLight("Moon", new Color(0.6f, 0.7f, 1f), 0.12f, LightShadows.None);
             SetUpSkyAndFog(sun);
@@ -93,6 +94,12 @@ namespace Backpacking.EditorTools
             SetField(weather, "timeOfDay", timeOfDay);
             SetField(weather, "rainEffect", CreateRain(player.transform));
             SetField(temperature, "weather", weather);
+
+            var atmosphere = world.AddComponent<ForestAtmosphere>();
+            SetField(atmosphere, "timeOfDay", timeOfDay);
+            SetField(atmosphere, "weather", weather);
+            SetField(atmosphere, "player", player.transform);
+            SetField(atmosphere, "motes", CreateMotes(player.transform));
 
             var navigation = new GameObject("Navigation");
             var map = navigation.AddComponent<MapView>();
@@ -137,6 +144,7 @@ namespace Backpacking.EditorTools
             };
             float[,] heights = GenerateHeights(data.heightmapResolution);
             route = PlanRoute(heights);
+            currentTrail = PlanTrail(route);
             data.SetHeights(0, 0, heights);
             DressTerrain(data, route, art);
 
@@ -302,7 +310,8 @@ namespace Backpacking.EditorTools
             RenderSettings.ambientMode = AmbientMode.Trilight;
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.ExponentialSquared;
-            RenderSettings.fogDensity = 0.0018f;
+            // A little haze in the air even on clear days; the woods and mist thicken it at runtime.
+            RenderSettings.fogDensity = 0.0026f;
         }
 
         static void CreatePostProcessingVolume()

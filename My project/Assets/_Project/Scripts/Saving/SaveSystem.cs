@@ -34,6 +34,7 @@ namespace Backpacking.Saving
         [SerializeField] PlayerActivity activity;
         [SerializeField] WeatherSystem weather;
         [SerializeField] TripLog trip;
+        [SerializeField] GroundClearing clearing;
         [SerializeField] string fileName = "trip.json";
         [Tooltip("How close to a route stop counts as being 'near' it in the save summary, in metres.")]
         [SerializeField] float nearbyDistance = 400f;
@@ -187,6 +188,9 @@ namespace Backpacking.Saving
                     data.vendors.Add(new VendorState { id = saveId.Id, stock = vendor.CaptureStock() });
             }
 
+            if (clearing != null)
+                data.clearings.AddRange(clearing.Cleared);
+
             foreach ((CampItem kind, GameObject instance) in placer.PlacedItems)
             {
                 var state = new PlacedItemState
@@ -258,6 +262,11 @@ namespace Backpacking.Saving
             foreach (VendorState vendorState in data.vendors)
                 if (byId.TryGetValue(vendorState.id, out SaveId saveId) && saveId.TryGetComponent(out Vendor vendor))
                     vendor.RestoreStock(vendorState.stock);
+
+            // Clear campsites before putting tents back on them.
+            if (clearing != null && data.clearings != null)
+                foreach (Vector3 spot in data.clearings)
+                    clearing.Clear(spot, byHand: false);
 
             foreach (PlacedItemState item in data.placedItems)
             {

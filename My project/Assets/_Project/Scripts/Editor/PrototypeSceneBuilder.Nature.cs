@@ -47,7 +47,8 @@ namespace Backpacking.EditorTools
             float cliffs = Mathf.InverseLerp(30f, 42f, steepness);
 
             float forest = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.42f, 0.58f, patches));
-            forest = Mathf.Max(forest, valley * 0.75f) * belowTreeline * (1f - cliffs);
+            // The trail runs through dense woods.
+            forest = Mathf.Max(Mathf.Max(forest, valley * 0.75f), TrailWoods(u, v)) * belowTreeline * (1f - cliffs);
             return new Biome
             {
                 Forest = forest,
@@ -102,7 +103,9 @@ namespace Backpacking.EditorTools
                 float litter = forestGround * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.3f, 0.65f, litterNoise));
 
                 weights[GrassLayer] = Mathf.Max(0f, 1f - rock - snow - alpine - forestGround - dirt);
-                weights[DirtLayer] = dirt;
+                // A soft worn band under the trail's dirt strip.
+                float worn = 0.8f * (1f - Mathf.InverseLerp(1f, 4.5f, TrailDistance(u, v)));
+                weights[DirtLayer] = dirt + worn;
                 weights[RockLayer] = rock;
                 weights[SnowLayer] = snow;
                 weights[ForestFloorLayer] = forestGround - litter;
@@ -152,6 +155,9 @@ namespace Backpacking.EditorTools
                 if (random.NextDouble() > chance)
                     continue;
                 if (InClearing(u, v, route, data))
+                    continue;
+                // Keep trunks off the path; the branches still meet overhead.
+                if (TrailDistance(u, v) < TrailTreeClearance)
                     continue;
 
                 int[] pool = random.NextDouble() < biome.Valley ? valley
@@ -231,6 +237,9 @@ namespace Backpacking.EditorTools
             return false;
         }
 
+        /// <summary>Detail layers that count as brush, for <see cref="Camp.GroundClearing"/>. Set by <see cref="GrowGrass"/>.</summary>
+        static int[] brushDetailLayers = System.Array.Empty<int>();
+
         /// <summary>Grass everywhere it grows, plus optional ground plants for forest floors and meadows.</summary>
         static void GrowGrass(TerrainData data, RouteLayout route, BiomeArtSettings art)
         {
@@ -259,6 +268,11 @@ namespace Backpacking.EditorTools
             AddPlantPrototypes(prototypes, plantLayers, art.forestDebris, PlantGroup.Debris, 0.2f, 0.5f);
             AddPlantPrototypes(prototypes, plantLayers, art.forestStones, PlantGroup.Stones, 0.08f, 0.25f);
             data.detailPrototypes = prototypes.ToArray();
+            // Shrubs, deadfall and forest-floor plants have to be cleared before pitching a tent.
+            brushDetailLayers = plantLayers
+                .FindAll(entry => entry.group is PlantGroup.ForestFloor or PlantGroup.Understory or PlantGroup.Debris)
+                .ConvertAll(entry => entry.layer)
+                .ToArray();
 
             var plants = new int[plantLayers.Count][,];
             for (int i = 0; i < plants.Length; i++)
@@ -280,6 +294,7 @@ namespace Backpacking.EditorTools
                 if (InLake(u, v, route))
                     bare = 1f;
                 float growth = 1f - bare;
+                float fromTrail = TrailDistance(u, v);
 
                 for (int i = 0; i < plantLayers.Count; i++)
                 {
@@ -299,6 +314,11 @@ namespace Backpacking.EditorTools
                         _ => (biome.Forest * 2f + biome.Alpine * 2.5f) * (1f + Mathf.InverseLerp(15f, 30f, steepness)),
                     };
                     float density = group == PlantGroup.Grass ? art.grassDensity : group == PlantGroup.Flowers ? 1f : art.plantDensity;
+                    // The path is trodden bare: sparse grass, no flowers, brush or deadfall.
+                    if (group == PlantGroup.Grass && fromTrail < 2.5f)
+                        density *= 0.2f;
+                    else if (group != PlantGroup.Grass && fromTrail < 3.5f)
+                        density = 0f;
                     float amount = where * growth * share * density;
                     // Fractional amounts become an occasional plant rather than none.
                     int count = (int)amount + (random.NextDouble() < amount % 1f ? 1 : 0);
@@ -764,6 +784,62 @@ namespace Backpacking.EditorTools
             foreach (Renderer meshRenderer in renderers)
                 bounds.Encapsulate(meshRenderer.bounds);
             return bounds;
+        }
+
+        // ---------- Air ----------
+
+        /// <summary>
+        /// Tiny specks drifting in the air around the player, catching the light under the trees. The
+        /// forest atmosphere turns them up in the woods by day.
+        /// </summary>
+        static ParticleSystem CreateMotes(Transform player)
+        {
+            var go = new GameObject("Air Motes");
+            go.transform.SetParent(player, false);
+            go.transform.localPosition = new Vector3(0f, 2f, 0f);
+
+            var motes = go.AddComponent<ParticleSystem>();
+            motes.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
+            ParticleSystem.MainModule main = motes.main;
+            main.loop = true;
+            main.playOnAwake = true;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(8f, 14f);
+            main.startSpeed = 0.05f;
+            main.startSize = new ParticleSystem.MinMaxCurve(0.015f, 0.035f);
+            main.startColor = new Color(1f, 0.96f, 0.82f, 0.55f);
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.maxParticles = 600;
+            main.gravityModifier = -0.002f;
+
+            ParticleSystem.EmissionModule emission = motes.emission;
+            emission.rateOverTime = 0f;
+
+            ParticleSystem.ShapeModule shape = motes.shape;
+            shape.shapeType = ParticleSystemShapeType.Box;
+            shape.scale = new Vector3(22f, 5f, 22f);
+
+            // A slow, wandering drift.
+            ParticleSystem.NoiseModule noise = motes.noise;
+            noise.enabled = true;
+            noise.strength = 0.12f;
+            noise.frequency = 0.25f;
+            noise.scrollSpeed = 0.1f;
+
+            // Fade in and out rather than popping.
+            ParticleSystem.ColorOverLifetimeModule fade = motes.colorOverLifetime;
+            fade.enabled = true;
+            var gradient = new Gradient();
+            gradient.SetKeys(
+                new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.25f), new GradientAlphaKey(1f, 0.75f), new GradientAlphaKey(0f, 1f) });
+            fade.color = gradient;
+
+            var particleRenderer = go.GetComponent<ParticleSystemRenderer>();
+            particleRenderer.shadowCastingMode = ShadowCastingMode.Off;
+            if (GraphicsSettings.currentRenderPipeline != null)
+                particleRenderer.sharedMaterial = GraphicsSettings.currentRenderPipeline.defaultParticleMaterial;
+            return motes;
         }
 
         // ---------- Rain ----------

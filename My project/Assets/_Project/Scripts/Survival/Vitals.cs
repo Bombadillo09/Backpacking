@@ -138,6 +138,13 @@ namespace Backpacking.Survival
         public void Drink(float amount) => hydration = Mathf.Min(Max, hydration + amount);
         public void MakeSick(float hours) => sickHours = Mathf.Max(sickHours, hours);
 
+        /// <summary>Hard physical work, like chopping: costs energy and makes you thirsty.</summary>
+        public void Exert(float energyCost)
+        {
+            energy = Mathf.Max(0f, energy - energyCost);
+            hydration = Mathf.Max(0f, hydration - energyCost * 0.4f);
+        }
+
         /// <summary>Sets every vital at once, e.g. after a rescue. Also dries you off and cures sickness.</summary>
         public void Recover(float newHealth, float newSatiety, float newHydration, float newWarmth, float newEnergy)
         {

@@ -32,6 +32,8 @@ namespace Backpacking.Saving
         public List<BushState> bushes = new();
         public List<VendorState> vendors = new();
         public List<PlacedItemState> placedItems = new();
+        /// <summary>Centres of campsites cleared with the machete.</summary>
+        public List<Vector3> clearings = new();
     }
 
     [Serializable]

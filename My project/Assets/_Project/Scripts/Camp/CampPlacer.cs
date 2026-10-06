@@ -15,6 +15,8 @@ namespace Backpacking.Camp
         FireRing,
         Stove,
         Snare,
+        /// <summary>Not gear: a spot to clear of brush with the machete.</summary>
+        Clearing,
     }
 
     /// <summary>
@@ -35,6 +37,12 @@ namespace Backpacking.Camp
         [SerializeField] GameObject fireRingPrefab;
         [SerializeField] GameObject stovePrefab;
         [SerializeField] GameObject snarePrefab;
+        [Tooltip("The see-through disc shown while choosing a spot to clear.")]
+        [SerializeField] GameObject clearingPrefab;
+
+        [Header("Clearing")]
+        [SerializeField] GroundClearing clearing;
+        [SerializeField] Vitals vitals;
 
         [Header("Rules")]
         [SerializeField] float pitchMinutes = 15f;
@@ -86,6 +94,7 @@ namespace Backpacking.Camp
             CampItem.Stove => backpack.HasStove ? null : "Stove is already set up",
             CampItem.FireRing => backpack.Firewood >= fireRingFirewood ? null : $"Needs {fireRingFirewood} firewood",
             CampItem.Snare => backpack.Snares > 0 ? null : "No snares left",
+            CampItem.Clearing => backpack.HasMachete ? null : "You need a machete",
             _ => null,
         };
 
@@ -162,6 +171,13 @@ namespace Backpacking.Camp
             if (slope > maxSlope)
                 return "Ground is too steep";
 
+            // Clearing is how you deal with whatever's in the way.
+            if (placing == CampItem.Clearing)
+                return null;
+            // A tent or fire needs bare ground, not brush and deadfall.
+            if (placing is CampItem.Tent or CampItem.FireRing && clearing != null && clearing.HasBrush(position))
+                return "Too much brush here. Clear a campsite first (Backpack > Clear campsite)";
+
             if (FootprintBlocked(position, rotation))
                 return "Something is in the way";
 
@@ -228,6 +244,10 @@ namespace Backpacking.Camp
                     Spawn(item, position, rotation);
                     Notifications.Post("Stove set up.");
                     break;
+                case CampItem.Clearing:
+                    (float minutes, int _) = clearing.Estimate(position);
+                    activity.Begin("Clearing a campsite", minutes, () => clearing.Clear(position, backpack, vitals));
+                    break;
                 case CampItem.Snare:
                     backpack.TryUseSnare();
                     Spawn(item, position, rotation);
@@ -241,6 +261,7 @@ namespace Backpacking.Camp
             CampItem.Tent => tentPrefab,
             CampItem.FireRing => fireRingPrefab,
             CampItem.Snare => snarePrefab,
+            CampItem.Clearing => clearingPrefab,
             _ => stovePrefab,
         };
 
@@ -289,7 +310,16 @@ namespace Backpacking.Camp
                 return;
             hint.SetVisible(IsPlacing);
             if (IsPlacing)
-                hint.SetText($"{problem ?? "Left-click, E or Y to place"}     ·     Right-click, B or Esc to cancel");
+                hint.SetText($"{problem ?? PlaceText()}     ·     Right-click, B or Esc to cancel");
+        }
+
+        string PlaceText()
+        {
+            if (placing != CampItem.Clearing || clearing == null || !preview.activeSelf)
+                return "Left-click, E or Y to place";
+            (float minutes, int trees) = clearing.Estimate(preview.transform.position);
+            string saplings = trees == 0 ? "" : trees == 1 ? ", fells a sapling" : $", fells {trees} saplings";
+            return $"Left-click, E or Y to clear here (about {minutes:0} min{saplings})";
         }
     }
 }

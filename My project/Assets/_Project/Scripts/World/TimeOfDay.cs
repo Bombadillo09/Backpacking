@@ -97,6 +97,22 @@ namespace Backpacking.World
 
         /// <summary>Cloud cover from 0 (clear) to 1 (storm), set by the weather. Dims the sun and thickens the fog.</summary>
         public float Overcast { get; set; }
+        /// <summary>How closed the forest canopy is overhead, 0–1. Darkens the sky light and thickens the air.</summary>
+        public float CanopyShade { get; set; }
+        /// <summary>Ground mist, 0–1, e.g. at dawn. Thickens and pales the fog.</summary>
+        public float Mist { get; set; }
+
+        [Header("Forest & Mist")]
+        [Tooltip("Sky and bounce light kept under a full canopy.")]
+        [SerializeField, Range(0f, 1f)] float canopyAmbient = 0.45f;
+        [Tooltip("Direct sun kept under a full canopy (the leaves' own shadows do the rest).")]
+        [SerializeField, Range(0f, 1f)] float canopySun = 0.8f;
+        [Tooltip("Fog density multiplier under a full canopy.")]
+        [SerializeField] float canopyFog = 2.6f;
+        [Tooltip("Fog density multiplier in full mist.")]
+        [SerializeField] float mistFog = 3.5f;
+        [SerializeField] Color forestFog = new(0.36f, 0.42f, 0.38f);
+        [SerializeField] Color mistColour = new(0.8f, 0.82f, 0.84f);
 
         [Header("Weather")]
         [SerializeField] Color overcastAmbient = new(0.42f, 0.44f, 0.46f);
@@ -161,7 +177,8 @@ namespace Backpacking.World
             Daylight = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.1f, 0.15f, elevation));
 
             float cloudDimming = 1f - 0.75f * Overcast;
-            sun.intensity = sunIntensity * cloudDimming * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.02f, 0.1f, elevation));
+            float canopyDimming = Mathf.Lerp(1f, canopySun, CanopyShade);
+            sun.intensity = sunIntensity * cloudDimming * canopyDimming * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.02f, 0.1f, elevation));
             sun.color = sunColor.Evaluate(Mathf.Clamp01(elevation / 0.5f));
             sun.enabled = sun.intensity > 0.001f;
 
@@ -178,13 +195,21 @@ namespace Backpacking.World
             float grey = Overcast * 0.7f;
             Color daySkyNow = Color.Lerp(daySky, overcastAmbient, grey);
             Color dayHorizonNow = Color.Lerp(dayHorizon, overcastAmbient * 0.9f, grey);
-            RenderSettings.ambientSkyColor = Color.Lerp(nightSky, daySkyNow, Daylight);
-            RenderSettings.ambientEquatorColor = Color.Lerp(nightHorizon, dayHorizonNow, Daylight);
-            RenderSettings.ambientGroundColor = Color.Lerp(nightGround, dayGround * (1f - 0.3f * Overcast), Daylight);
-            RenderSettings.fogColor = Color.Lerp(nightFog, Color.Lerp(dayFog, overcastFog, Overcast), Daylight);
+            // Under the trees, the open sky is mostly hidden: much less light comes from above and around.
+            float shade = Mathf.Lerp(1f, canopyAmbient, CanopyShade);
+            RenderSettings.ambientSkyColor = Color.Lerp(nightSky, daySkyNow, Daylight) * shade;
+            RenderSettings.ambientEquatorColor = Color.Lerp(nightHorizon, dayHorizonNow, Daylight) * Mathf.Lerp(1f, shade, 0.8f);
+            RenderSettings.ambientGroundColor = Color.Lerp(nightGround, dayGround * (1f - 0.3f * Overcast), Daylight) * Mathf.Lerp(1f, shade, 0.6f);
+
+            Color fog = Color.Lerp(nightFog, Color.Lerp(dayFog, overcastFog, Overcast), Daylight);
+            // Green-grey haze among the trees, pale mist in the open; both fade into the night colour after dark.
+            fog = Color.Lerp(fog, Color.Lerp(nightFog, forestFog, Daylight), CanopyShade * 0.6f);
+            fog = Color.Lerp(fog, Color.Lerp(nightFog, mistColour, Daylight), Mist * 0.5f);
+            RenderSettings.fogColor = fog;
 
             if (clearFogDensity > 0f)
-                RenderSettings.fogDensity = clearFogDensity * Mathf.Lerp(1f, overcastFogMultiplier, Overcast);
+                RenderSettings.fogDensity = clearFogDensity * Mathf.Lerp(1f, overcastFogMultiplier, Overcast)
+                                            * Mathf.Lerp(1f, canopyFog, CanopyShade) * Mathf.Lerp(1f, mistFog, Mist);
             if (skybox != null)
             {
                 skybox.SetFloat(ExposureId, clearSkyExposure * (1f - 0.55f * Overcast));

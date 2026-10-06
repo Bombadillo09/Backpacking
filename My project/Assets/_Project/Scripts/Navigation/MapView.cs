@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Backpacking.UI;
+using Backpacking.World;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -101,6 +102,7 @@ namespace Backpacking.Navigation
             map.style.backgroundImage = mapTexture;
             SetBorder(map, 2f, Ink);
             paper.Add(map);
+            AddTrail(side);
 
             Label title = Label("Prototype Valley", side * 0.026f);
             title.style.left = 0f;
@@ -161,7 +163,7 @@ namespace Backpacking.Navigation
             north.style.top = margin * 0.95f - labelSize;
             north.style.unityTextAlign = TextAnchor.MiddleCenter;
 
-            Label legend = Label($"Contours every {contourInterval:0} m   ·   Large markers: trading posts and the summit   ·   Small: checkpoints", labelSize);
+            Label legend = Label($"Contours every {contourInterval:0} m   ·   Red dashes: trail   ·   Large markers: trading posts and the summit   ·   Small: checkpoints", labelSize);
             legend.style.left = margin;
             legend.style.top = margin + mapSize + margin * 0.4f;
 
@@ -200,6 +202,57 @@ namespace Backpacking.Navigation
             }
 
         }
+
+        /// <summary>The footpath as a dashed red line, the way trail maps show it.</summary>
+        void AddTrail(float side)
+        {
+            TrailPath trail = FindAnyObjectByType<TrailPath>();
+            if (trail == null || trail.Points.Count < 2)
+                return;
+
+            var points = new Vector2[trail.Points.Count];
+            for (int i = 0; i < points.Length; i++)
+                points[i] = MapPosition(trail.Points[i]);
+            float dash = side * 0.009f, lineWidth = Mathf.Max(1.5f, side * 0.0028f);
+
+            var line = new VisualElement { pickingMode = PickingMode.Ignore };
+            line.style.position = Position.Absolute;
+            line.style.left = line.style.top = 0f;
+            line.style.width = line.style.height = side;
+            line.generateVisualContent += context =>
+            {
+                Painter2D painter = context.painter2D;
+                painter.strokeColor = TrailColour;
+                painter.lineWidth = lineWidth;
+                painter.lineCap = LineCap.Round;
+                // Walk the line, drawing every other dash-length stretch.
+                float along = 0f;
+                for (int i = 0; i < points.Length - 1; i++)
+                {
+                    Vector2 a = points[i], b = points[i + 1];
+                    float length = Vector2.Distance(a, b);
+                    float done = 0f;
+                    while (done < length)
+                    {
+                        float phase = along % (dash * 2f);
+                        bool drawing = phase < dash;
+                        float step = Mathf.Min(length - done, (drawing ? dash : dash * 2f) - phase);
+                        if (drawing)
+                        {
+                            painter.BeginPath();
+                            painter.MoveTo(Vector2.Lerp(a, b, done / length));
+                            painter.LineTo(Vector2.Lerp(a, b, (done + step) / length));
+                            painter.Stroke();
+                        }
+                        done += step;
+                        along += step;
+                    }
+                }
+            };
+            paper.Add(line);
+        }
+
+        static readonly Color TrailColour = new(0.72f, 0.12f, 0.08f, 0.9f);
 
         /// <summary>Where a world position falls on the paper, in pixels from its top-left corner.</summary>
         Vector2 MapPosition(Vector3 world)

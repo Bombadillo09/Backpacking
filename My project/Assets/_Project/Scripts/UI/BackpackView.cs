@@ -61,9 +61,12 @@ namespace Backpacking.UI
                 UIBuild.Box("row").With(
                     PlaceButton("Set up stove", CampItem.Stove),
                     PlaceButton(() => $"Set a snare ({backpack.Snares} left)", CampItem.Snare)),
+                UIBuild.Box("row").With(PlaceButton("Clear campsite (machete)", CampItem.Clearing)),
+                UIBuild.Text("In the woods, clear the brush before pitching the tent or building a fire.", "reason"),
                 bindings.Text(() => $"Tent: {backpack.TentName} (+{backpack.TentShelter:0} °C when sleeping)", "small"),
                 bindings.Text(() => $"Sleeping bag: {backpack.SleepingBagName} (comfort {backpack.SleepingBagComfort:0} °C)", "small"),
                 bindings.Text(() => $"Fishing: {(backpack.HasGoodRod ? "telescopic rod" : backpack.HasFishingKit ? "basic hand line" : "none")}", "small"),
+                bindings.Text(() => $"Tools: {(backpack.HasMachete ? "machete" : "none")}", "small"),
                 UIBuild.Text("FIRE & FUEL", "heading"),
                 UIBuild.Box("row", "spread").With(
                     bindings.Text(() => $"Stove gas: {backpack.GasGrams:0} g    Matches: {backpack.Matches}    Firewood: {backpack.Firewood}"),
