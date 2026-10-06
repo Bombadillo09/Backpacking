@@ -33,7 +33,7 @@ namespace Backpacking.UI
 
             if (IsOpen)
                 Close();
-            else if (!PlayerControlLock.MovementLocked)
+            else if (!PlayerControlLock.MovementLocked && !PlayerControlLock.JustReleased)
                 Open();
         }
 
@@ -74,7 +74,12 @@ namespace Backpacking.UI
             GUI.Box(area, GUIContent.none);
 
             GUILayout.BeginArea(new Rect(area.x + 20f, area.y + 14f, width - 40f, height - 28f));
+            GUILayout.BeginHorizontal();
             GUILayout.Label("Backpack", new GUIStyle(headingStyle) { fontSize = 22 });
+            GUILayout.FlexibleSpace();
+            string pelts = backpack.Pelts > 0 ? $"    Rabbit pelts: {backpack.Pelts}" : "";
+            GUILayout.Label($"Money: ${backpack.Money}{pelts}", new GUIStyle(headingStyle) { fontSize = 20 });
+            GUILayout.EndHorizontal();
             GUILayout.Space(6f);
             GUILayout.BeginHorizontal();
 
@@ -112,7 +117,9 @@ namespace Backpacking.UI
             ActionButton("Drink untreated", backpack.DrinkUntreatedWater,
                 backpack.UntreatedWater <= 0f ? "No untreated water" : null);
             GUILayout.EndHorizontal();
-            GUILayout.Label("Untreated water may make you sick. Boil it first.", reasonStyle);
+            GUILayout.Label(backpack.HasWaterFilter
+                ? "Your filter makes lake and stream water safe as you fill up."
+                : "Untreated water may make you sick. Boil it first.", reasonStyle);
         }
 
         void DrawFood()
@@ -165,8 +172,10 @@ namespace Backpacking.UI
             PlaceButton("Build fire ring", CampItem.FireRing);
             PlaceButton("Set up stove", CampItem.Stove);
             PlaceButton($"Set a snare ({backpack.Snares} left)", CampItem.Snare);
+            GUILayout.Label($"Tent: {backpack.TentName} (+{backpack.TentShelter:0} °C when sleeping)", textStyle);
             GUILayout.Label($"Sleeping bag: {backpack.SleepingBagName} (comfort {backpack.SleepingBagComfort:0} °C)", textStyle);
-            GUILayout.Label(backpack.HasFishingKit ? "Fishing kit: yes, fish from the lake shore" : "Fishing kit: none", textStyle);
+            string fishing = backpack.HasGoodRod ? "telescopic rod" : backpack.HasFishingKit ? "basic hand line" : "none";
+            GUILayout.Label($"Fishing: {fishing}", textStyle);
         }
 
         void DrawFuel()

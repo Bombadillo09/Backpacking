@@ -33,7 +33,14 @@ namespace Backpacking.Survival
         [SerializeField] TimeOfDay timeOfDay;
         [SerializeField] AmbientTemperature temperature;
 
+        [Header("Money & Trade Goods")]
+        [SerializeField, Min(0)] int money = 80;
+        [SerializeField, Min(0)] int pelts;
+
         [Header("Shelter & Cooking")]
+        [SerializeField] string tentName = "2-person backpacking tent";
+        [Tooltip("°C the tent adds when sleeping in it.")]
+        [SerializeField] float tentShelter = 5f;
         [SerializeField] bool hasTent = true;
         [SerializeField] bool hasStove = true;
         [SerializeField, Min(0f)] float gasGrams = 230f;
@@ -42,7 +49,11 @@ namespace Backpacking.Survival
 
         [Header("Gathering")]
         [SerializeField] bool hasFishingKit = true;
+        [Tooltip("A proper rod: longer to react to bites and fewer fish lost.")]
+        [SerializeField] bool hasGoodRod;
         [SerializeField, Min(0)] int snares = 3;
+        [Tooltip("With a filter, water from lakes and streams is safe straight away.")]
+        [SerializeField] bool hasWaterFilter;
 
         [Header("Food")]
         [SerializeField] List<FoodStack> startingFood = new()
@@ -83,6 +94,12 @@ namespace Backpacking.Survival
         readonly List<FoodItem> food = new();
         readonly List<string> spoiledThisFrame = new();
 
+        public int Money => money;
+        public int Pelts => pelts;
+        public string TentName => tentName;
+        public float TentShelter => tentShelter;
+        public bool HasGoodRod => hasGoodRod;
+        public bool HasWaterFilter => hasWaterFilter;
         public bool HasTent { get => hasTent; set => hasTent = value; }
         public bool HasStove { get => hasStove; set => hasStove = value; }
         public float GasGrams => gasGrams;
@@ -120,9 +137,44 @@ namespace Backpacking.Survival
 
         void Update() => UpdateSpoilage();
 
+        // ---------- Money ----------
+
+        public void AddMoney(int amount) => money += amount;
+        public bool TrySpendMoney(int amount) => TrySpend(ref money, amount);
+        public bool TryTakePelt() => TrySpend(ref pelts, 1);
+
         // ---------- Gear & fuel ----------
 
         public void ToggleGarment(Garment garment) => garment.worn = !garment.worn;
+
+        public bool HasGarment(string garmentName) => clothing.Exists(garment => garment.name == garmentName);
+
+        /// <summary>Adds a new clothing layer, worn straight away.</summary>
+        public void AddGarment(string garmentName, float insulation) => clothing.Add(new Garment(garmentName, insulation, true));
+
+        public void SetSleepingBag(string bagName, float comfort)
+        {
+            sleepingBagName = bagName;
+            sleepingBagComfort = comfort;
+        }
+
+        public void SetTent(string newTentName, float shelter)
+        {
+            tentName = newTentName;
+            tentShelter = shelter;
+        }
+
+        public void SetWaterCapacity(float litres) => waterCapacity = Mathf.Max(waterCapacity, litres);
+        public void AddWaterFilter() => hasWaterFilter = true;
+
+        public void AddFishingRod()
+        {
+            hasFishingKit = true;
+            hasGoodRod = true;
+        }
+
+        public void AddGas(float grams) => gasGrams += grams;
+        public void AddMatches(int count) => matches += count;
 
         public void AddFirewood(int amount) => firewood += amount;
         public bool TryUseFirewood(int amount) => TrySpend(ref firewood, amount);
@@ -224,12 +276,13 @@ namespace Backpacking.Survival
             return changed;
         }
 
-        /// <summary>Guts and skins a rabbit into meat.</summary>
+        /// <summary>Guts and skins a rabbit into meat and a pelt to trade.</summary>
         public bool CleanCarcass(int meatPieces)
         {
             if (!TryTakeFood(FoodKind.RabbitCarcass))
                 return false;
             AddFood(FoodKind.RawMeat, meatPieces);
+            pelts++;
             return true;
         }
 
@@ -262,11 +315,14 @@ namespace Backpacking.Survival
 
         // ---------- Water ----------
 
-        /// <summary>Tops the bottle up with untreated water. Returns the litres added.</summary>
+        /// <summary>Tops the bottle up from a lake or stream: safe if filtered, untreated otherwise. Returns the litres added.</summary>
         public float FillFromSource()
         {
             float added = FreeWaterSpace;
-            untreatedWater += added;
+            if (hasWaterFilter)
+                safeWater += added;
+            else
+                untreatedWater += added;
             return added;
         }
 
@@ -308,8 +364,16 @@ namespace Backpacking.Survival
             DrinkUntreatedDirectly(litres);
         }
 
-        /// <summary>Drinking from a lake or stream: hydrating, but it might make you sick.</summary>
-        public void DrinkUntreatedDirectly(float litres)
+        /// <summary>Drinking from a lake or stream: hydrating, but it might make you sick unless filtered.</summary>
+        public void DrinkFromSource(float litres)
+        {
+            if (hasWaterFilter)
+                vitals.Drink(litres * hydrationPerLitre);
+            else
+                DrinkUntreatedDirectly(litres);
+        }
+
+        void DrinkUntreatedDirectly(float litres)
         {
             vitals.Drink(litres * hydrationPerLitre);
             if (Random.value < untreatedSicknessChance)

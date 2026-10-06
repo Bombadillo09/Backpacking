@@ -15,10 +15,11 @@ namespace Backpacking.Navigation
 
         [Header("Map Rendering")]
         [SerializeField] int resolution = 1024;
-        [SerializeField] float contourInterval = 20f;
+        [SerializeField] float contourInterval = 25f;
         [Tooltip("Every Nth contour is drawn darker.")]
-        [SerializeField] int indexContourEvery = 5;
-        [SerializeField] float gridSpacing = 250f;
+        [SerializeField] int indexContourEvery = 4;
+        [SerializeField] float gridSpacing = 500f;
+        [SerializeField] float scaleBarMetres = 1000f;
 
         [Tooltip("Show a 'you are here' marker. Off by default: read your position from the land.")]
         [SerializeField] bool showPlayerPosition;
@@ -82,14 +83,17 @@ namespace Backpacking.Navigation
             DrawScaleBar(map, margin);
             DrawNorthArrow(map, margin);
             GUI.Label(new Rect(paper.x + margin, map.yMax + margin * 0.45f, side, margin * 0.5f),
-                $"Contours every {contourInterval:0} m", labelStyle);
+                $"Contours every {contourInterval:0} m   ·   Large markers: trading posts   ·   Small: checkpoints", labelStyle);
 
             foreach (NavigationPoint point in NavigationPoint.All)
             {
+                bool post = point.Kind == NavigationPointKind.TradingPost;
                 Vector2 position = WorldToScreen(point.transform.position, map);
-                DrawDot(position, side * 0.016f, point.Visited ? VisitedColour : UnvisitedColour);
-                GUI.Label(new Rect(position.x + side * 0.014f, position.y - side * 0.016f, side * 0.4f, side * 0.04f),
-                    point.DisplayName, labelStyle);
+                float size = side * (post ? 0.024f : 0.013f);
+                DrawDot(position, size, point.Visited ? VisitedColour : UnvisitedColour);
+                string label = post ? point.DisplayName.ToUpperInvariant() : point.DisplayName;
+                GUI.Label(new Rect(position.x + size * 0.7f, position.y - side * 0.016f, side * 0.4f, side * 0.04f),
+                    label, labelStyle);
             }
 
             if (showPlayerPosition && player != null)
@@ -119,13 +123,13 @@ namespace Backpacking.Navigation
 
         void DrawScaleBar(Rect map, float margin)
         {
-            const float lengthMetres = 250f;
+            float lengthMetres = scaleBarMetres;
             float length = map.width * lengthMetres / terrain.terrainData.size.x;
             var bar = new Rect(map.xMax - length, map.yMax + margin * 0.3f, length, margin * 0.12f);
             FillRect(new Rect(bar.x, bar.y, bar.width / 2f, bar.height), Ink);
             DrawFrame(bar, Ink, 1f);
             var right = new GUIStyle(labelStyle) { alignment = TextAnchor.UpperRight };
-            GUI.Label(new Rect(bar.x - length, bar.yMax, length * 2f, margin * 0.5f), $"{lengthMetres:0} m", right);
+            GUI.Label(new Rect(bar.x - length, bar.yMax, length * 2f, margin * 0.5f), lengthMetres >= 1000f ? $"{lengthMetres / 1000f:0.#} km" : $"{lengthMetres:0} m", right);
         }
 
         void DrawNorthArrow(Rect map, float margin)

@@ -27,9 +27,18 @@ namespace Backpacking.Player
 
         public static void Unlock(object owner)
         {
-            movementOwners.Remove(owner);
+            if (movementOwners.Remove(owner))
+                lastReleaseFrame = Time.frameCount;
             cursorOwners.Remove(owner);
         }
+
+        static int lastReleaseFrame = -1;
+
+        /// <summary>
+        /// A lock was released this frame. The key press that closed one screen shouldn't also open another,
+        /// so input handlers skip this frame.
+        /// </summary>
+        public static bool JustReleased => Time.frameCount == lastReleaseFrame;
 
         public static bool IsLockedBy(object owner) => movementOwners.Contains(owner);
 
@@ -38,6 +47,7 @@ namespace Backpacking.Player
         {
             movementOwners.Clear();
             cursorOwners.Clear();
+            lastReleaseFrame = -1;
         }
     }
 }

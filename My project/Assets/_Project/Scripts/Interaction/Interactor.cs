@@ -3,6 +3,7 @@ using Backpacking.Camp;
 using Backpacking.Gathering;
 using Backpacking.Player;
 using Backpacking.Survival;
+using Backpacking.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -25,6 +26,7 @@ namespace Backpacking.Interaction
         [SerializeField] PlayerActivity activity;
         [SerializeField] CampPlacer placer;
         [SerializeField] FishingSession fishing;
+        [SerializeField] ShopView shop;
 
         readonly List<InteractionOption> options = new();
         InputAction interactAction;
@@ -37,6 +39,7 @@ namespace Backpacking.Interaction
         public PlayerActivity Activity => activity;
         public CampPlacer Placer => placer;
         public FishingSession Fishing => fishing;
+        public ShopView Shop => shop;
         public bool MenuOpen => menuTarget != null;
 
         void Awake() => interactAction = inputActions.FindActionMap("Player", true).FindAction("Interact", true);
@@ -52,7 +55,7 @@ namespace Backpacking.Interaction
                 return;
             }
 
-            bool busy = PlayerControlLock.MovementLocked || placer.IsPlacing;
+            bool busy = PlayerControlLock.MovementLocked || PlayerControlLock.JustReleased || placer.IsPlacing;
             target = busy ? null : FindTarget();
             if (target == null || !interactAction.WasPressedThisFrame())
                 return;

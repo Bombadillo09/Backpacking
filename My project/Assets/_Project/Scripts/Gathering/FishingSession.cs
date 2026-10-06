@@ -35,6 +35,10 @@ namespace Backpacking.Gathering
         [Tooltip("Chance a hooked fish stays on the line.")]
         [SerializeField, Range(0f, 1f)] float landChance = 0.8f;
 
+        [Header("With a Good Rod")]
+        [SerializeField] float goodRodBiteWindow = 1.4f;
+        [SerializeField, Range(0f, 1f)] float goodRodLandChance = 0.95f;
+
         InputAction interactAction;
         State state;
         float timer;
@@ -106,14 +110,14 @@ namespace Backpacking.Gathering
                 else if (timer <= 0f)
                 {
                     state = State.Bite;
-                    timer = biteWindow;
+                    timer = backpack.HasGoodRod ? goodRodBiteWindow : biteWindow;
                 }
             }
             else if (state == State.Bite)
             {
                 if (hook)
                 {
-                    if (Random.value < landChance)
+                    if (Random.value < (backpack.HasGoodRod ? goodRodLandChance : landChance))
                     {
                         backpack.AddFood(FoodKind.RawFish);
                         caughtThisSession++;

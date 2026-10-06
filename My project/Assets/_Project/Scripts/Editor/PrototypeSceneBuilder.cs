@@ -28,10 +28,11 @@ namespace Backpacking.EditorTools
         const string VolumeProfilePath = "Assets/Settings/SampleSceneProfile.asset";
 
         // Terrain dimensions in metres. World height 0 is the lowest possible ground.
-        const float TerrainSize = 1500f;
-        const float TerrainHeight = 350f;
-        const int HeightmapResolution = 513;
-        const int SplatResolution = 512;
+        // Large enough that trading posts are a few days' hike apart.
+        const float TerrainSize = 5000f;
+        const float TerrainHeight = 700f;
+        const int HeightmapResolution = 2049;
+        const int SplatResolution = 1024;
         const int Seed = 1234;
 
         [MenuItem("Backpacking/Build Prototype Scene")]
@@ -51,8 +52,18 @@ namespace Backpacking.EditorTools
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
             CampPrefabs prefabs = GetOrCreateCampPrefabs();
-            Terrain terrain = CreateTerrain(out Lake lake);
-            CreateLake(lake);
+            EditorUtility.DisplayProgressBar("Building prototype scene", "Generating terrain...", 0.2f);
+            Terrain terrain;
+            RouteLayout route;
+            try
+            {
+                terrain = CreateTerrain(out route);
+            }
+            finally
+            {
+                EditorUtility.ClearProgressBar();
+            }
+            CreateRoute(route, terrain, prefabs.TradingPost);
             Light sun = CreateDirectionalLight("Sun", Color.white, 1.3f, LightShadows.Soft);
             Light moon = CreateDirectionalLight("Moon", new Color(0.6f, 0.7f, 1f), 0.12f, LightShadows.None);
             SetUpSkyAndFog(sun);
@@ -65,8 +76,7 @@ namespace Backpacking.EditorTools
             var temperature = world.AddComponent<AmbientTemperature>();
             SetField(temperature, "timeOfDay", timeOfDay);
 
-            FirstPersonController player = CreatePlayer(terrain);
-            CreateNavigationPoints(terrain, player.transform.position);
+            FirstPersonController player = CreatePlayer(SpawnPosition(route, terrain));
 
             var navigation = new GameObject("Navigation");
             var map = navigation.AddComponent<MapView>();
@@ -81,7 +91,7 @@ namespace Backpacking.EditorTools
             SetField(hud, "player", player);
 
             AddSurvivalSystems(player, timeOfDay, temperature, hud.gameObject, prefabs);
-            ScatterGatherables(terrain, lake, player.transform.position, prefabs);
+            ScatterGatherables(terrain, route, player.transform.position, prefabs);
 
             EditorSceneManager.SaveScene(scene, ScenePath);
             AddSceneToBuildSettings(ScenePath);
@@ -90,7 +100,7 @@ namespace Backpacking.EditorTools
 
         // ---------- Terrain ----------
 
-        static Terrain CreateTerrain(out Lake lake)
+        static Terrain CreateTerrain(out RouteLayout route)
         {
             var data = new TerrainData
             {
@@ -100,7 +110,7 @@ namespace Backpacking.EditorTools
                 alphamapResolution = SplatResolution,
             };
             float[,] heights = GenerateHeights(data.heightmapResolution);
-            lake = CarveLake(heights);
+            route = PlanRoute(heights);
             data.SetHeights(0, 0, heights);
 
             TerrainLayer[] layers =
@@ -318,14 +328,10 @@ namespace Backpacking.EditorTools
 
         // ---------- Player ----------
 
-        static FirstPersonController CreatePlayer(Terrain terrain)
+        static FirstPersonController CreatePlayer(Vector3 spawn)
         {
             var player = new GameObject("Player");
             player.tag = "Player";
-
-            // Start in the southern hills, looking north toward the mountains.
-            var spawn = new Vector3(0f, 0f, -TerrainSize * 0.35f);
-            spawn.y = terrain.SampleHeight(spawn) + terrain.transform.position.y + 0.1f;
             player.transform.position = spawn;
 
             var controller = player.AddComponent<CharacterController>();
@@ -358,51 +364,17 @@ namespace Backpacking.EditorTools
 
         // ---------- Navigation points ----------
 
-        static void CreateNavigationPoints(Terrain terrain, Vector3 spawn)
-        {
-            float half = TerrainSize / 2f;
-            Material stone = GetOrCreateMaterial("CairnStone", new Color(0.45f, 0.44f, 0.42f));
-            Material flag = GetOrCreateMaterial("MarkerFlag", new Color(1f, 0.45f, 0.05f));
-            var parent = new GameObject("Navigation Points").transform;
-
-            // Start point, already visited.
-            CreateNavigationPoint("Trailhead", spawn + new Vector3(4f, 0f, 6f), terrain, parent, stone, flag, visited: true);
-
-            // On the valley floor, about halfway north.
-            const float valleyV = 0.45f;
-            var valley = new Vector3(ValleyCentre(valleyV) * TerrainSize - half, 0f, valleyV * TerrainSize - half);
-            CreateNavigationPoint("Valley Crossing", valley, terrain, parent, stone, flag);
-
-            // Out in the western hills.
-            CreateNavigationPoint("Aspen Meadow", new Vector3(-TerrainSize * 0.3f, 0f, -TerrainSize * 0.08f), terrain, parent, stone, flag);
-
-            // The lowest point along a line through the mountains: a natural pass.
-            float passZ = TerrainSize * 0.28f;
-            var pass = new Vector3(0f, 0f, passZ);
-            float lowest = float.MaxValue;
-            for (float x = -half * 0.8f; x <= half * 0.8f; x += 10f)
-            {
-                float h = terrain.SampleHeight(new Vector3(x, 0f, passZ));
-                if (h < lowest)
-                {
-                    lowest = h;
-                    pass.x = x;
-                }
-            }
-            CreateNavigationPoint("North Pass", pass, terrain, parent, stone, flag);
-        }
-
         /// <summary>A stone cairn with a tall orange flag, visible from a distance.</summary>
-        static void CreateNavigationPoint(string pointName, Vector3 position, Terrain terrain, Transform parent,
-            Material stone, Material flag, bool visited = false)
+        static void CreateNavigationPoint(string pointName, NavigationPointKind kind, Vector3 position, Transform parent,
+            Material stone, Material flag, bool visited)
         {
-            position.y = terrain.SampleHeight(position) + terrain.transform.position.y;
             var root = new GameObject(pointName);
             root.transform.SetParent(parent, false);
             root.transform.position = position;
 
             var point = root.AddComponent<NavigationPoint>();
             SetString(point, "displayName", pointName);
+            SetEnum(point, "kind", (int)kind);
             SetBool(point, "visited", visited);
 
             float[] stoneSizes = { 1.1f, 0.8f, 0.55f };
@@ -453,6 +425,12 @@ namespace Backpacking.EditorTools
 
         static void SetBool(Object target, string fieldName, bool value) =>
             Modify(target, fieldName, property => property.boolValue = value);
+
+        static void SetFloat(Object target, string fieldName, float value) =>
+            Modify(target, fieldName, property => property.floatValue = value);
+
+        static void SetEnum(Object target, string fieldName, int index) =>
+            Modify(target, fieldName, property => property.enumValueIndex = index);
 
         static void Modify(Object target, string fieldName, System.Action<SerializedProperty> apply)
         {

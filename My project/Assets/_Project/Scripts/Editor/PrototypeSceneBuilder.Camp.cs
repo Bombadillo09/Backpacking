@@ -18,10 +18,9 @@ namespace Backpacking.EditorTools
     public static partial class PrototypeSceneBuilder
     {
         const string PrefabFolder = Root + "/Prefabs/Camp";
-        const float LakeRadius = 40f;
         const float LakeDepth = 1.3f;
-        const int FirewoodCount = 260;
-        const int BerryBushCount = 90;
+        const int FirewoodCount = 450;
+        const int BerryBushCount = 140;
 
         struct Lake
         {
@@ -30,55 +29,52 @@ namespace Backpacking.EditorTools
             public float Radius;
         }
 
-        // ---------- Lake ----------
+        // ---------- Lakes ----------
 
         /// <summary>
-        /// Digs a bowl in the valley a little north of the Valley Crossing. The water level sits just below
-        /// the lowest point of the rim, so water never spills over the land.
+        /// Digs a round bowl at a normalised map position. The water level sits just below the lowest point
+        /// of the rim, so water never spills over the land.
         /// </summary>
-        static Lake CarveLake(float[,] heights)
+        static Lake CarveLake(float[,] heights, float u, float v, float radiusMetres)
         {
             int resolution = heights.GetLength(0);
-            const float v = 0.52f;
-            float u = ValleyCentre(v);
             float cx = u * (resolution - 1), cz = v * (resolution - 1);
-            float radiusSamples = LakeRadius / TerrainSize * (resolution - 1);
+            float radius = radiusMetres / TerrainSize * (resolution - 1);
 
             float rimLowest = float.MaxValue;
             for (int i = 0; i < 64; i++)
             {
                 float angle = i / 64f * Mathf.PI * 2f;
-                int x = Mathf.RoundToInt(cx + Mathf.Cos(angle) * radiusSamples);
-                int z = Mathf.RoundToInt(cz + Mathf.Sin(angle) * radiusSamples);
+                int x = Mathf.Clamp(Mathf.RoundToInt(cx + Mathf.Cos(angle) * radius), 0, resolution - 1);
+                int z = Mathf.Clamp(Mathf.RoundToInt(cz + Mathf.Sin(angle) * radius), 0, resolution - 1);
                 rimLowest = Mathf.Min(rimLowest, heights[z, x]);
             }
 
             float waterLevel = rimLowest - 0.3f / TerrainHeight;
             float floor = waterLevel - LakeDepth / TerrainHeight;
-            int reach = Mathf.CeilToInt(radiusSamples);
-            for (int z = Mathf.FloorToInt(cz) - reach; z <= Mathf.CeilToInt(cz) + reach; z++)
-            for (int x = Mathf.FloorToInt(cx) - reach; x <= Mathf.CeilToInt(cx) + reach; x++)
+            ForEachSampleWithin(resolution, cx, cz, Mathf.CeilToInt(radius), (x, z, distance) =>
             {
-                float distance = Mathf.Sqrt((x - cx) * (x - cx) + (z - cz) * (z - cz)) / radiusSamples;
-                if (distance >= 1f)
-                    continue;
-                float bowl = Mathf.Lerp(floor, heights[z, x], Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.45f, 1f, distance)));
+                float t = distance / radius;
+                if (t >= 1f)
+                    return;
+                float bowl = Mathf.Lerp(floor, heights[z, x], Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.45f, 1f, t)));
                 heights[z, x] = Mathf.Min(heights[z, x], bowl);
-            }
+            });
 
             float half = TerrainSize / 2f;
             return new Lake
             {
                 Centre = new Vector3(u * TerrainSize - half, waterLevel * TerrainHeight, v * TerrainSize - half),
-                Radius = LakeRadius,
+                Radius = radiusMetres,
             };
         }
 
-        static void CreateLake(Lake lake)
+        static void CreateLake(Lake lake, Transform parent)
         {
             // A Unity plane is 10 x 10 units.
             GameObject water = GameObject.CreatePrimitive(PrimitiveType.Plane);
             water.name = "Lake";
+            water.transform.SetParent(parent, false);
             water.transform.position = lake.Centre;
             float scale = lake.Radius * 2.2f / 10f;
             water.transform.localScale = new Vector3(scale, 1f, scale);
@@ -96,11 +92,11 @@ namespace Backpacking.EditorTools
         // ---------- Scattered props ----------
 
         /// <summary>
-        /// Scatters prefab instances over gentle, lower ground away from the lake. The first
-        /// <paramref name="nearSpawn"/> land close to the start so they're easy to find early on.
+        /// Scatters prefab instances over gentle, lower ground along the route, away from lakes and the
+        /// trading posts. The first <paramref name="nearSpawn"/> land close to the start so they're easy to find early on.
         /// </summary>
         static void Scatter(string groupName, GameObject prefab, int count, int nearSpawn, float nearRadius,
-            float maxSteepness, float maxHeight01, int seed, Terrain terrain, Lake lake, Vector3 spawn)
+            float maxSteepness, float maxHeight01, int seed, Terrain terrain, RouteLayout route, Vector3 spawn)
         {
             var random = new System.Random(seed);
             var parent = new GameObject(groupName).transform;
@@ -112,15 +108,14 @@ namespace Backpacking.EditorTools
             {
                 Vector3 position = placed < nearSpawn
                     ? spawn + new Vector3((float)random.NextDouble() * 2f - 1f, 0f, (float)random.NextDouble() * 2f - 1f) * nearRadius
-                    : new Vector3((float)random.NextDouble() * TerrainSize * 0.94f - half * 0.94f, 0f,
-                        (float)random.NextDouble() * TerrainSize * 0.94f - half * 0.94f);
+                    : RandomPointNearRoute(route, random);
 
                 float u = (position.x + half) / TerrainSize, v = (position.z + half) / TerrainSize;
+                if (u is < 0.01f or > 0.99f || v is < 0.01f or > 0.99f)
+                    continue;
                 if (data.GetSteepness(u, v) > maxSteepness || data.GetInterpolatedHeight(u, v) > TerrainHeight * maxHeight01)
                     continue;
-                Vector3 fromLake = position - lake.Centre;
-                fromLake.y = 0f;
-                if (fromLake.magnitude < lake.Radius + 3f)
+                if (TooCloseToFeature(position, route, terrain))
                     continue;
 
                 position.y = terrain.SampleHeight(position) + terrain.transform.position.y;
@@ -130,12 +125,32 @@ namespace Backpacking.EditorTools
             }
         }
 
-        static void ScatterGatherables(Terrain terrain, Lake lake, Vector3 spawn, CampPrefabs prefabs)
+        static bool TooCloseToFeature(Vector3 position, RouteLayout route, Terrain terrain)
         {
-            Scatter("Firewood", prefabs.Firewood, FirewoodCount, nearSpawn: 15, nearRadius: 30f,
-                maxSteepness: 25f, maxHeight01: 0.5f, Seed + 1, terrain, lake, spawn);
-            Scatter("Berry Bushes", prefabs.BerryBush, BerryBushCount, nearSpawn: 4, nearRadius: 45f,
-                maxSteepness: 20f, maxHeight01: 0.4f, Seed + 2, terrain, lake, spawn);
+            foreach (Lake lake in route.Lakes)
+            {
+                Vector3 fromLake = position - lake.Centre;
+                fromLake.y = 0f;
+                if (fromLake.magnitude < lake.Radius + 3f)
+                    return true;
+            }
+            foreach (RouteStop stop in route.Stops)
+            {
+                Vector3 fromStop = position - StopWorldPosition(stop, terrain);
+                fromStop.y = 0f;
+                if (fromStop.magnitude < (stop.Vendor != null ? PostFlattenRadius : 4f))
+                    return true;
+            }
+            return false;
+        }
+
+        static void ScatterGatherables(Terrain terrain, RouteLayout route, Vector3 spawn, CampPrefabs prefabs)
+        {
+            // Wood is easy to come by below the tree line; berries grow lower down.
+            Scatter("Firewood", prefabs.Firewood, FirewoodCount, nearSpawn: 15, nearRadius: 40f,
+                maxSteepness: 25f, maxHeight01: 0.55f, Seed + 1, terrain, route, spawn);
+            Scatter("Berry Bushes", prefabs.BerryBush, BerryBushCount, nearSpawn: 4, nearRadius: 50f,
+                maxSteepness: 20f, maxHeight01: 0.45f, Seed + 2, terrain, route, spawn);
         }
 
         // ---------- Player survival systems ----------
@@ -187,6 +202,10 @@ namespace Backpacking.EditorTools
             SetField(interactor, "placer", placer);
             SetField(interactor, "fishing", fishing);
 
+            var shop = hud.AddComponent<ShopView>();
+            SetField(shop, "backpack", backpack);
+            SetField(interactor, "shop", shop);
+
             var vitalsHud = hud.AddComponent<VitalsHud>();
             SetField(vitalsHud, "vitals", vitals);
             var backpackView = hud.AddComponent<BackpackView>();
@@ -200,7 +219,7 @@ namespace Backpacking.EditorTools
 
         struct CampPrefabs
         {
-            public GameObject Tent, FireRing, Stove, Firewood, Snare, BerryBush;
+            public GameObject Tent, FireRing, Stove, Firewood, Snare, BerryBush, TradingPost;
         }
 
         /// <summary>
@@ -218,6 +237,7 @@ namespace Backpacking.EditorTools
                 Firewood = GetOrCreatePrefab("Firewood", BuildFirewood),
                 Snare = GetOrCreatePrefab("Snare", BuildSnare),
                 BerryBush = GetOrCreatePrefab("Berry Bush", BuildBerryBush),
+                TradingPost = GetOrCreatePrefab("Trading Post", BuildTradingPost),
             };
         }
 

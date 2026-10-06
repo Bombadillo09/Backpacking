@@ -4,10 +4,15 @@ using UnityEngine;
 
 namespace Backpacking.Navigation
 {
-    /// <summary>
-    /// A named destination in the world. It appears on the map and reports when the player reaches it.
-    /// Later these will host vendors.
-    /// </summary>
+    public enum NavigationPointKind
+    {
+        /// <summary>A cairn along the route, useful for confirming where you are.</summary>
+        Checkpoint,
+        /// <summary>A destination with a vendor, days apart from the next.</summary>
+        TradingPost,
+    }
+
+    /// <summary>A named place in the world. It appears on the map and reports when the player reaches it.</summary>
     public class NavigationPoint : MonoBehaviour
     {
         static readonly List<NavigationPoint> all = new();
@@ -19,6 +24,7 @@ namespace Backpacking.Navigation
         public static event Action<NavigationPoint> Arrived;
 
         [SerializeField] string displayName = "Point";
+        [SerializeField] NavigationPointKind kind;
         [Tooltip("Horizontal distance in metres that counts as arriving.")]
         [SerializeField] float arrivalRadius = 12f;
         [SerializeField] bool visited;
@@ -26,6 +32,7 @@ namespace Backpacking.Navigation
         Transform player;
 
         public string DisplayName => displayName;
+        public NavigationPointKind Kind => kind;
         public bool Visited => visited;
 
         // Statics survive entering Play Mode when domain reload is turned off, so clear them explicitly.
