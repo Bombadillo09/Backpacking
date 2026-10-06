@@ -92,7 +92,9 @@ namespace Backpacking.Character
                      { (AvatarIKGoal.LeftFoot, AvatarIKHint.LeftKnee, -1f), (AvatarIKGoal.RightFoot, AvatarIKHint.RightKnee, 1f) })
             {
                 float sole = (goal == AvatarIKGoal.LeftFoot ? animator.leftFeetBottomHeight : animator.rightFeetBottomHeight) * scale;
-                Vector3 foot = seat + forward * legs * 0.92f + right * side * 0.13f * scale + up * (sole + 0.02f * scale);
+                Vector3 foot = seat + forward * legs * 0.92f + right * side * 0.13f * scale;
+                // Rest the heel on the ground where it lands (which rises or falls on a slope), clear of the toes' ground too.
+                foot += up * (GroundRise(foot, scale, forward * 0.18f * scale) + sole + 0.02f * scale);
                 // Heels on the ground, toes up and turned slightly out.
                 Quaternion relaxed = Quaternion.LookRotation(forward, up) * Quaternion.Euler(-55f, side * 12f, 0f);
                 animator.SetIKPositionWeight(goal, weight);
@@ -106,7 +108,8 @@ namespace Backpacking.Character
 
             foreach ((AvatarIKGoal goal, float side) in new[] { (AvatarIKGoal.LeftHand, -1f), (AvatarIKGoal.RightHand, 1f) })
             {
-                Vector3 hand = seat - forward * 0.16f * scale + right * side * 0.3f * scale + up * 0.03f * scale;
+                Vector3 hand = seat - forward * 0.16f * scale + right * side * 0.3f * scale;
+                hand += up * (GroundRise(hand, scale, Vector3.zero) + 0.03f * scale);
                 animator.SetIKPositionWeight(goal, weight * 0.85f);
                 animator.SetIKRotationWeight(goal, weight * 0.6f);
                 animator.SetIKPosition(goal, hand);
@@ -153,10 +156,23 @@ namespace Backpacking.Character
             }
         }
 
-        bool GroundBelow(Vector3 foot, float scale, out RaycastHit ground)
+        /// <summary>
+        /// How far the ground under a point (and under point + also) is above the hiker's own ground level, the
+        /// higher of the two; 0 where there's no ground within reach.
+        /// </summary>
+        float GroundRise(Vector3 point, float scale, Vector3 also)
         {
-            Vector3 from = foot + this.ground.up * 0.45f * scale;
-            int count = Physics.RaycastNonAlloc(from, -this.ground.up, hits, 0.9f * scale, ~0, QueryTriggerInteraction.Ignore);
+            float rise = float.MinValue;
+            foreach (Vector3 at in new[] { point, point + also })
+                if (GroundBelow(at, scale, out RaycastHit hit, 0.8f))
+                    rise = Mathf.Max(rise, Vector3.Dot(hit.point - ground.position, ground.up));
+            return rise == float.MinValue ? 0f : rise;
+        }
+
+        bool GroundBelow(Vector3 foot, float scale, out RaycastHit ground, float reach = 0.45f)
+        {
+            Vector3 from = foot + this.ground.up * reach * scale;
+            int count = Physics.RaycastNonAlloc(from, -this.ground.up, hits, reach * 2f * scale, ~0, QueryTriggerInteraction.Ignore);
             ground = default;
             float nearest = float.MaxValue;
             Transform player = this.ground.root;

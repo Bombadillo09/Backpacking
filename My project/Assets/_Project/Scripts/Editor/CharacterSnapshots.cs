@@ -174,6 +174,9 @@ namespace Backpacking.EditorTools
                 Pose(4.6f, false, 1.1f);
                 Shot("3-sprint", new Vector3(3.4f, 1.2f, 0.6f), new Vector3(0f, 0.9f, 0f));
 
+                Pose(0f, true, 1.5f);
+                Shot("4a-seated-shoes-on", new Vector3(0.9f, 1.1f, 2.4f), new Vector3(0f, 0.35f, 0.2f));
+                Shot("4b-seated-shoes-close", new Vector3(0.6f, 0.45f, 1.5f), new Vector3(0f, 0.12f, 0.6f));
                 appearance.SetBootsOn(false);
                 boots = appearance.BuildBootsAndSocks();
                 boots.transform.SetPositionAndRotation(new Vector3(0.5f, 0f, 0.15f), Quaternion.Euler(0f, 15f, 0f));
