@@ -339,8 +339,9 @@ namespace Backpacking.Character
                     int a = triangles[t], b = triangles[t + 1], c = triangles[t + 2];
                     if ((cut & Cut.Head) != 0 && (AboveShoulders(a) || AboveShoulders(b) || AboveShoulders(c)))
                         continue;
-                    // Footwear goes if most of the triangle is in it; the bare legs reach a little higher.
-                    if ((cut & Cut.Feet) != 0 && (BelowFootwear(a, top) ? 1 : 0) + (BelowFootwear(b, top) ? 1 : 0) + (BelowFootwear(c, top) ? 1 : 0) >= 2)
+                    // Footwear goes if any corner is in it, so the hem left above is a clean row of edges, not
+                    // spikes; the bare legs reach a little higher to fill the gap.
+                    if ((cut & Cut.Feet) != 0 && (BelowFootwear(a, top) || BelowFootwear(b, top) || BelowFootwear(c, top)))
                         continue;
                     kept.Add(a);
                     kept.Add(b);

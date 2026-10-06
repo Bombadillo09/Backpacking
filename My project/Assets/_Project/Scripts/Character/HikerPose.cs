@@ -24,10 +24,20 @@ namespace Backpacking.Character
         float lookWeight;
         float lowerBody;
         readonly RaycastHit[] hits = new RaycastHit[8];
+        Quaternion leftToesRest = Quaternion.identity, rightToesRest = Quaternion.identity;
 
         void Awake()
         {
             animator = GetComponent<Animator>();
+            // Added right after the model is made, so the bones are still in their rest pose: toes straight.
+            if (animator != null && animator.isHuman)
+            {
+                Transform left = animator.GetBoneTransform(HumanBodyBones.LeftToes), right = animator.GetBoneTransform(HumanBodyBones.RightToes);
+                if (left != null)
+                    leftToesRest = left.localRotation;
+                if (right != null)
+                    rightToesRest = right.localRotation;
+            }
             // The object the hiker stands on: the avatar root, whose origin is at the soles.
             ground = transform.parent != null ? transform.parent : transform;
         }
@@ -104,6 +114,16 @@ namespace Backpacking.Character
                 // Knees a little bent and pointing up.
                 animator.SetIKHintPositionWeight(knee, weight);
                 animator.SetIKHintPosition(knee, seat + forward * legs * 0.5f + right * side * 0.14f * scale + up * 0.35f * scale);
+            }
+
+            // The sitting clip curls the toes, as if the feet were flat on the floor in front of a chair; with the
+            // legs stretched out that folds the front of the foot (and shoe) down under itself.
+            if (weight > 0.5f)
+            {
+                if (animator.GetBoneTransform(HumanBodyBones.LeftToes) != null)
+                    animator.SetBoneLocalRotation(HumanBodyBones.LeftToes, leftToesRest);
+                if (animator.GetBoneTransform(HumanBodyBones.RightToes) != null)
+                    animator.SetBoneLocalRotation(HumanBodyBones.RightToes, rightToesRest);
             }
 
             foreach ((AvatarIKGoal goal, float side) in new[] { (AvatarIKGoal.LeftHand, -1f), (AvatarIKGoal.RightHand, 1f) })

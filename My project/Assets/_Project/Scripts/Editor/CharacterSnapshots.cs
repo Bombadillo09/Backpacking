@@ -177,6 +177,9 @@ namespace Backpacking.EditorTools
                 Pose(0f, true, 1.5f);
                 Shot("4a-seated-shoes-on", new Vector3(0.9f, 1.1f, 2.4f), new Vector3(0f, 0.35f, 0.2f));
                 Shot("4b-seated-shoes-close", new Vector3(0.6f, 0.45f, 1.5f), new Vector3(0f, 0.12f, 0.6f));
+                Shot("4c-seated-feet-side", new Vector3(0.9f, 0.2f, 0.65f), new Vector3(0f, 0.12f, 0.65f));
+                Transform toe = animator.GetBoneTransform(HumanBodyBones.LeftToes), foot = animator.GetBoneTransform(HumanBodyBones.LeftFoot);
+                report.AppendLine($"seated left foot {foot.position} rot {foot.eulerAngles}, toes {(toe != null ? toe.name + " " + toe.position + " local " + toe.localEulerAngles : "unmapped")}");
                 appearance.SetBootsOn(false);
                 boots = appearance.BuildBootsAndSocks();
                 boots.transform.SetPositionAndRotation(new Vector3(0.5f, 0f, 0.15f), Quaternion.Euler(0f, 15f, 0f));
