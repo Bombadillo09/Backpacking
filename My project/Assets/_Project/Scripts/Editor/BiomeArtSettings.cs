@@ -35,6 +35,25 @@ namespace Backpacking.EditorTools
         public Texture2D grassTexture;
         public Color grassHealthy = new(0.45f, 0.6f, 0.3f);
         public Color grassDry = new(0.65f, 0.6f, 0.35f);
+        [Tooltip("More grass textures, mixed in evenly with the first.")]
+        public Texture2D[] extraGrassTextures;
+        [Tooltip("Grass height range in metres.")]
+        public Vector2 grassHeight = new(0.35f, 0.75f);
+        [Tooltip("Grass width range in metres.")]
+        public Vector2 grassWidth = new(0.5f, 1f);
+
+        [Header("Wildflowers (optional; textures with transparency, drawn like grass)")]
+        public Texture2D[] flowerTextures;
+        public Vector2 flowerHeight = new(0.3f, 0.6f);
+        public Vector2 flowerWidth = new(0.3f, 0.6f);
+        [Tooltip("Flowers per detail cell in full meadow, shared between all the flower textures.")]
+        [Range(0f, 8f)] public float flowerDensity = 2f;
+
+        [Header("Wildlife (optional; empty uses placeholder animals)")]
+        [Tooltip("Needs a child named Body with a Head pivot, or an Animator (see AnimalProfile).")]
+        public GameObject rabbitModel;
+        public GameObject deerModel;
+        public GameObject birdModel;
 
         [Header("Ground Plants (optional; prefabs with a MeshFilter and MeshRenderer on the root)")]
         [Tooltip("Painted under the trees, e.g. fallen leaves.")]

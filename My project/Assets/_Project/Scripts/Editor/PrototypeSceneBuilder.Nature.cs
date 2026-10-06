@@ -238,22 +238,16 @@ namespace Backpacking.EditorTools
             // Densities below are plants per detail cell.
             data.SetDetailScatterMode(DetailScatterMode.InstanceCountMode);
 
-            var prototypes = new List<DetailPrototype>
-            {
-                new()
-                {
-                    prototypeTexture = art.grassTexture,
-                    renderMode = DetailRenderMode.Grass,
-                    healthyColor = art.grassHealthy,
-                    dryColor = art.grassDry,
-                    minWidth = 0.5f,
-                    maxWidth = 1f,
-                    minHeight = 0.35f,
-                    maxHeight = 0.75f,
-                    noiseSpread = 0.4f,
-                },
-            };
+            var prototypes = new List<DetailPrototype>();
             var plantLayers = new List<(int layer, PlantGroup group)>();
+            var grassTextures = new List<Texture2D> { art.grassTexture };
+            if (art.extraGrassTextures != null)
+                grassTextures.AddRange(art.extraGrassTextures);
+            AddBillboardPrototypes(prototypes, plantLayers, grassTextures, PlantGroup.Grass, art.grassWidth, art.grassHeight,
+                art.grassHealthy, art.grassDry);
+            // Flowers keep their own colours, just a touch of dryness.
+            AddBillboardPrototypes(prototypes, plantLayers, art.flowerTextures, PlantGroup.Flowers, art.flowerWidth, art.flowerHeight,
+                Color.white, new Color(0.9f, 0.85f, 0.7f));
             AddPlantPrototypes(prototypes, plantLayers, art.forestFloorPlants, PlantGroup.ForestFloor, 0.7f, 1.3f);
             AddPlantPrototypes(prototypes, plantLayers, art.meadowPlants, PlantGroup.Meadow, 0.7f, 1.3f);
             AddPlantPrototypes(prototypes, plantLayers, art.understoryShrubs, PlantGroup.Understory, 0.7f, 1.3f);
@@ -262,7 +256,6 @@ namespace Backpacking.EditorTools
             AddPlantPrototypes(prototypes, plantLayers, art.forestStones, PlantGroup.Stones, 0.08f, 0.25f);
             data.detailPrototypes = prototypes.ToArray();
 
-            var grass = new int[DetailResolution, DetailResolution];
             var plants = new int[plantLayers.Count][,];
             for (int i = 0; i < plants.Length; i++)
                 plants[i] = new int[DetailResolution, DetailResolution];
@@ -284,9 +277,6 @@ namespace Backpacking.EditorTools
                     bare = 1f;
                 float growth = 1f - bare;
 
-                float grassAmount = (biome.Meadow * 7f + biome.Forest * 1.5f + biome.Alpine * 3f) * growth * art.grassDensity;
-                grass[z, x] = Mathf.Clamp(Mathf.RoundToInt(grassAmount), 0, 16);
-
                 for (int i = 0; i < plantLayers.Count; i++)
                 {
                     PlantGroup group = plantLayers[i].group;
@@ -297,29 +287,60 @@ namespace Backpacking.EditorTools
                         PlantGroup.ForestFloor => biome.Forest * 3.2f,
                         PlantGroup.Meadow => (biome.Meadow * (1f - biome.Alpine) + biome.Forest * 0.3f) * 1.6f,
                         PlantGroup.Understory => biome.Forest * biome.Forest * 1.2f,
+                        PlantGroup.Grass => biome.Meadow * 7f + biome.Forest * 1.5f + biome.Alpine * 3f,
+                        // Wildflowers in open meadows and alpine pasture, a few along forest edges.
+                        PlantGroup.Flowers => (biome.Meadow + biome.Alpine * 0.6f + biome.Forest * 0.1f) * art.flowerDensity,
                         PlantGroup.Debris => biome.Forest * 4f,
                         // Stones under trees, and more of them on rocky ground and above the treeline.
                         _ => (biome.Forest * 2f + biome.Alpine * 2.5f) * (1f + Mathf.InverseLerp(15f, 30f, steepness)),
                     };
-                    float amount = where * growth * share * art.plantDensity;
+                    float density = group == PlantGroup.Grass ? art.grassDensity : group == PlantGroup.Flowers ? 1f : art.plantDensity;
+                    float amount = where * growth * share * density;
                     // Fractional amounts become an occasional plant rather than none.
                     int count = (int)amount + (random.NextDouble() < amount % 1f ? 1 : 0);
                     plants[i][z, x] = Mathf.Clamp(count, 0, 16);
                 }
             }
 
-            data.SetDetailLayer(0, 0, 0, grass);
             for (int i = 0; i < plantLayers.Count; i++)
                 data.SetDetailLayer(0, 0, plantLayers[i].layer, plants[i]);
         }
 
         enum PlantGroup
         {
+            Grass,
+            Flowers,
             ForestFloor,
             Meadow,
             Understory,
             Debris,
             Stones,
+        }
+
+        /// <summary>Flat, camera-facing plants drawn from a texture: grass tufts and wildflowers.</summary>
+        static void AddBillboardPrototypes(List<DetailPrototype> prototypes, List<(int layer, PlantGroup group)> layers,
+            IEnumerable<Texture2D> textures, PlantGroup group, Vector2 width, Vector2 height, Color healthy, Color dry)
+        {
+            if (textures == null)
+                return;
+            foreach (Texture2D texture in textures)
+            {
+                if (texture == null)
+                    continue;
+                layers.Add((prototypes.Count, group));
+                prototypes.Add(new DetailPrototype
+                {
+                    prototypeTexture = texture,
+                    renderMode = DetailRenderMode.Grass,
+                    healthyColor = healthy,
+                    dryColor = dry,
+                    minWidth = width.x,
+                    maxWidth = width.y,
+                    minHeight = height.x,
+                    maxHeight = height.y,
+                    noiseSpread = 0.4f,
+                });
+            }
         }
 
         static void AddPlantPrototypes(List<DetailPrototype> prototypes, List<(int layer, PlantGroup group)> layers, GameObject[] prefabs,

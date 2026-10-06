@@ -106,6 +106,9 @@ namespace Backpacking.EditorTools
             var wildlife = world.AddComponent<WildlifeSpawner>();
             SetField(wildlife, "player", player);
             SetField(wildlife, "timeOfDay", timeOfDay);
+            SetField(wildlife, "rabbitPrefab", art.rabbitModel);
+            SetField(wildlife, "deerPrefab", art.deerModel);
+            SetField(wildlife, "birdPrefab", art.birdModel);
             ScatterGatherables(terrain, route, player.transform.position, prefabs, art);
             ScatterBoulders(terrain, route, art);
             ScatterFallenLogs(terrain, route, art);

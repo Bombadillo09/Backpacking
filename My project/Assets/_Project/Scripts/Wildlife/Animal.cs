@@ -31,6 +31,16 @@ namespace Backpacking.Wildlife
         public Vector2 wanderSeconds = new(2f, 6f);
         [Tooltip("Degrees the head dips to graze.")]
         public float grazeHeadAngle = 70f;
+
+        [Header("Animated models")]
+        [Tooltip("Animator float: 0 standing, 1 moving. Leave empty if the model has no such parameter.")]
+        public string moveParameter = "Vert";
+        [Tooltip("Animator float: 0 walking, 1 running.")]
+        public string runParameter = "State";
+        [Tooltip("Ground speed (m/s) the walk animation was made for, so the legs keep pace.")]
+        public float animationWalkSpeed = 1.2f;
+        [Tooltip("Ground speed (m/s) the run animation was made for.")]
+        public float animationRunSpeed = 7f;
     }
 
     /// <summary>
@@ -45,6 +55,8 @@ namespace Backpacking.Wildlife
         AnimalProfile profile;
         FirstPersonController player;
         Transform body, head;
+        Animator animator;
+        int moveHash, runHash;
         AudioSource voice;
         AudioClip alarm;
 
@@ -63,8 +75,19 @@ namespace Backpacking.Wildlife
         {
             profile = animalProfile;
             player = watcher;
-            body = transform.Find("Body");
-            head = body != null ? body.Find("Head") : null;
+            animator = GetComponentInChildren<Animator>();
+            if (animator != null)
+            {
+                moveHash = HasFloat(animator, profile.moveParameter) ? Animator.StringToHash(profile.moveParameter) : 0;
+                runHash = HasFloat(animator, profile.runParameter) ? Animator.StringToHash(profile.runParameter) : 0;
+                // Different animals shouldn't step in time.
+                animator.Update(Random.Range(0f, 2f));
+            }
+            else
+            {
+                body = transform.Find("Body");
+                head = body != null ? body.Find("Head") : null;
+            }
             alarm = alarmSound;
             if (alarm != null)
             {
@@ -183,8 +206,23 @@ namespace Backpacking.Wildlife
                    && hit.collider.GetComponent<WaterSource>() != null;
         }
 
+        static bool HasFloat(Animator animator, string parameter)
+        {
+            if (string.IsNullOrEmpty(parameter))
+                return false;
+            foreach (AnimatorControllerParameter candidate in animator.parameters)
+                if (candidate.name == parameter && candidate.type == AnimatorControllerParameterType.Float)
+                    return true;
+            return false;
+        }
+
         void Animate()
         {
+            if (animator != null)
+            {
+                AnimateModel();
+                return;
+            }
             if (body != null)
             {
                 gaitPhase += speed * Time.deltaTime / Mathf.Max(0.05f, profile.strideLength) * Mathf.PI;
@@ -198,6 +236,21 @@ namespace Backpacking.Wildlife
                 headAngle = Mathf.MoveTowards(headAngle, target, 120f * Time.deltaTime);
                 head.localRotation = Quaternion.Euler(headAngle, 0f, 0f);
             }
+        }
+
+        /// <summary>Blends the model's idle, walk and run animations to match how fast it's going.</summary>
+        void AnimateModel()
+        {
+            float moving = Mathf.Clamp01(speed / Mathf.Max(0.05f, profile.walkSpeed));
+            float running = Mathf.InverseLerp(profile.walkSpeed, profile.runSpeed, speed);
+            if (moveHash != 0)
+                animator.SetFloat(moveHash, moving, 0.15f, Time.deltaTime);
+            if (runHash != 0)
+                animator.SetFloat(runHash, running, 0.15f, Time.deltaTime);
+
+            // Speed the clip up or down so the hooves roughly match the ground.
+            float animationSpeed = Mathf.Lerp(profile.animationWalkSpeed, profile.animationRunSpeed, running);
+            animator.speed = speed < 0.05f ? 1f : Mathf.Clamp(speed / Mathf.Max(0.1f, animationSpeed), 0.5f, 1.8f);
         }
     }
 }
