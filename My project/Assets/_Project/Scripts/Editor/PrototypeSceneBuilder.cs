@@ -52,12 +52,13 @@ namespace Backpacking.EditorTools
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
             CampPrefabs prefabs = GetOrCreateCampPrefabs();
+            BiomeArtSettings art = LoadBiomeArt();
             EditorUtility.DisplayProgressBar("Building prototype scene", "Generating terrain...", 0.2f);
             Terrain terrain;
             RouteLayout route;
             try
             {
-                terrain = CreateTerrain(out route);
+                terrain = CreateTerrain(art, out route);
             }
             finally
             {
@@ -78,6 +79,11 @@ namespace Backpacking.EditorTools
 
             FirstPersonController player = CreatePlayer(SpawnPosition(route, terrain));
 
+            var weather = world.AddComponent<WeatherSystem>();
+            SetField(weather, "timeOfDay", timeOfDay);
+            SetField(weather, "rainEffect", CreateRain(player.transform));
+            SetField(temperature, "weather", weather);
+
             var navigation = new GameObject("Navigation");
             var map = navigation.AddComponent<MapView>();
             SetField(map, "terrain", terrain);
@@ -89,8 +95,9 @@ namespace Backpacking.EditorTools
             SetField(hud, "timeOfDay", timeOfDay);
             SetField(hud, "temperature", temperature);
             SetField(hud, "player", player);
+            SetField(hud, "weather", weather);
 
-            AddSurvivalSystems(player, timeOfDay, temperature, hud.gameObject, prefabs);
+            AddSurvivalSystems(player, timeOfDay, temperature, weather, hud.gameObject, prefabs);
             ScatterGatherables(terrain, route, player.transform.position, prefabs);
 
             EditorSceneManager.SaveScene(scene, ScenePath);
@@ -100,7 +107,7 @@ namespace Backpacking.EditorTools
 
         // ---------- Terrain ----------
 
-        static Terrain CreateTerrain(out RouteLayout route)
+        static Terrain CreateTerrain(BiomeArtSettings art, out RouteLayout route)
         {
             var data = new TerrainData
             {
@@ -112,16 +119,7 @@ namespace Backpacking.EditorTools
             float[,] heights = GenerateHeights(data.heightmapResolution);
             route = PlanRoute(heights);
             data.SetHeights(0, 0, heights);
-
-            TerrainLayer[] layers =
-            {
-                CreateTerrainLayer("Grass", new Color(0.24f, 0.33f, 0.14f), 0.18f, 6f),
-                CreateTerrainLayer("Dirt", new Color(0.36f, 0.29f, 0.2f), 0.2f, 5f),
-                CreateTerrainLayer("Rock", new Color(0.42f, 0.41f, 0.39f), 0.25f, 10f),
-                CreateTerrainLayer("Snow", new Color(0.88f, 0.9f, 0.94f), 0.06f, 12f),
-            };
-            data.terrainLayers = layers;
-            data.SetAlphamaps(0, 0, GenerateSplatmap(data));
+            DressTerrain(data, route, art);
 
             string dataPath = GeneratedFolder + "/PrototypeTerrain.asset";
             AssetDatabase.DeleteAsset(dataPath);
@@ -136,6 +134,7 @@ namespace Backpacking.EditorTools
                 terrain.materialTemplate = GraphicsSettings.currentRenderPipeline.defaultTerrainMaterial;
             terrain.heightmapPixelError = 3f;
             terrain.basemapDistance = 400f;
+            ApplyNatureDrawSettings(terrain, art);
             return terrain;
         }
 
@@ -172,35 +171,6 @@ namespace Backpacking.EditorTools
 
         /// <summary>Normalised east-west position of the valley floor at normalised north-south position <paramref name="v"/>.</summary>
         static float ValleyCentre(float v) => 0.5f + 0.12f * Mathf.Sin(v * 7f) + 0.05f * Mathf.Sin(v * 17f + 1f);
-
-        static float[,,] GenerateSplatmap(TerrainData data)
-        {
-            int res = data.alphamapResolution;
-            int layerCount = data.terrainLayers.Length;
-            var splat = new float[res, res, layerCount];
-
-            for (int z = 0; z < res; z++)
-            for (int x = 0; x < res; x++)
-            {
-                float u = x / (res - 1f);
-                float v = z / (res - 1f);
-                float steepness = data.GetSteepness(u, v);
-                float height01 = data.GetInterpolatedHeight(u, v) / data.size.y;
-                float patchNoise = Mathf.PerlinNoise(u * 40f + 7f, v * 40f + 3f);
-
-                float rock = Mathf.InverseLerp(28f, 40f, steepness);
-                float snow = Mathf.InverseLerp(0.55f, 0.65f, height01) * (1f - rock);
-                float dirt = Mathf.InverseLerp(0.55f, 0.75f, patchNoise) * (1f - rock) * (1f - snow);
-                float grass = Mathf.Max(0f, 1f - rock - snow - dirt);
-
-                float total = grass + dirt + rock + snow;
-                splat[z, x, 0] = grass / total;
-                splat[z, x, 1] = dirt / total;
-                splat[z, x, 2] = rock / total;
-                splat[z, x, 3] = snow / total;
-            }
-            return splat;
-        }
 
         static float Fbm(float x, float z, int octaves)
         {

@@ -26,7 +26,14 @@ namespace Backpacking.Camp
         [SerializeField] Light fireLight;
         [SerializeField] HeatSource heat;
 
+        [Header("Rain")]
+        [Tooltip("Chance a match fails in a full downpour.")]
+        [SerializeField, Range(0f, 1f)] float downpourLightFailChance = 0.7f;
+        [Tooltip("How much faster the fire burns through wood in a full downpour (1 = twice as fast).")]
+        [SerializeField] float downpourExtraBurn = 1f;
+
         TimeOfDay timeOfDay;
+        WeatherSystem weather;
         float fuelHours;
         bool burning;
         float baseLightIntensity;
@@ -48,6 +55,7 @@ namespace Backpacking.Camp
         void Awake()
         {
             timeOfDay = FindAnyObjectByType<TimeOfDay>();
+            weather = FindAnyObjectByType<WeatherSystem>();
             baseLightIntensity = fireLight.intensity;
             SetBurning(false);
         }
@@ -57,12 +65,13 @@ namespace Backpacking.Camp
             if (!burning)
                 return;
 
-            fuelHours -= Time.deltaTime * timeOfDay.HoursPerSecond;
+            float rain = weather != null ? weather.RainIntensity : 0f;
+            fuelHours -= Time.deltaTime * timeOfDay.HoursPerSecond * (1f + downpourExtraBurn * rain);
             if (fuelHours <= 0f)
             {
                 fuelHours = 0f;
                 SetBurning(false);
-                Notifications.Post("The fire has burned out.");
+                Notifications.Post(rain > 0.3f ? "The rain has put the fire out." : "The fire has burned out.");
                 return;
             }
 
@@ -78,11 +87,16 @@ namespace Backpacking.Camp
             if (!burning)
             {
                 string lightProblem = fuelHours <= 0f ? "Add firewood first" : backpack.Matches <= 0 ? "No matches left" : null;
-                options.Add(new InteractionOption($"Light fire (1 match, {backpack.Matches} left)", () =>
+                float failChance = (weather != null ? weather.RainIntensity : 0f) * downpourLightFailChance;
+                string odds = failChance > 0.05f ? $", {Mathf.RoundToInt(failChance * 100f)}% chance the rain wins" : "";
+                options.Add(new InteractionOption($"Light fire (1 match, {backpack.Matches} left{odds})", () =>
                     interactor.Activity.Begin("Lighting the fire", lightingMinutes, () =>
                     {
                         backpack.TryUseMatch();
-                        SetBurning(true);
+                        if (Random.value < failChance)
+                            Notifications.Post("The rain smothers your match. Try again.");
+                        else
+                            SetBurning(true);
                     }), lightProblem));
             }
 

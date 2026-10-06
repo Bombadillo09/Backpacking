@@ -15,16 +15,19 @@ namespace Backpacking.Survival
         public float insulation;
         [Tooltip("Kilograms.")]
         public float weight;
+        [Tooltip("Keeps rain off while worn.")]
+        public bool waterproof;
         public bool worn;
 
         public Garment() { }
 
-        public Garment(string name, float insulation, float weight, bool worn)
+        public Garment(string name, float insulation, float weight, bool worn, bool waterproof = false)
         {
             this.name = name;
             this.insulation = insulation;
             this.weight = weight;
             this.worn = worn;
+            this.waterproof = waterproof;
         }
     }
 
@@ -105,7 +108,7 @@ namespace Backpacking.Survival
         {
             new Garment("Merino base layer", 3f, 0.2f, true),
             new Garment("Fleece", 6f, 0.45f, false),
-            new Garment("Rain shell", 2f, 0.3f, false),
+            new Garment("Rain shell", 2f, 0.3f, false, waterproof: true),
             new Garment("Down jacket", 10f, 0.35f, false),
         };
 
@@ -177,6 +180,8 @@ namespace Backpacking.Survival
                 return total;
             }
         }
+
+        public bool WearingWaterproof => clothing.Exists(garment => garment.worn && garment.waterproof);
 
         void Awake()
         {

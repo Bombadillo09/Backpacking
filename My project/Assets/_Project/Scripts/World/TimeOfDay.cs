@@ -95,7 +95,41 @@ namespace Backpacking.World
             TimeMultiplier = multiplier;
         }
 
-        void Start() => ApplyLighting();
+        /// <summary>Cloud cover from 0 (clear) to 1 (storm), set by the weather. Dims the sun and thickens the fog.</summary>
+        public float Overcast { get; set; }
+
+        [Header("Weather")]
+        [SerializeField] Color overcastAmbient = new(0.42f, 0.44f, 0.46f);
+        [SerializeField] Color overcastFog = new(0.5f, 0.53f, 0.56f);
+        [Tooltip("Fog density is multiplied by up to this much under full cloud.")]
+        [SerializeField] float overcastFogMultiplier = 3f;
+
+        float clearFogDensity;
+        Material skybox;
+        float clearSkyExposure, clearAtmosphere;
+
+        static readonly int ExposureId = Shader.PropertyToID("_Exposure");
+        static readonly int AtmosphereId = Shader.PropertyToID("_AtmosphereThickness");
+
+        void Start()
+        {
+            clearFogDensity = RenderSettings.fogDensity;
+            // Work on a copy so weather changes never edit the skybox asset itself.
+            if (RenderSettings.skybox != null)
+            {
+                skybox = new Material(RenderSettings.skybox);
+                RenderSettings.skybox = skybox;
+                clearSkyExposure = skybox.HasProperty(ExposureId) ? skybox.GetFloat(ExposureId) : 1f;
+                clearAtmosphere = skybox.HasProperty(AtmosphereId) ? skybox.GetFloat(AtmosphereId) : 1f;
+            }
+            ApplyLighting();
+        }
+
+        void OnDestroy()
+        {
+            if (skybox != null)
+                Destroy(skybox);
+        }
 
         void Update()
         {
@@ -126,7 +160,8 @@ namespace Backpacking.World
             float elevation = -sun.transform.forward.y;
             Daylight = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.1f, 0.15f, elevation));
 
-            sun.intensity = sunIntensity * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.02f, 0.1f, elevation));
+            float cloudDimming = 1f - 0.75f * Overcast;
+            sun.intensity = sunIntensity * cloudDimming * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.02f, 0.1f, elevation));
             sun.color = sunColor.Evaluate(Mathf.Clamp01(elevation / 0.5f));
             sun.enabled = sun.intensity > 0.001f;
 
@@ -139,10 +174,22 @@ namespace Backpacking.World
 
             RenderSettings.sun = sun;
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = Color.Lerp(nightSky, daySky, Daylight);
-            RenderSettings.ambientEquatorColor = Color.Lerp(nightHorizon, dayHorizon, Daylight);
-            RenderSettings.ambientGroundColor = Color.Lerp(nightGround, dayGround, Daylight);
-            RenderSettings.fogColor = Color.Lerp(nightFog, dayFog, Daylight);
+            // Under cloud, daytime light goes flat and grey.
+            float grey = Overcast * 0.7f;
+            Color daySkyNow = Color.Lerp(daySky, overcastAmbient, grey);
+            Color dayHorizonNow = Color.Lerp(dayHorizon, overcastAmbient * 0.9f, grey);
+            RenderSettings.ambientSkyColor = Color.Lerp(nightSky, daySkyNow, Daylight);
+            RenderSettings.ambientEquatorColor = Color.Lerp(nightHorizon, dayHorizonNow, Daylight);
+            RenderSettings.ambientGroundColor = Color.Lerp(nightGround, dayGround * (1f - 0.3f * Overcast), Daylight);
+            RenderSettings.fogColor = Color.Lerp(nightFog, Color.Lerp(dayFog, overcastFog, Overcast), Daylight);
+
+            if (clearFogDensity > 0f)
+                RenderSettings.fogDensity = clearFogDensity * Mathf.Lerp(1f, overcastFogMultiplier, Overcast);
+            if (skybox != null)
+            {
+                skybox.SetFloat(ExposureId, clearSkyExposure * (1f - 0.55f * Overcast));
+                skybox.SetFloat(AtmosphereId, clearAtmosphere + 1.2f * Overcast);
+            }
         }
 
         static Gradient DefaultSunColor()

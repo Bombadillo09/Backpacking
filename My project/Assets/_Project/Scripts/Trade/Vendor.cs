@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Backpacking.Interaction;
+using Backpacking.UI;
+using Backpacking.World;
 using UnityEngine;
 
 namespace Backpacking.Trade
@@ -43,6 +45,11 @@ namespace Backpacking.Trade
         public void GetOptions(Interactor interactor, List<InteractionOption> options)
         {
             options.Add(new InteractionOption("Trade", () => interactor.Shop.Open(this)));
+            options.Add(new InteractionOption("Ask about the weather", () =>
+            {
+                WeatherSystem weather = FindAnyObjectByType<WeatherSystem>();
+                Notifications.Post(weather != null ? weather.ForecastText() : "\"Couldn't tell you.\"", 12f);
+            }));
             options.Add(new InteractionOption("Rest a while and save the game", () => interactor.Saves.Save()));
         }
 

@@ -97,7 +97,8 @@ namespace Backpacking.EditorTools
         /// trading posts. The first <paramref name="nearSpawn"/> land close to the start so they're easy to find early on.
         /// </summary>
         static void Scatter(string groupName, GameObject prefab, int count, int nearSpawn, float nearRadius,
-            float maxSteepness, float maxHeight01, int seed, Terrain terrain, RouteLayout route, Vector3 spawn)
+            float maxSteepness, float maxHeight01, int seed, Terrain terrain, RouteLayout route, Vector3 spawn,
+            System.Func<Biome, float> likelihood)
         {
             var random = new System.Random(seed);
             var parent = new GameObject(groupName).transform;
@@ -117,6 +118,9 @@ namespace Backpacking.EditorTools
                 if (data.GetSteepness(u, v) > maxSteepness || data.GetInterpolatedHeight(u, v) > TerrainHeight * maxHeight01)
                     continue;
                 if (TooCloseToFeature(position, route, terrain))
+                    continue;
+                // Away from the start, some biomes are richer than others.
+                if (placed >= nearSpawn && random.NextDouble() > likelihood(SampleBiome(data, u, v)))
                     continue;
 
                 position.y = terrain.SampleHeight(position) + terrain.transform.position.y;
@@ -148,17 +152,19 @@ namespace Backpacking.EditorTools
 
         static void ScatterGatherables(Terrain terrain, RouteLayout route, Vector3 spawn, CampPrefabs prefabs)
         {
-            // Wood is easy to come by below the tree line; berries grow lower down.
+            // Fallen wood is mostly in the forest. Berries like sunny meadows and forest edges.
             Scatter("Firewood", prefabs.Firewood, FirewoodCount, nearSpawn: 15, nearRadius: 40f,
-                maxSteepness: 25f, maxHeight01: 0.55f, Seed + 1, terrain, route, spawn);
+                maxSteepness: 25f, maxHeight01: 0.55f, Seed + 1, terrain, route, spawn,
+                biome => 0.15f + 0.85f * biome.Forest);
             Scatter("Berry Bushes", prefabs.BerryBush, BerryBushCount, nearSpawn: 4, nearRadius: 50f,
-                maxSteepness: 20f, maxHeight01: 0.45f, Seed + 2, terrain, route, spawn);
+                maxSteepness: 20f, maxHeight01: 0.45f, Seed + 2, terrain, route, spawn,
+                biome => 0.2f + 0.8f * Mathf.Clamp01(1f - Mathf.Abs(biome.Forest - 0.35f) * 2.5f));
         }
 
         // ---------- Player survival systems ----------
 
         static void AddSurvivalSystems(FirstPersonController player, TimeOfDay timeOfDay, AmbientTemperature temperature,
-            GameObject hud, CampPrefabs prefabs)
+            WeatherSystem weather, GameObject hud, CampPrefabs prefabs)
         {
             GameObject go = player.gameObject;
             var inputActions = AssetDatabase.LoadAssetAtPath<InputActionAsset>(InputActionsPath);
@@ -182,6 +188,7 @@ namespace Backpacking.EditorTools
             SetField(vitals, "temperature", temperature);
             SetField(vitals, "player", player);
             SetField(vitals, "backpack", backpack);
+            SetField(vitals, "weather", weather);
 
             SetField(activity, "timeOfDay", timeOfDay);
             SetField(activity, "vitals", vitals);
@@ -215,6 +222,7 @@ namespace Backpacking.EditorTools
             SetField(saves, "vitals", vitals);
             SetField(saves, "placer", placer);
             SetField(saves, "activity", activity);
+            SetField(saves, "weather", weather);
             SetField(interactor, "saves", saves);
 
             var vitalsHud = hud.AddComponent<VitalsHud>();

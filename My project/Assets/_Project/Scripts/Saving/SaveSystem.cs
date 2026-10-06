@@ -31,6 +31,7 @@ namespace Backpacking.Saving
         [SerializeField] Vitals vitals;
         [SerializeField] CampPlacer placer;
         [SerializeField] PlayerActivity activity;
+        [SerializeField] WeatherSystem weather;
         [SerializeField] string fileName = "trip.json";
         [Tooltip("How close to a route stop counts as being 'near' it in the save summary, in metres.")]
         [SerializeField] float nearbyDistance = 400f;
@@ -153,6 +154,7 @@ namespace Backpacking.Saving
                 playerYaw = player.transform.eulerAngles.y,
                 vitals = vitals.CaptureState(),
                 backpack = backpack.CaptureState(),
+                weather = weather.CaptureState(),
                 summary = $"Day {timeOfDay.Day}, {timeOfDay.ClockText} {DescribeLocation()}",
             };
 
@@ -214,6 +216,7 @@ namespace Backpacking.Saving
             timeOfDay.SetDayAndTime(data.day, data.hour);
             vitals.RestoreState(data.vitals);
             backpack.RestoreState(data.backpack);
+            weather.RestoreState(data.weather);
 
             // A CharacterController overrides direct moves, so switch it off while teleporting.
             var controller = player.GetComponent<CharacterController>();

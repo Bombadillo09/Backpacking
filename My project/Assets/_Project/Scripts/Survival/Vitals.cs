@@ -8,7 +8,7 @@ namespace Backpacking.Survival
     [System.Serializable]
     public class VitalsState
     {
-        public float satiety, hydration, warmth, energy, sickHours;
+        public float satiety, hydration, warmth, energy, sickHours, wetness;
     }
 
     /// <summary>
@@ -23,6 +23,7 @@ namespace Backpacking.Survival
         [SerializeField] AmbientTemperature temperature;
         [SerializeField] FirstPersonController player;
         [SerializeField] Backpack backpack;
+        [SerializeField] WeatherSystem weather;
 
         [Header("Starting Values")]
         [SerializeField, Range(0f, Max)] float satiety = 80f;
@@ -54,12 +55,34 @@ namespace Backpacking.Survival
         [Tooltip("Warmth regained per hour for each °C above comfort.")]
         [SerializeField] float warmingRate = 3f;
 
+        [Header("Rain & Wind")]
+        [Tooltip("Wetness gained per hour in a full downpour without a rain shell.")]
+        [SerializeField] float soakingRate = 35f;
+        [Tooltip("Fraction of rain that still gets through a rain shell.")]
+        [SerializeField, Range(0f, 1f)] float shellLeakage = 0.12f;
+        [Tooltip("Wetness lost per hour when out of the rain, before any fire.")]
+        [SerializeField] float dryingRate = 12f;
+        [Tooltip("Extra drying per hour for each °C of warmth from a nearby fire.")]
+        [SerializeField] float fireDryingPerDegree = 2.5f;
+        [Tooltip("Fraction of clothing warmth lost when soaked through.")]
+        [SerializeField, Range(0f, 1f)] float soakedInsulationLoss = 0.6f;
+        [Tooltip("°C of chill from being soaked through, on top of the lost insulation.")]
+        [SerializeField] float soakedChill = 3f;
+        [Tooltip("°C of wind chill per km/h of wind.")]
+        [SerializeField] float windChillPerKmh = 0.12f;
+
         [Header("Effects")]
         [SerializeField] float tiredThreshold = 30f;
         [SerializeField] float criticalThreshold = 12f;
 
         float sickHours;
-        bool warnedCold, warnedHungry, warnedThirsty, warnedTired;
+        float wetness;
+        bool warnedCold, warnedHungry, warnedThirsty, warnedTired, warnedWet;
+
+        /// <summary>How wet the player's clothes are, 0 dry to 100 soaked.</summary>
+        public float Wetness => wetness;
+        /// <summary>Current wind chill in °C (0 when sheltered).</summary>
+        public float WindChill { get; private set; }
 
         public float Satiety => satiety;
         public float Hydration => hydration;
@@ -88,6 +111,7 @@ namespace Backpacking.Survival
             warmth = warmth,
             energy = energy,
             sickHours = sickHours,
+            wetness = wetness,
         };
 
         public void RestoreState(VitalsState state)
@@ -97,6 +121,7 @@ namespace Backpacking.Survival
             warmth = state.warmth;
             energy = state.energy;
             sickHours = state.sickHours;
+            wetness = state.wetness;
         }
 
         void Update()
@@ -135,13 +160,31 @@ namespace Backpacking.Survival
             WarnOnce(ref warnedTired, energy, 20f, "You're exhausted. You need sleep.");
         }
 
+        void UpdateWetness(float hours, float fireWarmth)
+        {
+            bool inTent = IsSleeping && IsSheltered;
+            float rain = weather != null && !inTent ? weather.RainIntensity : 0f;
+            float soaking = rain * soakingRate * (backpack.WearingWaterproof ? shellLeakage : 1f);
+            float drying = (rain > 0.05f ? 0f : dryingRate) + fireWarmth * fireDryingPerDegree;
+            wetness = Mathf.Clamp(wetness + (soaking - drying) * hours, 0f, Max);
+            WarnOnce(ref warnedWet, Max - wetness, Max - 50f, "You're getting soaked. Put on your rain shell or find shelter.");
+        }
+
         void UpdateWarmth(float hours, float bodyHeat)
         {
             float air = temperature.GetTemperature(transform.position);
-            FeltTemperature = air + HeatSource.WarmthAt(transform.position) + (IsSleeping && IsSheltered ? backpack.TentShelter : 0f);
+            float fire = HeatSource.WarmthAt(transform.position);
+            UpdateWetness(hours, fire);
+
+            bool inTent = IsSleeping && IsSheltered;
+            WindChill = weather != null && !inTent ? weather.WindKmh * windChillPerKmh : 0f;
+            float soaked = wetness / Max;
+            FeltTemperature = air + fire + (inTent ? backpack.TentShelter : 0f) - WindChill - soaked * soakedChill;
+
+            float insulation = backpack.ClothingInsulation * (1f - soakedInsulationLoss * soaked);
             ComfortTemperature = IsSleeping
                 ? backpack.SleepingBagComfort
-                : neutralTemperature - backpack.ClothingInsulation - bodyHeat;
+                : neutralTemperature - insulation - bodyHeat;
 
             float difference = FeltTemperature - ComfortTemperature;
             float rate = difference < 0f ? coolingRate : warmingRate;

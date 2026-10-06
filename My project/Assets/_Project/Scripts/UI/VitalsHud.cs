@@ -26,6 +26,10 @@ namespace Backpacking.UI
             DrawBar(x, ref y, width, barHeight, rowHeight, "Energy", vitals.Energy, new Color(0.5f, 0.85f, 0.45f));
 
             string status = $"Feels like {vitals.FeltTemperature:0} °C  ·  comfortable to {vitals.ComfortTemperature:0} °C";
+            if (vitals.WindChill > 0.5f)
+                status += $"  ·  wind chill −{vitals.WindChill:0} °C";
+            if (vitals.Wetness > 5f)
+                status += vitals.Wetness > 60f ? "  ·  soaked" : "  ·  damp";
             if (vitals.IsSick)
                 status += "  ·  sick";
             DrawShadowed(new Rect(x, y, 500f, 22f), status);

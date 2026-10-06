@@ -8,6 +8,8 @@ namespace Backpacking.World
     public class AmbientTemperature : MonoBehaviour
     {
         [SerializeField] TimeOfDay timeOfDay;
+        [Tooltip("Optional. Clouds, rain and cold snaps shift the temperature.")]
+        [SerializeField] WeatherSystem weather;
 
         [Header("Daily cycle at world height 0 (°C)")]
         [SerializeField] float dailyLow = 2f;
@@ -26,7 +28,8 @@ namespace Backpacking.World
         public float GetTemperature(Vector3 worldPosition)
         {
             float altitudeDrop = worldPosition.y * lapseRatePerKm / 1000f;
-            return GetDailyCycleTemperature(timeOfDay.Hour) - altitudeDrop;
+            float weatherOffset = weather != null ? weather.TemperatureOffset : 0f;
+            return GetDailyCycleTemperature(timeOfDay.Hour) - altitudeDrop + weatherOffset;
         }
 
         float GetDailyCycleTemperature(float hour)
