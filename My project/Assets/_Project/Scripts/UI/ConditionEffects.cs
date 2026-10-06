@@ -1,3 +1,4 @@
+using Backpacking.Audio;
 using Backpacking.Interaction;
 using Backpacking.Player;
 using Backpacking.Survival;
@@ -30,12 +31,19 @@ namespace Backpacking.UI
         [Tooltip("Sway in degrees when completely exhausted.")]
         [SerializeField] float maxSway = 2.5f;
 
+        [Header("Sound")]
+        [Tooltip("Leave empty to use a generated heartbeat.")]
+        [SerializeField] AudioClip heartbeatClip;
+        [SerializeField, Range(0f, 1f)] float heartbeatVolume = 0.8f;
+
         static readonly Color Frost = new(0.78f, 0.88f, 1f);
         static readonly Color Blood = new(0.6f, 0f, 0f);
 
         Texture2D vignette;
         float nextBlinkTime;
         float blinkStartTime = -10f;
+        float lastBeatTime = -10f;
+        AudioSource heartbeat;
 
         float Cold => Mathf.InverseLerp(coldStart, 0f, vitals.Warmth);
         float Hurt => Mathf.InverseLerp(hurtStart, 0f, vitals.Health);
@@ -44,7 +52,14 @@ namespace Backpacking.UI
             Mathf.InverseLerp(vitals.CriticalThreshold, 0f, vitals.Satiety),
             Mathf.InverseLerp(vitals.CriticalThreshold, 0f, vitals.Hydration));
 
-        void Awake() => vignette = CreateVignette(128);
+        void Awake()
+        {
+            vignette = CreateVignette(128);
+            heartbeat = gameObject.AddComponent<AudioSource>();
+            heartbeat.playOnAwake = false;
+            heartbeat.spatialBlend = 0f;
+            heartbeat.clip = heartbeatClip != null ? heartbeatClip : SoundSynth.Heartbeat();
+        }
 
         void OnDestroy()
         {
@@ -63,6 +78,15 @@ namespace Backpacking.UI
             }
 
             float t = Time.time;
+
+            // A heartbeat that quickens as health falls, heard and seen together.
+            float hurt = Hurt;
+            if (hurt > 0f && t - lastBeatTime >= 1f / Mathf.Lerp(1.1f, 2f, hurt))
+            {
+                lastBeatTime = t;
+                heartbeat.PlayOneShot(heartbeat.clip, heartbeatVolume * Mathf.Lerp(0.3f, 1f, hurt));
+            }
+
             // Fast, jittery noise for shivering; a slow lean for exhaustion.
             float shiver = Cold * maxShiver;
             float sway = Drowsy * maxSway;
@@ -94,9 +118,7 @@ namespace Backpacking.UI
             float hurt = Hurt;
             if (hurt > 0f)
             {
-                // A heartbeat that quickens as health falls.
-                float beatsPerSecond = Mathf.Lerp(1.1f, 2f, hurt);
-                float beat = Mathf.Pow(Mathf.Abs(Mathf.Sin(Time.time * Mathf.PI * beatsPerSecond)), 12f);
+                float beat = Mathf.Exp(-(Time.time - lastBeatTime) * 9f);
                 DrawVignette(screen, Blood, hurt * (0.45f + 0.35f * beat));
             }
 

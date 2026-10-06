@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Backpacking.Audio;
 using Backpacking.Interaction;
 using Backpacking.Survival;
 using Backpacking.UI;
@@ -32,6 +33,12 @@ namespace Backpacking.Camp
         [Tooltip("How much faster the fire burns through wood in a full downpour (1 = twice as fast).")]
         [SerializeField] float downpourExtraBurn = 1f;
 
+        [Header("Sound")]
+        [Tooltip("Leave empty to use a generated crackle.")]
+        [SerializeField] AudioClip crackleClip;
+        [SerializeField, Range(0f, 1f)] float crackleVolume = 0.7f;
+
+        AudioSource crackle;
         TimeOfDay timeOfDay;
         WeatherSystem weather;
         float fuelHours;
@@ -57,6 +64,16 @@ namespace Backpacking.Camp
             timeOfDay = FindAnyObjectByType<TimeOfDay>();
             weather = FindAnyObjectByType<WeatherSystem>();
             baseLightIntensity = fireLight.intensity;
+
+            crackle = gameObject.AddComponent<AudioSource>();
+            crackle.clip = crackleClip != null ? crackleClip : SoundSynth.Fire();
+            crackle.loop = true;
+            crackle.playOnAwake = false;
+            crackle.spatialBlend = 1f;
+            crackle.minDistance = 2f;
+            crackle.maxDistance = 30f;
+            crackle.rolloffMode = AudioRolloffMode.Linear;
+            crackle.dopplerLevel = 0f;
             SetBurning(false);
         }
 
@@ -78,6 +95,7 @@ namespace Backpacking.Camp
             // Flicker, dimming as the fire burns low.
             float strength = Mathf.Clamp01(fuelHours / 0.5f) * 0.6f + 0.4f;
             fireLight.intensity = baseLightIntensity * strength * (0.85f + 0.3f * Mathf.PerlinNoise(Time.time * 6f, 0f));
+            crackle.volume = crackleVolume * strength;
         }
 
         public void GetOptions(Interactor interactor, List<InteractionOption> options)
@@ -145,9 +163,16 @@ namespace Backpacking.Camp
             heat.enabled = value;
             woodVisual.SetActive(fuelHours > 0f);
             if (value)
+            {
                 flames.Play();
+                crackle.time = Random.Range(0f, crackle.clip.length);
+                crackle.Play();
+            }
             else
+            {
                 flames.Stop();
+                crackle.Stop();
+            }
         }
     }
 }

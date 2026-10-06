@@ -1,4 +1,5 @@
 using System;
+using Backpacking.Audio;
 using Backpacking.Camp;
 using Backpacking.Gathering;
 using Backpacking.Interaction;
@@ -234,6 +235,13 @@ namespace Backpacking.EditorTools
             SetField(rescue, "backpack", backpack);
             SetField(rescue, "timeOfDay", timeOfDay);
             SetField(rescue, "saves", saves);
+
+            go.AddComponent<Footsteps>();
+            var ambience = go.AddComponent<AmbienceAudio>();
+            SetField(ambience, "timeOfDay", timeOfDay);
+            SetField(ambience, "weather", weather);
+            SetField(ambience, "temperature", temperature);
+            SetField(ambience, "vitals", vitals);
 
             var effects = hud.AddComponent<ConditionEffects>();
             SetField(effects, "vitals", vitals);
