@@ -41,20 +41,25 @@ namespace Backpacking.EditorTools
         static readonly string[] FirewoodModels = { "Decayed_wood_A", "Decayed_wood_B", "Decayed_wood_C", "Decayed_wood_D", "Decayed_wood_E" };
 
         [MenuItem("Backpacking/Use Essential Nature Pack")]
-        public static void Apply()
+        public static void Apply() => Apply(interactive: true);
+
+        /// <summary>Without <paramref name="interactive"/>, shows no dialogs and doesn't offer to rebuild. Returns a summary.</summary>
+        public static string Apply(bool interactive)
         {
             if (!AssetDatabase.IsValidFolder(PackPrefabs))
             {
-                EditorUtility.DisplayDialog("Essential Nature Pack not found",
-                    $"Import the pack first (Window > Package Manager > My Assets). Expected its prefabs in {PackPrefabs}.", "OK");
-                return;
+                if (interactive)
+                    EditorUtility.DisplayDialog("Essential Nature Pack not found",
+                        $"Import the pack first (Window > Package Manager > My Assets). Expected its prefabs in {PackPrefabs}.", "OK");
+                return "Essential Nature Pack: not imported, skipped.";
             }
             var art = AssetDatabase.LoadAssetAtPath<BiomeArtSettings>(BiomeArtAssetPath);
             if (art == null)
             {
-                EditorUtility.DisplayDialog("Biome art not found",
-                    "Run Backpacking > Build Prototype Scene once first, so the biome art settings exist.", "OK");
-                return;
+                if (interactive)
+                    EditorUtility.DisplayDialog("Biome art not found",
+                        "Run Backpacking > Build Prototype Scene once first, so the biome art settings exist.", "OK");
+                return "Essential Nature Pack: biome art settings not found, skipped.";
             }
             if (!AssetDatabase.IsValidFolder(OutputFolder))
                 AssetDatabase.CreateFolder(Path.GetDirectoryName(OutputFolder).Replace('\\', '/'), Path.GetFileName(OutputFolder));
@@ -90,9 +95,10 @@ namespace Backpacking.EditorTools
             else
                 Debug.Log("Nature pack set up:\n" + summary);
 
-            if (EditorUtility.DisplayDialog(problems.Count > 0 ? "Nature pack set up, with problems" : "Nature pack ready",
+            if (interactive && EditorUtility.DisplayDialog(problems.Count > 0 ? "Nature pack set up, with problems" : "Nature pack ready",
                     $"{summary}\n\nTrees are scaled ×{TreeScale}. Rebuild the prototype scene now?", "Rebuild now", "Later"))
                 PrototypeSceneBuilder.Build();
+            return $"Essential Nature Pack: {report.Count} items" + (problems.Count > 0 ? $", {problems.Count} problems (see console)." : ".");
         }
 
         static void Assign(ref GameObject[] slot, GameObject[] prefabs)

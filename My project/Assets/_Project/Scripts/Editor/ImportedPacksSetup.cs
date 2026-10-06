@@ -32,14 +32,18 @@ namespace Backpacking.EditorTools
         static readonly string[] VegetationShrubs = { "Shrub" };
 
         [MenuItem("Backpacking/Use Imported Packs (Grass, Vegetation, Animals)")]
-        public static void Apply()
+        public static void Apply() => Apply(interactive: true);
+
+        /// <summary>Without <paramref name="interactive"/>, shows no dialogs and doesn't offer to rebuild. Returns a summary.</summary>
+        public static string Apply(bool interactive)
         {
             var art = AssetDatabase.LoadAssetAtPath<BiomeArtSettings>(BiomeArtAssetPath);
             if (art == null)
             {
-                EditorUtility.DisplayDialog("Biome art not found",
-                    "Run Backpacking > Build Prototype Scene once first, so the biome art settings exist.", "OK");
-                return;
+                if (interactive)
+                    EditorUtility.DisplayDialog("Biome art not found",
+                        "Run Backpacking > Build Prototype Scene once first, so the biome art settings exist.", "OK");
+                return "Imported packs: biome art settings not found, skipped.";
             }
 
             var report = new List<string>();
@@ -51,8 +55,9 @@ namespace Backpacking.EditorTools
             AssetDatabase.SaveAssets();
             string summary = string.Join("\n", report);
             Debug.Log("Imported packs set up:\n" + summary);
-            if (EditorUtility.DisplayDialog("Imported packs ready", $"{summary}\n\nRebuild the prototype scene now?", "Rebuild now", "Later"))
+            if (interactive && EditorUtility.DisplayDialog("Imported packs ready", $"{summary}\n\nRebuild the prototype scene now?", "Rebuild now", "Later"))
                 PrototypeSceneBuilder.Build();
+            return summary;
         }
 
         // ---------- Grass and flowers ----------

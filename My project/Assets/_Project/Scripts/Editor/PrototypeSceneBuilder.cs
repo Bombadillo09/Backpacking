@@ -40,11 +40,17 @@ namespace Backpacking.EditorTools
         const int Seed = 1234;
 
         [MenuItem("Backpacking/Build Prototype Scene")]
-        public static void Build()
+        public static void Build() => Build(interactive: true);
+
+        /// <summary>
+        /// Without <paramref name="interactive"/>, rebuilds straight away with no prompts, discarding unsaved
+        /// changes to open scenes (the prototype scene is generated, so there's nothing to keep in it).
+        /// </summary>
+        public static void Build(bool interactive)
         {
-            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+            if (interactive && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
                 return;
-            if (File.Exists(ScenePath) && !EditorUtility.DisplayDialog(
+            if (interactive && File.Exists(ScenePath) && !EditorUtility.DisplayDialog(
                     "Rebuild prototype scene?",
                     $"{ScenePath} already exists and will be replaced, along with its generated terrain.",
                     "Rebuild", "Cancel"))

@@ -28,14 +28,18 @@ namespace Backpacking.EditorTools
         };
 
         [MenuItem("Backpacking/Use Downloaded Ground Textures")]
-        public static void Apply()
+        public static void Apply() => Apply(interactive: true);
+
+        /// <summary>Without <paramref name="interactive"/>, shows no dialogs and doesn't offer to rebuild. Returns a summary.</summary>
+        public static string Apply(bool interactive)
         {
             BiomeArtSettings art = AssetDatabase.LoadAssetAtPath<BiomeArtSettings>("Assets/_Project/Settings/BiomeArt.asset");
             if (art == null)
             {
-                EditorUtility.DisplayDialog("Biome art not found",
-                    "Run Backpacking > Build Prototype Scene once first, so the biome art settings exist.", "OK");
-                return;
+                if (interactive)
+                    EditorUtility.DisplayDialog("Biome art not found",
+                        "Run Backpacking > Build Prototype Scene once first, so the biome art settings exist.", "OK");
+                return "Ground textures: biome art settings not found, skipped.";
             }
 
             var serialized = new SerializedObject(art);
@@ -55,10 +59,11 @@ namespace Backpacking.EditorTools
             AssetDatabase.SaveAssets();
             Debug.Log($"Applied {applied} downloaded ground textures to the biome art settings.");
 
-            if (EditorUtility.DisplayDialog("Ground textures ready",
+            if (interactive && EditorUtility.DisplayDialog("Ground textures ready",
                     $"{applied} ground layers now use the downloaded textures. Rebuild the prototype scene to see them?",
                     "Rebuild now", "Later"))
                 PrototypeSceneBuilder.Build();
+            return $"Ground textures: {applied} layers.";
         }
 
         static TerrainLayer CreateLayer(string folder, float tileMetres)

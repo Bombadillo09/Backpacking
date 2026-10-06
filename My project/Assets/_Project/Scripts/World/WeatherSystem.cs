@@ -59,8 +59,6 @@ namespace Backpacking.World
         WeatherSpell current;
         float hoursLeft;
         readonly List<WeatherSpell> upcoming = new();
-        ParticleSystem.EmissionModule rainEmission;
-        ParticleSystem.VelocityOverLifetimeModule rainDrift;
 
         public WeatherKind Current => current.kind;
         public bool IsColdSnap => current.coldSnap;
@@ -82,11 +80,7 @@ namespace Backpacking.World
             FillPlan();
             (overcast, rain, wind) = Targets(current.kind);
             if (rainEffect != null)
-            {
-                rainEmission = rainEffect.emission;
-                rainDrift = rainEffect.velocityOverLifetime;
                 rainEffect.Play();
-            }
         }
 
         void Update()
@@ -110,8 +104,11 @@ namespace Backpacking.World
             timeOfDay.Overcast = overcast;
             if (rainEffect != null)
             {
-                rainEmission.rateOverTime = rain * maxRainParticles;
-                rainDrift.x = WindKmh / 3.6f * 0.5f;
+                // Fetch the modules each time: cached ones go stale when Play starts without a domain reload.
+                ParticleSystem.EmissionModule emission = rainEffect.emission;
+                emission.rateOverTime = rain * maxRainParticles;
+                ParticleSystem.VelocityOverLifetimeModule drift = rainEffect.velocityOverLifetime;
+                drift.x = WindKmh / 3.6f * 0.5f;
             }
         }
 
