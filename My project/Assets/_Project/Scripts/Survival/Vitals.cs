@@ -85,16 +85,19 @@ namespace Backpacking.Survival
         [Header("Feet")]
         [Tooltip("Foot strain gained per hour of walking in ordinary boots with a light pack. 100 is as sore as it gets.")]
         [SerializeField] float strainPerHour = 18f;
-        [Tooltip("Strain eased per hour standing still, resting your feet, or asleep.")]
-        [SerializeField] float idleStrainRecovery = 15f;
-        [SerializeField] float restingStrainRecovery = 80f;
+        [Tooltip("Strain eased per hour standing still, sitting, sitting with boots off, or asleep.")]
+        [SerializeField] float idleStrainRecovery = 10f;
+        [SerializeField] float seatedStrainRecovery = 35f;
+        [SerializeField] float bootsOffStrainRecovery = 90f;
         [SerializeField] float sleepingStrainRecovery = 60f;
         [Tooltip("Keep walking with strain above this and blisters start.")]
         [SerializeField] float blistersAbove = 60f;
         [Tooltip("Foot health lost per hour of walking at full strain.")]
         [SerializeField] float blisterRate = 14f;
-        [Tooltip("Foot health healed per hour resting, and per hour asleep.")]
-        [SerializeField] float restingHeal = 3f;
+        [Tooltip("Foot health healed per hour sitting with boots off, and per hour asleep.")]
+        [SerializeField] float restingHeal = 4f;
+        [Tooltip("Infection drawn out per hour holding bare feet in a campfire's smoke.")]
+        [SerializeField] float smokeCure = 35f;
         [SerializeField] float sleepingHeal = 6f;
 
         [Header("Foot Infection")]
@@ -129,7 +132,6 @@ namespace Backpacking.Survival
         float feet = Max, footStrain;
         float infection, infectionRisk, antibioticHours;
         bool warnedInfection;
-        float restingFeetUntil = -1f;
 
         /// <summary>Raised when energy runs out while awake. The player passes out where they stand.</summary>
         public event System.Action Collapsed;
@@ -157,7 +159,17 @@ namespace Backpacking.Survival
         public bool OnAntibiotics => antibioticHours > 0f;
         /// <summary>Wet or blistered feet: an infection is brewing.</summary>
         public bool FeetAtRisk => FeetWet || HasBlisters;
-        bool FeetWet => wetness > 40f && !backpack.BootsWaterproof;
+        /// <summary>Wet feet: soaked clothes in boots that let water in. Bare feet dry off.</summary>
+        public bool FeetWet => wetness > 40f && !backpack.BootsWaterproof && !BootsOff;
+        /// <summary>How close an infection is, 0 (no risk) to 1 (setting in).</summary>
+        public float InfectionRisk => Mathf.Clamp01(infectionRisk / hoursToInfection);
+
+        /// <summary>Sitting down to rest. Set by the rest mode each frame.</summary>
+        public bool Seated { get; set; }
+        /// <summary>Sitting with boots and socks off: feet recover fast, dry out and air.</summary>
+        public bool BootsOff { get; set; }
+        /// <summary>Bare feet held in a campfire's smoke: draws out infection and dries them.</summary>
+        public bool SmokingFeet { get; set; }
 
         /// <summary>Starts a course of antibiotics, which clears an infection over a few hours.</summary>
         public void TakeAntibiotics()
@@ -166,22 +178,6 @@ namespace Backpacking.Survival
             infectionRisk = 0f;
         }
 
-        /// <summary>
-        /// Boots and socks off over a smoky fire: knocks an infection right back, dries the feet and eases the ache.
-        /// </summary>
-        public void SmokeFeet()
-        {
-            infection = Mathf.Max(0f, infection - 60f);
-            infectionRisk = 0f;
-            wetness = Mathf.Min(wetness, 20f);
-            footStrain = Mathf.Max(0f, footStrain - 30f);
-            if (infection <= 0f)
-                warnedInfection = false;
-        }
-
-        /// <summary>Boots off and feet up for a while: strain eases much faster.</summary>
-        public void RestFeet(float hours) => restingFeetUntil = timeOfDay.TotalHours + hours;
-        bool RestingFeet => timeOfDay.TotalHours < restingFeetUntil;
         public bool IsSick => sickHours > 0f;
         public bool IsStarving => satiety < criticalThreshold;
         public bool IsDehydrated => hydration < criticalThreshold;
@@ -339,10 +335,11 @@ namespace Backpacking.Survival
             }
             else
             {
-                float recovery = IsSleeping ? sleepingStrainRecovery : RestingFeet ? restingStrainRecovery : idleStrainRecovery;
+                float recovery = IsSleeping ? sleepingStrainRecovery : BootsOff ? bootsOffStrainRecovery
+                    : Seated ? seatedStrainRecovery : idleStrainRecovery;
                 footStrain = Mathf.Max(0f, footStrain - recovery * hours);
                 // An infection keeps blisters from healing.
-                if (footStrain < blistersAbove && (IsSleeping || RestingFeet) && !IsInfected)
+                if (footStrain < blistersAbove && (IsSleeping || BootsOff) && !IsInfected)
                     feet += (IsSleeping ? sleepingHeal : restingHeal) * hours;
             }
             feet = Mathf.Clamp(feet, 0f, Max);
@@ -353,10 +350,24 @@ namespace Backpacking.Survival
         void UpdateInfection(float hours)
         {
             float exposure = (FeetWet ? 1f : 0f) + (HasBlisters ? 1f : 0f);
-            if (exposure > 0f && !OnAntibiotics)
+            if (exposure > 0f && !OnAntibiotics && !BootsOff)
                 infectionRisk += exposure * hours;
             else
-                infectionRisk = Mathf.Max(0f, infectionRisk - 0.5f * hours);
+                // Airing the feet clears the risk much faster.
+                infectionRisk = Mathf.Max(0f, infectionRisk - (BootsOff ? 3f : 0.5f) * hours);
+
+            if (SmokingFeet)
+            {
+                bool wasInfected = IsInfected;
+                infection = Mathf.Max(0f, infection - smokeCure * hours);
+                infectionRisk = 0f;
+                wetness = Mathf.Max(0f, wetness - 60f * hours);
+                if (wasInfected && !IsInfected)
+                {
+                    Notifications.Post("The swelling's gone down. The smoke has drawn out the infection.");
+                    Trip.TripLog.Note("Held my bare feet in the fire's smoke until the infection cleared.");
+                }
+            }
 
             if (!IsInfected && infectionRisk >= hoursToInfection)
             {

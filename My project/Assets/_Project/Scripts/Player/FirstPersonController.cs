@@ -73,6 +73,8 @@ namespace Backpacking.Player
         float pitch;
         float eyeHeight = 1.68f;
         float cameraDistance;
+        float seatedAmount;
+        const float SeatedEyeHeight = 0.9f;
 
         bool cursorWasNeeded;
         bool invertY;
@@ -84,6 +86,10 @@ namespace Backpacking.Player
         public float VerticalVelocity => verticalVelocity;
         /// <summary>Viewing the hiker from behind rather than through their eyes. Toggled with V (or RB).</summary>
         public bool ThirdPerson { get; set; }
+        /// <summary>Sitting on the ground: no walking, eyes at sitting height. Set by the rest mode.</summary>
+        public bool Seated { get; set; }
+        /// <summary>The move stick or keys right now, even while seated or locked (e.g. to stand up).</summary>
+        public Vector2 MoveInput => moveAction != null ? moveAction.ReadValue<Vector2>() : Vector2.zero;
         /// <summary>
         /// Where aiming rays (interacting, placing gear) should start: the eyes in first person, or the point
         /// level with the player in third person, so the reach is the same either way.
@@ -161,15 +167,16 @@ namespace Backpacking.Player
             bool locked = PlayerControlLock.MovementLocked;
             if (!locked && Cursor.lockState == CursorLockMode.Locked)
                 Look();
-            if (!locked)
+            if (!locked && !Seated)
                 UpdateCrouch();
-            Move(locked);
+            Move(locked || Seated);
+            seatedAmount = Mathf.MoveTowards(seatedAmount, Seated ? 1f : 0f, Time.deltaTime * 2.5f);
         }
 
         // After everything that moves the view this frame (head bob, shivering) has had its say.
         void LateUpdate()
         {
-            Vector3 eye = new Vector3(0f, eyeHeight, 0f) + BobPosition;
+            Vector3 eye = new Vector3(0f, Mathf.Lerp(eyeHeight, SeatedEyeHeight, Mathf.SmoothStep(0f, 1f, seatedAmount)), 0f) + BobPosition;
             Quaternion look = Quaternion.Euler(pitch + ViewOffset.y + BobRotation.x, ViewOffset.x + BobRotation.y, ViewOffset.z + BobRotation.z);
             cameraPivot.localRotation = look;
             cameraPivot.localPosition = ThirdPerson ? eye + look * ThirdPersonOffset(eye, look) : eye;

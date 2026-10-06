@@ -20,7 +20,6 @@ namespace Backpacking.UI
         [SerializeField] PlayerActivity activity;
         [SerializeField] float cleanRabbitMinutes = 15f;
         [SerializeField] int meatPerRabbit = 2;
-        [SerializeField] float restFeetMinutes = 30f;
 
         readonly Bindings bindings = new();
         readonly Bindings listBindings = new();
@@ -51,6 +50,11 @@ namespace Backpacking.UI
                 bindings.Text(() => backpack.HasWaterFilter
                     ? "Your filter makes lake and stream water safe as you fill up."
                     : "Untreated water may make you sick. Boil it first.", "reason"),
+                UIBuild.Text("FIRST AID", "heading"),
+                UIBuild.Box("row").With(
+                    bindings.ActionButton(() => $"Take antibiotics ({backpack.Antibiotics})", TakeAntibiotics,
+                        () => backpack.Antibiotics <= 0 ? "None left. Trading posts sell them." : !vitals.IsInfected ? "" : vitals.OnAntibiotics ? "Already taking a course" : null, Busy)),
+                UIBuild.Text("Sore feet? Sit down (Z) and take your boots off (E). By a lit fire, that holds your feet in its smoke, which fights infection. Your journal's Status page (J) shows how you are.", "reason"),
                 UIBuild.Text("FOOD", "heading"),
                 foodList);
 
@@ -62,11 +66,7 @@ namespace Backpacking.UI
                 UIBuild.Box("row").With(
                     PlaceButton("Set up stove", CampItem.Stove),
                     PlaceButton(() => $"Set a snare ({backpack.Snares} left)", CampItem.Snare)),
-                UIBuild.Box("row").With(
-                    PlaceButton("Clear campsite (machete)", CampItem.Clearing),
-                    bindings.ActionButton($"Rest your feet ({restFeetMinutes:0} min)", RestFeet, null, Busy),
-                    bindings.ActionButton(() => $"Take antibiotics ({backpack.Antibiotics})", TakeAntibiotics,
-                        () => backpack.Antibiotics <= 0 ? "None left. Trading posts sell them." : !vitals.IsInfected ? "" : vitals.OnAntibiotics ? "Already taking a course" : null, Busy)),
+                UIBuild.Box("row").With(PlaceButton("Clear campsite (machete)", CampItem.Clearing)),
                 UIBuild.Text("In the woods, clear the brush before pitching the tent or building a fire.", "reason"),
                 bindings.Text(() => $"Tent: {backpack.TentName} (+{backpack.TentShelter:0} °C when sleeping)", "small"),
                 bindings.Text(() => $"Sleeping bag: {backpack.SleepingBagName} (comfort {backpack.SleepingBagComfort:0} °C)", "small"),
@@ -144,15 +144,6 @@ namespace Backpacking.UI
         }
 
         bool Busy() => activity.IsBusy;
-
-        /// <summary>Boots off for half an hour: the ache eases much faster, and blisters start to heal.</summary>
-        void RestFeet()
-        {
-            Close();
-            vitals.RestFeet(restFeetMinutes / 60f);
-            activity.Begin("Resting your feet", restFeetMinutes, () =>
-                Notifications.Post(vitals.FootStrain < 20f ? "Your feet feel much better." : "Your feet still ache. Rest a while longer."));
-        }
 
         void TakeAntibiotics()
         {

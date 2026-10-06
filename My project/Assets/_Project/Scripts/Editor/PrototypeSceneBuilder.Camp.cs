@@ -286,6 +286,24 @@ namespace Backpacking.EditorTools
             var journal = hud.AddComponent<JournalView>();
             SetField(journal, "timeOfDay", timeOfDay);
             SetField(journal, "saves", saves);
+            SetField(journal, "vitals", vitals);
+            SetField(journal, "backpack", backpack);
+
+            var rest = go.AddComponent<RestMode>();
+            SetField(rest, "inputActions", inputActions);
+            SetField(rest, "player", player);
+            SetField(rest, "vitals", vitals);
+            SetField(rest, "activity", activity);
+
+            var tutorial = hud.AddComponent<Tutorial>();
+            SetField(tutorial, "player", player);
+            SetField(tutorial, "backpack", backpack);
+            SetField(tutorial, "map", Object.FindAnyObjectByType<Navigation.MapView>());
+            SetField(tutorial, "compass", Object.FindAnyObjectByType<Navigation.Compass>());
+            SetField(tutorial, "placer", placer);
+            SetField(tutorial, "clearing", go.GetComponent<GroundClearing>());
+            SetField(menus, "tutorial", tutorial);
+            SetField(saves, "tutorial", tutorial);
 
             go.AddComponent<HeadBob>();
             go.AddComponent<Footsteps>();

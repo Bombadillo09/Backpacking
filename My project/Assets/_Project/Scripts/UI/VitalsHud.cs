@@ -24,7 +24,6 @@ namespace Backpacking.UI
             panel.Add(Vital("Water", () => vitals.Hydration, new Color(0.3f, 0.6f, 0.95f)));
             panel.Add(Vital("Warmth", () => vitals.Warmth, new Color(0.95f, 0.45f, 0.3f)));
             panel.Add(Vital("Energy", () => vitals.Energy, new Color(0.5f, 0.85f, 0.45f)));
-            panel.Add(Vital("Feet", () => vitals.Feet, new Color(0.85f, 0.6f, 0.5f), FeetState));
             panel.Add(bindings.Text(Status, "vitals-status", "shadowed"));
             panel.Add(bindings.Text(Load, "vitals-status", "shadowed"));
             GameUI.Current.Hud.Add(panel.IgnoreMouse());
@@ -33,9 +32,20 @@ namespace Backpacking.UI
 
         void Update()
         {
-            if (built)
-                bindings.Refresh();
+            if (!built)
+                return;
+            if (Time.unscaledTime >= nextConditionCheck)
+            {
+                nextConditionCheck = Time.unscaledTime + 1f;
+                worstCondition = 0;
+                foreach (BodyCondition condition in BodyConditions.Evaluate(vitals, backpack))
+                    worstCondition = Mathf.Max(worstCondition, condition.Severity);
+            }
+            bindings.Refresh();
         }
+
+        int worstCondition;
+        float nextConditionCheck;
 
         VisualElement Vital(string label, Func<float> read, Color colour, Func<string> suffix = null)
         {
@@ -72,6 +82,12 @@ namespace Backpacking.UI
                 status += "  ·  dehydrated";
             if (vitals.IsStarving)
                 status += "  ·  starving";
+            // Feet and other injuries live on the journal's Status page.
+            string feet = FeetState().Trim();
+            if (feet.Length > 0)
+                status += $"  ·  feet {feet}";
+            if (worstCondition >= 2)
+                status += "  ·  check Status (J)";
             return status;
         }
 

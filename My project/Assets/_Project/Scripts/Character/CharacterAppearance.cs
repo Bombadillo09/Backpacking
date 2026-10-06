@@ -90,8 +90,43 @@ namespace Backpacking.Character
             AddPack(profile, bones);
 
             fullBody = Body.sharedMesh;
-            if (bones.TryGetValue("Head", out Transform head))
-                EyeHeight = model.transform.InverseTransformPoint(head.position).y + 0.09f;
+            StandOnGround(bones);
+        }
+
+        /// <summary>Overall height of the posed hiker, in the model's own scale.</summary>
+        public float Height { get; private set; } = 1.8f;
+
+        /// <summary>
+        /// Poses the hiker in its idle stance, measures the posed body, and lifts it so the soles of the feet rest
+        /// on the ground at this object's origin. The eye height is measured from the posed head.
+        /// </summary>
+        void StandOnGround(Dictionary<string, Transform> bones)
+        {
+            if (Animator != null && Animator.runtimeAnimatorController != null)
+            {
+                Animator.Rebind();
+                Animator.Update(0f);
+            }
+
+            var baked = new Mesh();
+            Body.BakeMesh(baked, true);
+            Matrix4x4 toLocal = transform.worldToLocalMatrix * Body.transform.localToWorldMatrix;
+            float lowest = float.MaxValue, highest = float.MinValue;
+            foreach (Vector3 vertex in baked.vertices)
+            {
+                float y = toLocal.MultiplyPoint3x4(vertex).y;
+                lowest = Mathf.Min(lowest, y);
+                highest = Mathf.Max(highest, y);
+            }
+            Destroy(baked);
+            if (lowest == float.MaxValue)
+                return;
+
+            model.transform.localPosition -= new Vector3(0f, lowest, 0f);
+            Height = highest - lowest;
+            EyeHeight = bones.TryGetValue("Head", out Transform head)
+                ? transform.InverseTransformPoint(head.position).y + 0.09f
+                : Height * 0.93f;
         }
 
         /// <summary>

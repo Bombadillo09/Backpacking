@@ -76,7 +76,8 @@ namespace Backpacking.Camp
             Density = density;
             player.GroundSpeedMultiplier = Mathf.Lerp(1f, slowestSpeed, density);
 
-            bool free = !PlayerControlLock.MovementLocked && !placer.IsPlacing && UnityEngine.Cursor.lockState == CursorLockMode.Locked;
+            bool free = !PlayerControlLock.MovementLocked && !placer.IsPlacing && !RestMode.SeatedNow
+                        && UnityEngine.Cursor.lockState == CursorLockMode.Locked;
             if (free && attack.WasPressedThisFrame() && Time.time >= nextSwing && backpack.HasMachete)
                 Swing();
 

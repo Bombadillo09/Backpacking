@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Backpacking.Player;
 using Backpacking.Saving;
+using Backpacking.Survival;
 using Backpacking.Trip;
 using Backpacking.World;
 using UnityEngine;
@@ -17,6 +18,8 @@ namespace Backpacking.UI
     {
         [SerializeField] TimeOfDay timeOfDay;
         [SerializeField] SaveSystem saves;
+        [SerializeField] Vitals vitals;
+        [SerializeField] Backpack backpack;
 
         static JournalView current;
 
@@ -25,11 +28,23 @@ namespace Backpacking.UI
         Label journalStats, summaryTitle, summaryRating;
         VisualElement summaryStats;
         bool summaryOpen;
+        VisualElement journalPage;
+        BodyStatusPanel status;
+        Button journalTab, statusTab;
+        bool showingStatus;
+        float nextStatusRefresh;
+
+        /// <summary>True once the Status page has been opened this session (the tutorial asks you to).</summary>
+        public static bool StatusViewed { get; private set; }
 
         public bool IsOpen { get; private set; }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() => current = null;
+        static void ResetStatics()
+        {
+            current = null;
+            StatusViewed = false;
+        }
 
         /// <summary>Shows the end-of-trip screen (from the summit register).</summary>
         public static void ShowSummary()
@@ -45,6 +60,16 @@ namespace Backpacking.UI
                 current.OpenJournal();
         }
 
+        /// <summary>Opens the journal on its Status page.</summary>
+        public static void ShowStatus()
+        {
+            if (current == null)
+                return;
+            if (!current.IsOpen)
+                current.OpenJournal();
+            current.ShowTab(status: true);
+        }
+
         void Awake() => current = this;
 
         void OnEnable() => TripLog.Finished += OnFinished;
@@ -55,12 +80,19 @@ namespace Backpacking.UI
             entryList = new ScrollView();
             entryList.style.height = 560f;
             journalStats = UIBuild.Text("", "small");
+            journalPage = UIBuild.Box().With(
+                UIBuild.Text($"Destination: {TripLog.Destination}", "small"),
+                journalStats,
+                entryList);
+            status = new BodyStatusPanel(vitals, backpack);
+            journalTab = UIBuild.Button("Journal", () => ShowTab(status: false));
+            statusTab = UIBuild.Button("Status", () => ShowTab(status: true));
             VisualElement journalPanel = UIBuild.Box("panel").With(
                 UIBuild.Box("panel-header").With(
                     UIBuild.Text("Trip Journal", "title"),
-                    UIBuild.Text($"Destination: {TripLog.Destination}", "small")),
-                journalStats,
-                entryList,
+                    UIBuild.Box("row").With(journalTab, statusTab)),
+                journalPage,
+                status.Root,
                 UIBuild.Box("footer").With(UIBuild.Button("Close  (J)", CloseJournal)));
             journalPanel.style.width = 900f;
             journalScreen = UIBuild.Layer("centred").With(journalPanel);
@@ -89,6 +121,11 @@ namespace Backpacking.UI
 
         void Update()
         {
+            if (IsOpen && showingStatus && Time.unscaledTime >= nextStatusRefresh)
+            {
+                nextStatusRefresh = Time.unscaledTime + 0.5f;
+                status.Refresh();
+            }
             if (!GameInput.JournalPressed || summaryOpen)
                 return;
             if (IsOpen)
@@ -108,10 +145,33 @@ namespace Backpacking.UI
             journalStats.text = $"Day {timeOfDay.Day} on the trail  ·  {log.DistanceKm:0.0} km walked  ·  highest point {log.HighestAltitude:0} m"
                                 + (log.IsFinished ? "  ·  thru-hike complete" : "");
             FillEntries(log);
+            ShowTab(showingStatus);
             journalScreen.SetVisible(true);
             journalScreen.FocusFirstButton();
             PlayerControlLock.Lock(this, needsCursor: true);
             GameUI.ClaimEscape(this, CloseJournal);
+        }
+
+        void ShowTab(bool status)
+        {
+            showingStatus = status;
+            journalPage.SetVisible(!status);
+            this.status.Root.SetVisible(status);
+            SetSelected(journalTab, !status);
+            SetSelected(statusTab, status);
+            if (status)
+            {
+                StatusViewed = true;
+                this.status.Refresh();
+            }
+        }
+
+        static void SetSelected(VisualElement button, bool selected)
+        {
+            if (selected)
+                button.AddToClassList("selected");
+            else
+                button.RemoveFromClassList("selected");
         }
 
         void CloseJournal()

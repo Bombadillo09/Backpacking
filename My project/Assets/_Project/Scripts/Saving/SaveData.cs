@@ -28,6 +28,8 @@ namespace Backpacking.Saving
         public WeatherState weather;
         public TripState trip;
         public CharacterProfile character;
+        /// <summary>The tutorial step in progress, or -1 if it's done or skipped.</summary>
+        public int tutorialStep = -1;
 
         public List<string> collectedPickups = new();
         public List<string> visitedPoints = new();

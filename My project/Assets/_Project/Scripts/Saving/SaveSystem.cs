@@ -37,6 +37,7 @@ namespace Backpacking.Saving
         [SerializeField] TripLog trip;
         [SerializeField] GroundClearing clearing;
         [SerializeField] PlayerAvatar avatar;
+        [SerializeField] UI.Tutorial tutorial;
         [SerializeField] string fileName = "trip.json";
         [Tooltip("How close to a route stop counts as being 'near' it in the save summary, in metres.")]
         [SerializeField] float nearbyDistance = 400f;
@@ -174,6 +175,7 @@ namespace Backpacking.Saving
                 weather = weather.CaptureState(),
                 trip = trip != null ? trip.CaptureState() : null,
                 character = avatar != null ? avatar.Profile.Clone() : null,
+                tutorialStep = tutorial != null ? tutorial.CurrentStep : -1,
                 summary = $"Day {timeOfDay.Day}, {timeOfDay.ClockText} {DescribeLocation()}",
             };
 
@@ -250,6 +252,8 @@ namespace Backpacking.Saving
             // Older saves have no hiker; keep whoever is shown.
             if (avatar != null && data.character != null && !string.IsNullOrEmpty(data.character.name))
                 avatar.Apply(data.character);
+            if (tutorial != null)
+                tutorial.Resume(data.tutorialStep);
 
             foreach (string id in data.collectedPickups)
                 if (pickupsAtStart.TryGetValue(id, out GameObject pickup) && pickup != null)

@@ -43,6 +43,10 @@ namespace Backpacking.UI
         bool dragging;
 
         public bool IsOpen { get; private set; }
+        /// <summary>Whether to run the tutorial on the trip about to start.</summary>
+        public bool TutorialWanted => tutorialToggle == null || tutorialToggle.value;
+
+        Toggle tutorialToggle;
 
         void Start()
         {
@@ -172,6 +176,7 @@ namespace Backpacking.UI
                 UIBuild.Text("BACKGROUND", "heading"),
                 backgrounds,
                 backgroundText,
+                Row("Tutorial", tutorialToggle = new Toggle { value = PlayerPrefs.GetInt("tutorial.done", 0) == 0 }),
                 UIBuild.Box("footer").With(
                     UIBuild.Button("Back", Back),
                     UIBuild.Button("Start trip", StartTrip, "primary")));
@@ -326,6 +331,19 @@ namespace Backpacking.UI
             key.cullingMask = 1 << PreviewLayer;
         }
 
+        /// <summary>Head to toe in frame, with a little room above and below.</summary>
+        void FrameCamera(float height)
+        {
+            if (previewCamera == null || height <= 0.1f)
+                return;
+            float halfView = Mathf.Tan(previewCamera.fieldOfView * 0.5f * Mathf.Deg2Rad);
+            float distance = height * 0.58f / halfView;
+            Vector3 centre = stage.position + Vector3.up * (height * 0.5f);
+            previewCamera.transform.position = centre + new Vector3(0f, height * 0.05f, distance);
+            previewCamera.transform.LookAt(centre);
+            previewCamera.farClipPlane = distance + 5f;
+        }
+
         void RebuildPreview()
         {
             if (preview == null)
@@ -333,6 +351,7 @@ namespace Backpacking.UI
             preview.Build(profile);
             preview.SetLayer(PreviewLayer);
             preview.SetFirstPerson(false);
+            FrameCamera(preview.Height);
             if (preview.Animator != null)
                 preview.Animator.updateMode = AnimatorUpdateMode.UnscaledTime;
         }

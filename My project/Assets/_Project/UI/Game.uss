@@ -427,6 +427,17 @@
     padding-right: 8px;
 }
 
+/* ---------- Tutorial ---------- */
+
+.tutorial {
+    position: absolute;
+    right: 24px;
+    top: 90px;
+    width: 440px;
+    padding: 14px 18px;
+    border-color: rgba(224, 123, 57, 0.6);
+}
+
 /* ---------- Character creation ---------- */
 
 .creator-preview {
@@ -451,6 +462,20 @@
 
 .creator-name {
     font-size: 20px;
+}
+
+/* The default theme's text field is pale; make it match the dark panels. */
+.layer .unity-text-field__input,
+.layer .unity-base-text-field__input {
+    background-color: rgba(0, 0, 0, 0.45);
+    border-color: var(--edge);
+    color: var(--ink);
+    -unity-font-style: bold;
+    padding: 4px 8px;
+}
+
+.layer .unity-text-element--inner-input-field-component {
+    color: var(--ink);
 }
 
 .creator-choice {

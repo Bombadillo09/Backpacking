@@ -66,7 +66,8 @@ namespace Backpacking.Interaction
                 return;
             }
 
-            bool busy = PlayerControlLock.MovementLocked || PlayerControlLock.JustReleased || placer.IsPlacing;
+            // Sitting down, E takes your boots on and off instead.
+            bool busy = PlayerControlLock.MovementLocked || PlayerControlLock.JustReleased || placer.IsPlacing || RestMode.SeatedNow;
             target = busy ? null : FindTarget();
             if (target == null || !interactAction.WasPressedThisFrame())
                 return;

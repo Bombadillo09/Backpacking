@@ -20,8 +20,6 @@ namespace Backpacking.Camp
         [SerializeField] float lightingMinutes = 3f;
         [SerializeField] float minutesPerLitre = 12f;
         [SerializeField] float mealMinutes = 15f;
-        [Tooltip("Game minutes to dry and smoke your feet, which knocks back a foot infection.")]
-        [SerializeField] float smokeFeetMinutes = 45f;
 
         [Header("Parts")]
         [SerializeField] GameObject woodVisual;
@@ -133,19 +131,12 @@ namespace Backpacking.Camp
                 CampCooking.AddOptions(interactor, options, minutesPerLitre, mealMinutes, canSmoke: true,
                     minutes => fuelHours * 60f < minutes ? $"Needs {minutes / 60f:0.#} h of fire. Add wood." : null,
                     _ => { });
-                Vitals vitals = interactor.Vitals;
-                options.Add(new InteractionOption($"Take off boots and socks and smoke your feet ({smokeFeetMinutes:0} min)", () =>
-                    interactor.Activity.Begin("Smoking your feet", smokeFeetMinutes, () =>
-                    {
-                        bool wasInfected = vitals.IsInfected;
-                        vitals.SmokeFeet();
-                        string result = !wasInfected ? "Your feet are warm and dry." : vitals.IsInfected
-                            ? "The smoke has drawn out some of the infection. Another session should clear it."
-                            : "The swelling's gone down. The infection has cleared.";
-                        Notifications.Post(result);
-                        if (wasInfected)
-                            Trip.TripLog.Note(vitals.IsInfected ? "Smoked my feet over the fire. Helping." : "Smoked my feet over the fire until the infection cleared.");
-                    })));
+                // Sitting barefoot by the fire holds your feet in its smoke (see RestMode).
+                options.Add(new InteractionOption("Sit by the fire (then E: boots off, to warm, dry and smoke your feet)", () =>
+                {
+                    if (RestMode.Current != null)
+                        RestMode.Current.SitDown();
+                }));
                 options.Add(new InteractionOption($"Fire will burn for about {FuelText()}", () => { }, ""));
             }
             else

@@ -18,6 +18,7 @@ namespace Backpacking.UI
         [SerializeField] CharacterCreator creator;
         [SerializeField] PlayerAvatar avatar;
         [SerializeField] Backpack backpack;
+        [SerializeField] Tutorial tutorial;
 
         // Keyboard and mouse | gamepad | what it does.
         const string ControlsText =
@@ -35,6 +36,7 @@ namespace Backpacking.UI
         Button continueButton;
         Label continueSummary, confirmText;
         Button loadButton;
+        Button skipTutorialButton;
         Action confirmAction;
         float timeScaleBeforePause = 1f;
         bool onTitle;
@@ -87,6 +89,13 @@ namespace Backpacking.UI
             pausePage = UIBuild.Box("panel", "menu-panel").With(
                 UIBuild.Text("Paused", "title"),
                 UIBuild.Button("Resume", Resume, "menu", "primary"),
+                skipTutorialButton = UIBuild.Button("Skip tutorial", () =>
+                {
+                    if (tutorial != null)
+                        tutorial.Stop();
+                    PlayerPrefs.SetInt("tutorial.done", 1);
+                    Resume();
+                }, "menu"),
                 UIBuild.Button("Save trip", () =>
                 {
                     saves.Save();
@@ -197,7 +206,10 @@ namespace Backpacking.UI
             GameUI.Current.Hud.SetVisible(!onTitle);
 
             if (next == Page.Pause)
+            {
                 loadButton.SetEnabled(saves.HasSave);
+                skipTutorialButton.SetVisible(tutorial != null && tutorial.IsRunning);
+            }
             if (next != Page.None)
                 screen.FocusFirstButton();
         }
@@ -307,6 +319,16 @@ namespace Backpacking.UI
             if (Trip.TripLog.Current != null)
                 Trip.TripLog.Current.BeginTrip($"{hiker.name} set out from Trailhead Outfitter as a {Backgrounds.Name(hiker.background)}, "
                                                + $"heading north along the route for {Trip.TripLog.Destination}.");
+            if (tutorial != null)
+            {
+                if (creator == null || creator.TutorialWanted)
+                {
+                    tutorial.Begin(hiker.name);
+                    PlayerPrefs.SetInt("tutorial.done", 1);
+                    return;
+                }
+                tutorial.Stop();
+            }
             string replaces = saves.HasSave ? " Your next save replaces the old trip." : "";
             Notifications.Post($"Your goal, {hiker.name}: hike north along the route to {Trip.TripLog.Destination} and sign the summit register. "
                                + $"Check your map (M).{replaces}", 12f);

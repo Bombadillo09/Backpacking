@@ -131,6 +131,7 @@ namespace Backpacking.EditorTools
             controller.AddParameter(new AnimatorControllerParameter { name = "Grounded", type = AnimatorControllerParameterType.Bool, defaultBool = true });
             controller.AddParameter("Busy", AnimatorControllerParameterType.Bool);
             controller.AddParameter("Swing", AnimatorControllerParameterType.Trigger);
+            controller.AddParameter("Seated", AnimatorControllerParameterType.Bool);
 
             AnimatorStateMachine machine = controller.layers[0].stateMachine;
 
@@ -153,6 +154,8 @@ namespace Backpacking.EditorTools
             air.motion = Clip("Jump_Loop");
             AnimatorState kneel = machine.AddState("Kneel");
             kneel.motion = Clip("Fixing_Kneeling");
+            AnimatorState seated = machine.AddState("Seated");
+            seated.motion = Clip("Sitting_Idle_Loop");
             AnimatorState swing = machine.AddState("Swing");
             swing.motion = Clip("Sword_Attack");
             swing.speed = 1.4f;
@@ -166,6 +169,9 @@ namespace Backpacking.EditorTools
 
             AnyTransition(machine, kneel, 0.3f).AddCondition(AnimatorConditionMode.If, 0f, "Busy");
             Transition(kneel, locomotion, 0.3f).AddCondition(AnimatorConditionMode.IfNot, 0f, "Busy");
+
+            AnyTransition(machine, seated, 0.4f).AddCondition(AnimatorConditionMode.If, 0f, "Seated");
+            Transition(seated, locomotion, 0.4f).AddCondition(AnimatorConditionMode.IfNot, 0f, "Seated");
 
             AnyTransition(machine, swing, 0.05f).AddCondition(AnimatorConditionMode.If, 0f, "Swing");
             AnimatorStateTransition back = swing.AddTransition(locomotion);

@@ -105,6 +105,9 @@ namespace Backpacking.Camp
             if (RequirementProblem(item) != null || activity.IsBusy)
                 return;
             CancelPlacement();
+            // Get up to place gear.
+            if (RestMode.Current != null)
+                RestMode.Current.StandUp();
             placing = item;
             preview = CreatePreview(PrefabFor(item));
             GameUI.ClaimEscape(this, CancelPlacement);

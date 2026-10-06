@@ -70,13 +70,18 @@ namespace Backpacking.EditorTools
                 return;
             }
 
+            string text = File.ReadAllText(RequestPath).Trim();
             File.Delete(RequestPath);
             if (EditorUtility.scriptCompilationFailed)
             {
                 Log("FAILED: scripts have compile errors. Fix them, then request again.");
                 return;
             }
-            Run();
+            // "run:Namespace.Type.Method" calls a static editor method instead of rebuilding (diagnostics, one-off fixes).
+            if (text.StartsWith("run:"))
+                RunMethod(text.Substring(4).Trim());
+            else
+                Run();
         }
 
         static string ReadRequest()
@@ -116,7 +121,29 @@ namespace Backpacking.EditorTools
             }
         }
 
-        static void Log(string message)
+        static void RunMethod(string fullName)
+        {
+            int dot = fullName.LastIndexOf('.');
+            Type type = dot > 0 ? typeof(AutoRebuild).Assembly.GetType(fullName.Substring(0, dot)) : null;
+            System.Reflection.MethodInfo method = type?.GetMethod(fullName.Substring(dot + 1),
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+            if (method == null)
+            {
+                Log($"FAILED: no static method {fullName}.");
+                return;
+            }
+            try
+            {
+                object result = method.Invoke(null, null);
+                Log($"SUCCEEDED: ran {fullName}.{(result != null ? "\n" + result : "")}");
+            }
+            catch (Exception exception)
+            {
+                Log($"FAILED: {fullName}: {exception.InnerException ?? exception}");
+            }
+        }
+
+        public static void Log(string message)
         {
             string line = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}";
             Debug.Log($"[AutoRebuild] {message}");

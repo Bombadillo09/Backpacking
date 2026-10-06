@@ -26,6 +26,7 @@ namespace Backpacking.Character
         static readonly int GroundedId = Animator.StringToHash("Grounded");
         static readonly int BusyId = Animator.StringToHash("Busy");
         static readonly int SwingId = Animator.StringToHash("Swing");
+        static readonly int SeatedId = Animator.StringToHash("Seated");
 
         CharacterProfile profile;
         bool shownFirstPerson;
@@ -76,6 +77,7 @@ namespace Backpacking.Character
             animator.SetBool(CrouchId, player.IsCrouching);
             animator.SetBool(GroundedId, airTime < airborneAfter);
             animator.SetBool(BusyId, activity.IsBusy && !activity.IsSleeping);
+            animator.SetBool(SeatedId, player.Seated);
         }
 
         void ApplyView()
