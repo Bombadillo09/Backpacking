@@ -236,6 +236,9 @@ namespace Backpacking.EditorTools
             SetField(rescue, "timeOfDay", timeOfDay);
             SetField(rescue, "saves", saves);
 
+            var menus = hud.AddComponent<GameMenus>();
+            SetField(menus, "saves", saves);
+
             go.AddComponent<Footsteps>();
             var ambience = go.AddComponent<AmbienceAudio>();
             SetField(ambience, "timeOfDay", timeOfDay);

@@ -1,8 +1,11 @@
+using System;
+using System.Linq;
 using Backpacking.Player;
 using Backpacking.Survival;
 using Backpacking.Trade;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UIElements;
 
 namespace Backpacking.UI
 {
@@ -11,24 +14,59 @@ namespace Backpacking.UI
     {
         [SerializeField] Backpack backpack;
 
+        readonly Bindings bindings = new();
+        readonly Bindings buyBindings = new();
+        readonly Bindings sellBindings = new();
         Vendor vendor;
-        Vector2 buyScroll, sellScroll;
-        GUIStyle titleStyle, headingStyle, textStyle, smallStyle;
+        VisualElement screen;
+        Label title;
+        ScrollView buyList, sellList;
+        string sellKey;
 
         public bool IsOpen => vendor != null;
+
+        void Start()
+        {
+            title = UIBuild.Text("", "title");
+            buyList = new ScrollView();
+            sellList = new ScrollView();
+            buyList.style.height = sellList.style.height = 480f;
+
+            VisualElement panel = UIBuild.Box("panel").With(
+                UIBuild.Box("panel-header").With(
+                    title,
+                    bindings.Text(() => $"${backpack.Money}", "money")),
+                UIBuild.Box("columns").With(
+                    UIBuild.Box("column").With(UIBuild.Text("BUY", "heading"), buyList),
+                    UIBuild.Box("column", "next").With(UIBuild.Text("SELL", "heading"), sellList)),
+                UIBuild.Box("footer").With(UIBuild.Button("Leave  (Tab)", Close)));
+            panel.style.width = 1040f;
+            buyList.parent.style.flexGrow = 1.4f;
+
+            screen = UIBuild.Layer("centred").With(panel);
+            screen.SetVisible(false);
+            GameUI.Current.Screens.Add(screen);
+        }
 
         public void Open(Vendor trader)
         {
             if (IsOpen)
                 return;
             vendor = trader;
+            title.text = vendor.DisplayName;
+            BuildBuyList();
+            sellKey = null;
+            screen.SetVisible(true);
             PlayerControlLock.Lock(this, needsCursor: true);
+            GameUI.ClaimEscape(this, Close);
         }
 
         public void Close()
         {
             vendor = null;
+            screen.SetVisible(false);
             PlayerControlLock.Unlock(this);
+            GameUI.ReleaseEscape(this);
         }
 
         void Update()
@@ -37,7 +75,20 @@ namespace Backpacking.UI
                 return;
             Keyboard keyboard = Keyboard.current;
             if (keyboard != null && keyboard.tabKey.wasPressedThisFrame)
+            {
                 Close();
+                return;
+            }
+
+            string key = SellKey();
+            if (key != sellKey)
+            {
+                sellKey = key;
+                BuildSellList();
+            }
+            bindings.Refresh();
+            buyBindings.Refresh();
+            sellBindings.Refresh();
         }
 
         void OnDisable()
@@ -46,141 +97,102 @@ namespace Backpacking.UI
                 Close();
         }
 
-        void OnGUI()
+        // ---------- Buying ----------
+
+        void BuildBuyList()
         {
-            if (!IsOpen)
-                return;
-
-            if (titleStyle == null)
-            {
-                titleStyle = new GUIStyle(GUI.skin.label) { fontSize = 22, fontStyle = FontStyle.Bold };
-                headingStyle = new GUIStyle(GUI.skin.label) { fontSize = 17, fontStyle = FontStyle.Bold };
-                textStyle = new GUIStyle(GUI.skin.label) { fontSize = 15 };
-                smallStyle = new GUIStyle(GUI.skin.label) { fontSize = 12, fontStyle = FontStyle.Italic, wordWrap = true };
-            }
-
-            const float width = 900f, height = 620f;
-            var area = new Rect((Screen.width - width) / 2f, (Screen.height - height) / 2f, width, height);
-            GUI.Box(area, GUIContent.none);
-            GUI.Box(area, GUIContent.none);
-
-            GUILayout.BeginArea(new Rect(area.x + 20f, area.y + 14f, width - 40f, height - 28f));
-            GUILayout.BeginHorizontal();
-            GUILayout.Label(vendor.DisplayName, titleStyle);
-            GUILayout.FlexibleSpace();
-            GUILayout.Label($"Money: ${backpack.Money}", titleStyle);
-            GUILayout.EndHorizontal();
-            GUILayout.Space(8f);
-
-            GUILayout.BeginHorizontal();
-            GUILayout.BeginVertical(GUILayout.Width(520f));
-            GUILayout.Label("Buy", headingStyle);
-            buyScroll = GUILayout.BeginScrollView(buyScroll, GUILayout.Height(470f));
-            DrawBuyList();
-            GUILayout.EndScrollView();
-            GUILayout.EndVertical();
-
-            GUILayout.Space(16f);
-
-            GUILayout.BeginVertical();
-            GUILayout.Label("Sell", headingStyle);
-            sellScroll = GUILayout.BeginScrollView(sellScroll, GUILayout.Height(470f));
-            DrawSellList();
-            GUILayout.EndScrollView();
-            GUILayout.EndVertical();
-            GUILayout.EndHorizontal();
-
-            GUILayout.FlexibleSpace();
-            if (GUILayout.Button("Leave  (Tab)", GUILayout.Height(28f)))
-                Close();
-            GUILayout.EndArea();
-        }
-
-        void DrawBuyList()
-        {
-            bool drewGearHeading = false;
+            buyBindings.Clear();
+            buyList.Clear();
             foreach (bool gear in new[] { false, true })
             {
+                bool headed = false;
                 foreach (StockEntry entry in vendor.Stock)
                 {
                     ShopItem item = ShopCatalog.Get(entry.item);
                     if (item.IsGear != gear)
                         continue;
-                    if (gear && !drewGearHeading)
+                    if (!headed)
                     {
-                        GUILayout.Space(8f);
-                        GUILayout.Label("Gear", headingStyle);
-                        drewGearHeading = true;
+                        buyList.Add(UIBuild.Text(gear ? "Gear" : "Supplies", "small"));
+                        headed = true;
                     }
-                    DrawBuyRow(entry, item);
+                    buyList.Add(BuyRow(entry, item));
                 }
             }
+            buyList.scrollOffset = Vector2.zero;
         }
 
-        void DrawBuyRow(StockEntry entry, ShopItem item)
+        VisualElement BuyRow(StockEntry entry, ShopItem item)
         {
-            int price = vendor.PriceOf(entry.item);
-            string problem = entry.quantity == 0 ? "Sold out"
+            Vendor seller = vendor;
+            int price = seller.PriceOf(entry.item);
+            string Problem() => entry.quantity == 0 ? "Sold out"
                 : item.Problem(backpack) ?? (backpack.Money < price ? "Not enough money" : null);
 
-            GUILayout.BeginHorizontal();
-            GUILayout.BeginVertical(GUILayout.Width(360f));
-            string stockText = entry.quantity < 0 ? "" : $"   ({entry.quantity} left)";
-            GUILayout.Label($"{item.Name}{stockText}", textStyle);
-            GUILayout.Label(problem ?? item.Description, smallStyle);
-            GUILayout.EndVertical();
-
-            GUI.enabled = problem == null;
-            if (GUILayout.Button($"Buy  ${price}", GUILayout.Width(110f), GUILayout.Height(30f)) && backpack.TrySpendMoney(price))
+            Button buy = UIBuild.Button($"Buy  ${price}", () =>
             {
+                if (Problem() != null || !backpack.TrySpendMoney(price))
+                    return;
                 item.ApplyTo(backpack);
-                vendor.TakeOneFromStock(entry);
+                seller.TakeOneFromStock(entry);
                 if (item.IsGear)
                     Notifications.Post($"Bought: {item.Name}.");
-            }
-            GUI.enabled = true;
-            GUILayout.EndHorizontal();
-            GUILayout.Space(4f);
+            }, "primary");
+            buy.style.width = 120f;
+            buyBindings.Enabled(buy, () => Problem() == null);
+
+            return UIBuild.Box("list-row").With(
+                UIBuild.Box("grow").With(
+                    buyBindings.Text(() => entry.quantity < 0 ? item.Name : $"{item.Name}   ({entry.quantity} left)"),
+                    buyBindings.Text(() => Problem() ?? item.Description, "reason")),
+                buy);
         }
 
-        void DrawSellList()
+        // ---------- Selling ----------
+
+        string SellKey() =>
+            string.Join(",", FoodCatalog.AllKinds.Where(kind => backpack.CountFood(kind) > 0 && FoodCatalog.Get(kind).Value > 0))
+            + (backpack.Pelts > 0 ? ",pelts" : "");
+
+        void BuildSellList()
         {
-            bool any = false;
+            Vector2 scroll = sellList.scrollOffset;
+            sellList.Clear();
+            sellBindings.Clear();
             foreach (FoodKind kind in FoodCatalog.AllKinds)
             {
-                int count = backpack.CountFood(kind);
                 FoodInfo info = FoodCatalog.Get(kind);
-                if (count == 0 || info.Value <= 0)
+                if (backpack.CountFood(kind) == 0 || info.Value <= 0)
                     continue;
-                any = true;
-                int offer = vendor.OfferFor(info.Value);
-                DrawSellRow($"{info.Name}  ×{count}", offer, count,
-                    () => backpack.TryTakeFood(kind));
+                sellList.Add(SellRow(() => $"{info.Name}  ×{backpack.CountFood(kind)}", vendor.OfferFor(info.Value),
+                    () => backpack.CountFood(kind), () => backpack.TryTakeFood(kind)));
             }
 
             if (backpack.Pelts > 0)
-            {
-                any = true;
-                DrawSellRow($"Rabbit pelt  ×{backpack.Pelts}", vendor.OfferFor(ShopCatalog.PeltValue), backpack.Pelts,
-                    backpack.TryTakePelt);
-            }
+                sellList.Add(SellRow(() => $"Rabbit pelt  ×{backpack.Pelts}", vendor.OfferFor(ShopCatalog.PeltValue),
+                    () => backpack.Pelts, backpack.TryTakePelt));
 
-            if (!any)
-                GUILayout.Label("Nothing to sell. Smoked fish, jerky and pelts fetch the best prices.", smallStyle);
+            if (sellList.childCount == 0)
+                sellList.Add(UIBuild.Text("Nothing to sell. Smoked fish, jerky and pelts fetch the best prices.", "small"));
+            sellList.scrollOffset = scroll;
         }
 
-        void DrawSellRow(string label, int offer, int count, System.Func<bool> takeOne)
+        VisualElement SellRow(Func<string> label, int offer, Func<int> count, Func<bool> takeOne)
         {
-            GUILayout.BeginHorizontal();
-            GUILayout.Label(label, textStyle, GUILayout.Width(170f));
-            if (GUILayout.Button($"Sell ${offer}", GUILayout.Width(75f)) && takeOne())
-                backpack.AddMoney(offer);
-            if (GUILayout.Button($"All ${offer * count}", GUILayout.Width(75f)))
+            Button sellAll = UIBuild.Button("", () =>
             {
                 while (takeOne())
                     backpack.AddMoney(offer);
-            }
-            GUILayout.EndHorizontal();
+            });
+            sellBindings.Add(() => sellAll.SetText($"All ${offer * count()}"));
+            return UIBuild.Box("list-row").With(
+                sellBindings.Text(label, "grow"),
+                UIBuild.Button($"Sell ${offer}", () =>
+                {
+                    if (takeOne())
+                        backpack.AddMoney(offer);
+                }),
+                sellAll);
         }
     }
 }

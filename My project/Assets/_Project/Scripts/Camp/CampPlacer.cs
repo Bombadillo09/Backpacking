@@ -5,6 +5,7 @@ using Backpacking.Survival;
 using Backpacking.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UIElements;
 
 namespace Backpacking.Camp
 {
@@ -50,7 +51,7 @@ namespace Backpacking.Camp
         CampItem placing;
         string problem;
         MaterialPropertyBlock tint;
-        GUIStyle hintStyle;
+        Label hint;
 
         public bool IsPlacing => preview != null;
 
@@ -95,6 +96,7 @@ namespace Backpacking.Camp
             CancelPlacement();
             placing = item;
             preview = CreatePreview(PrefabFor(item));
+            GameUI.ClaimEscape(this, CancelPlacement);
         }
 
         public void CancelPlacement()
@@ -102,6 +104,7 @@ namespace Backpacking.Camp
             if (preview != null)
                 Destroy(preview);
             preview = null;
+            GameUI.ReleaseEscape(this);
         }
 
         void Update()
@@ -278,18 +281,20 @@ namespace Backpacking.Camp
             return copy;
         }
 
-        void OnGUI()
+        void Start()
         {
-            if (!IsPlacing)
+            hint = UIBuild.Text("", "hint", "shadowed");
+            hint.SetVisible(false);
+            GameUI.Current.Hud.Add(hint.IgnoreMouse());
+        }
+
+        void LateUpdate()
+        {
+            if (hint == null)
                 return;
-            hintStyle ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 18 };
-            string text = problem ?? "Left-click or E to place";
-            text += "     ·     Right-click to cancel";
-            var rect = new Rect(0f, Screen.height * 0.72f, Screen.width, 30f);
-            GUI.color = new Color(0f, 0f, 0f, 0.8f);
-            GUI.Label(new Rect(rect.x + 1f, rect.y + 1f, rect.width, rect.height), text, hintStyle);
-            GUI.color = Color.white;
-            GUI.Label(rect, text, hintStyle);
+            hint.SetVisible(IsPlacing);
+            if (IsPlacing)
+                hint.SetText($"{problem ?? "Left-click or E to place"}     ·     Right-click or Esc to cancel");
         }
     }
 }

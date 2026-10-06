@@ -3,7 +3,9 @@ using Backpacking.Navigation;
 using Backpacking.Player;
 using Backpacking.Saving;
 using Backpacking.World;
+using Backpacking.UI;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace Backpacking.Survival
 {
@@ -47,7 +49,8 @@ namespace Backpacking.Survival
         float stageStartTime;
         string cause;
         string report;
-        GUIStyle titleStyle, textStyle;
+        VisualElement blackout, reportPanel;
+        Label reportText;
 
         public bool InProgress => stage != Stage.None;
 
@@ -70,8 +73,10 @@ namespace Backpacking.Survival
 
         void OnCollapsed()
         {
-            if (stage == Stage.None)
-                activity.PassOut();
+            if (stage != Stage.None)
+                return;
+            GameUI.CloseAllScreens();
+            activity.PassOut();
         }
 
         void OnIncapacitated()
@@ -82,6 +87,7 @@ namespace Backpacking.Survival
                 : vitals.IsStarving ? "weak from starvation"
                 : "too sick to stand";
 
+            GameUI.CloseAllScreens();
             activity.Interrupt();
             PlayerControlLock.Lock(this, needsCursor: false);
             SetStage(Stage.FadingOut);
@@ -189,36 +195,36 @@ namespace Backpacking.Survival
             SetStage(Stage.FadingIn);
         }
 
-        void OnGUI()
+        void Start()
         {
-            // Draw over every other screen.
-            GUI.depth = -100;
+            reportText = UIBuild.Text("", "text");
+            reportPanel = UIBuild.Box("panel", "menu-panel").With(
+                UIBuild.Text("You were rescued", "title"),
+                reportText,
+                UIBuild.Box("footer").With(UIBuild.Button("Carry on", CarryOn, "primary")));
+            reportPanel.style.width = 600f;
+            blackout = UIBuild.Layer("blackout", "centred").With(reportPanel);
+            blackout.SetVisible(false);
+            GameUI.Current.Menus.Add(blackout);
+        }
+
+        void LateUpdate()
+        {
+            if (blackout == null)
+                return;
+            blackout.SetVisible(stage != Stage.None);
             if (stage == Stage.None)
                 return;
 
             float elapsed = Time.unscaledTime - stageStartTime;
-            float black = stage switch
+            blackout.style.opacity = stage switch
             {
                 Stage.FadingOut => Mathf.Clamp01(elapsed / FadeOutSeconds),
                 Stage.FadingIn => 1f - Mathf.Clamp01(elapsed / FadeInSeconds),
                 _ => 1f,
             };
-            GUI.color = new Color(0f, 0f, 0f, black);
-            GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), Texture2D.whiteTexture);
-            GUI.color = Color.white;
-
-            if (stage != Stage.Report)
-                return;
-
-            titleStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 28, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
-            textStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 17, alignment = TextAnchor.UpperCenter, wordWrap = true };
-
-            const float width = 560f, height = 300f;
-            var area = new Rect((Screen.width - width) / 2f, (Screen.height - height) / 2f, width, height);
-            GUI.Label(new Rect(area.x, area.y, width, 40f), "You were rescued", titleStyle);
-            GUI.Label(new Rect(area.x + 10f, area.y + 60f, width - 20f, 170f), report, textStyle);
-            if (GUI.Button(new Rect(area.x + 150f, area.y + 245f, width - 300f, 38f), "Carry on"))
-                CarryOn();
+            reportPanel.SetVisible(stage == Stage.Report);
+            reportText.SetText(report ?? "");
         }
     }
 }

@@ -7,6 +7,7 @@ using Backpacking.Survival;
 using Backpacking.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UIElements;
 
 namespace Backpacking.Interaction
 {
@@ -34,7 +35,9 @@ namespace Backpacking.Interaction
         InputAction interactAction;
         IInteractable target;
         IInteractable menuTarget;
-        GUIStyle promptStyle, titleStyle, reasonStyle;
+        VisualElement crosshair, menu, menuOptions;
+        Label prompt, menuTitle;
+        string menuSignature;
 
         public Backpack Backpack => backpack;
         public Vitals Vitals => vitals;
@@ -83,13 +86,16 @@ namespace Backpacking.Interaction
         void OpenMenu(IInteractable menuFor)
         {
             menuTarget = menuFor;
+            menuSignature = null;
             PlayerControlLock.Lock(this, needsCursor: true);
+            GameUI.ClaimEscape(this, CloseMenu);
         }
 
         void CloseMenu()
         {
             menuTarget = null;
             PlayerControlLock.Unlock(this);
+            GameUI.ReleaseEscape(this);
         }
 
         void OnDisable()
@@ -98,77 +104,80 @@ namespace Backpacking.Interaction
                 CloseMenu();
         }
 
-        void OnGUI()
+        // ---------- UI ----------
+
+        void Start()
         {
-            if (promptStyle == null)
-            {
-                promptStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 18 };
-                titleStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 20, fontStyle = FontStyle.Bold };
-                reasonStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 13 };
-            }
+            crosshair = UIBuild.Box("crosshair");
+            prompt = UIBuild.Text("", "prompt", "shadowed");
+            prompt.enableRichText = true;
+            GameUI.Current.Hud.With(crosshair.IgnoreMouse(), prompt.IgnoreMouse());
 
+            menuTitle = UIBuild.Text("", "title");
+            menuOptions = UIBuild.Box();
+            menu = UIBuild.Layer("centred").With(
+                UIBuild.Box("panel", "menu-panel").With(
+                    menuTitle,
+                    menuOptions,
+                    UIBuild.Button("Close  (E / right-click / Esc)", CloseMenu, "quiet")));
+            menu.SetVisible(false);
+            GameUI.Current.Screens.Add(menu);
+        }
+
+        void LateUpdate()
+        {
+            if (crosshair == null)
+                return;
+
+            bool showHud = !MenuOpen && !PlayerControlLock.MovementLocked && !placer.IsPlacing;
+            crosshair.SetVisible(showHud);
+            prompt.SetVisible(showHud && target != null);
+            if (showHud && target != null)
+                prompt.SetText(PromptText());
+
+            menu.SetVisible(MenuOpen);
             if (MenuOpen)
-            {
-                DrawMenu();
-                return;
-            }
-            if (PlayerControlLock.MovementLocked || placer.IsPlacing)
-                return;
+                RefreshMenu();
+        }
 
-            // Crosshair dot.
-            var centre = new Vector2(Screen.width / 2f, Screen.height / 2f);
-            GUI.color = new Color(1f, 1f, 1f, 0.7f);
-            GUI.DrawTexture(new Rect(centre.x - 2f, centre.y - 2f, 4f, 4f), Texture2D.whiteTexture);
-            GUI.color = Color.white;
-
-            if (target == null)
-                return;
-
+        string PromptText()
+        {
             options.Clear();
             target.GetOptions(this, options);
             string action = options.Count == 1 ? options[0].Label : target.DisplayName;
-            string prompt = options.Count == 1 && !options[0].Enabled
+            return options.Count == 1 && !options[0].Enabled
                 ? $"{action}  ({options[0].DisabledReason})"
-                : $"[E]  {action}";
-            var rect = new Rect(0f, centre.y + 30f, Screen.width, 30f);
-            GUI.color = new Color(0f, 0f, 0f, 0.8f);
-            GUI.Label(new Rect(rect.x + 1f, rect.y + 1f, rect.width, rect.height), prompt, promptStyle);
-            GUI.color = Color.white;
-            GUI.Label(rect, prompt, promptStyle);
+                : $"<color=#E07B39><b>[E]</b></color>  {action}";
         }
 
-        void DrawMenu()
+        /// <summary>Options are read every frame so they reflect what's possible right now; the buttons are rebuilt when they change.</summary>
+        void RefreshMenu()
         {
-            // Options are rebuilt every frame so they reflect what's possible right now.
             options.Clear();
             menuTarget.GetOptions(this, options);
+            var signature = new System.Text.StringBuilder(menuTarget.DisplayName);
+            foreach (InteractionOption option in options)
+                signature.Append('|').Append(option.Label).Append('/').Append(option.DisabledReason);
+            if (signature.ToString() == menuSignature)
+                return;
 
-            const float width = 380f, rowHeight = 44f;
-            float height = 70f + options.Count * rowHeight + 40f;
-            var area = new Rect((Screen.width - width) / 2f, (Screen.height - height) / 2f, width, height);
-            GUI.Box(area, GUIContent.none);
-            GUI.Box(area, GUIContent.none);
-            GUI.Label(new Rect(area.x, area.y + 12f, width, 30f), menuTarget.DisplayName, titleStyle);
-
-            float y = area.y + 55f;
+            menuSignature = signature.ToString();
+            menuTitle.text = menuTarget.DisplayName;
+            menuOptions.Clear();
             foreach (InteractionOption option in options)
             {
-                GUI.enabled = option.Enabled;
-                if (GUI.Button(new Rect(area.x + 20f, y, width - 40f, option.Enabled ? 34f : 24f), option.Label))
+                InteractionOption chosen = option;
+                Button button = UIBuild.Button(option.Label, () =>
                 {
                     CloseMenu();
-                    option.Execute();
-                    GUI.enabled = true;
-                    return;
-                }
-                GUI.enabled = true;
-                if (!option.Enabled)
-                    GUI.Label(new Rect(area.x, y + 22f, width, 18f), option.DisabledReason, reasonStyle);
-                y += rowHeight;
+                    chosen.Execute();
+                }, "menu");
+                button.SetEnabled(option.Enabled);
+                menuOptions.Add(button);
+                // An empty reason greys an option out with nothing to explain, e.g. a status line.
+                if (!string.IsNullOrEmpty(option.DisabledReason))
+                    menuOptions.Add(UIBuild.Text(option.DisabledReason, "reason").Classes("menu-reason"));
             }
-
-            if (GUI.Button(new Rect(area.x + 20f, area.yMax - 40f, width - 40f, 28f), "Close  (E / right-click)"))
-                CloseMenu();
         }
     }
 }

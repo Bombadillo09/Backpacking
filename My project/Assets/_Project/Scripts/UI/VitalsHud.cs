@@ -1,32 +1,59 @@
+using System;
 using Backpacking.Survival;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace Backpacking.UI
 {
-    /// <summary>Health, food, water, warmth and energy bars in the bottom-left corner.</summary>
+    /// <summary>Health, food, water, warmth and energy bars in the bottom-left corner, with how it feels out there.</summary>
     public class VitalsHud : MonoBehaviour
     {
         [SerializeField] Vitals vitals;
         [SerializeField] Backpack backpack;
 
         static readonly Color Low = new(0.9f, 0.25f, 0.2f);
-        GUIStyle labelStyle;
 
-        void OnGUI()
+        readonly Bindings bindings = new();
+        bool built;
+
+        void Start()
         {
-            labelStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 14 };
+            VisualElement panel = UIBuild.Box("vitals");
+            panel.Add(Vital("Health", () => vitals.Health, new Color(0.85f, 0.2f, 0.3f), HealthTrend));
+            panel.Add(Vital("Food", () => vitals.Satiety, new Color(0.9f, 0.65f, 0.25f)));
+            panel.Add(Vital("Water", () => vitals.Hydration, new Color(0.3f, 0.6f, 0.95f)));
+            panel.Add(Vital("Warmth", () => vitals.Warmth, new Color(0.95f, 0.45f, 0.3f)));
+            panel.Add(Vital("Energy", () => vitals.Energy, new Color(0.5f, 0.85f, 0.45f)));
+            panel.Add(bindings.Text(Status, "vitals-status", "shadowed"));
+            panel.Add(bindings.Text(Load, "vitals-status", "shadowed"));
+            GameUI.Current.Hud.Add(panel.IgnoreMouse());
+            built = true;
+        }
 
-            const float width = 220f, barHeight = 10f, rowHeight = 30f;
-            float x = 16f;
-            float y = Screen.height - 16f - rowHeight * 5f - 44f;
+        void Update()
+        {
+            if (built)
+                bindings.Refresh();
+        }
 
-            string trend = vitals.HealthRate < -0.05f ? "  ▼" : vitals.HealthRate > 0.05f && vitals.Health < Vitals.Max ? "  ▲" : "";
-            DrawBar(x, ref y, width, barHeight, rowHeight, "Health", vitals.Health, new Color(0.85f, 0.2f, 0.3f), trend);
-            DrawBar(x, ref y, width, barHeight, rowHeight, "Food", vitals.Satiety, new Color(0.9f, 0.65f, 0.25f));
-            DrawBar(x, ref y, width, barHeight, rowHeight, "Water", vitals.Hydration, new Color(0.3f, 0.6f, 0.95f));
-            DrawBar(x, ref y, width, barHeight, rowHeight, "Warmth", vitals.Warmth, new Color(0.95f, 0.45f, 0.3f));
-            DrawBar(x, ref y, width, barHeight, rowHeight, "Energy", vitals.Energy, new Color(0.5f, 0.85f, 0.45f));
+        VisualElement Vital(string label, Func<float> read, Color colour, Func<string> suffix = null)
+        {
+            Label text = bindings.Text(() => $"{label}  {read():0}{suffix?.Invoke()}", "vital-label", "shadowed");
+            VisualElement bar = UIBuild.Bar(out VisualElement fill);
+            bindings.Add(() =>
+            {
+                float fraction = read() / Vitals.Max;
+                fill.SetFill(fraction);
+                fill.style.backgroundColor = fraction < 0.25f ? Low : colour;
+            });
+            return UIBuild.Box("vital").With(text, bar);
+        }
 
+        string HealthTrend() =>
+            vitals.HealthRate < -0.05f ? "   falling" : vitals.HealthRate > 0.05f && vitals.Health < Vitals.Max ? "   recovering" : "";
+
+        string Status()
+        {
             string status = $"Feels like {vitals.FeltTemperature:0} °C  ·  comfortable to {vitals.ComfortTemperature:0} °C";
             if (vitals.WindChill > 0.5f)
                 status += $"  ·  wind chill −{vitals.WindChill:0} °C";
@@ -40,33 +67,14 @@ namespace Backpacking.UI
                 status += "  ·  dehydrated";
             if (vitals.IsStarving)
                 status += "  ·  starving";
-            DrawShadowed(new Rect(x, y, 500f, 22f), status);
+            return status;
+        }
 
+        string Load()
+        {
             float weight = backpack.TotalWeight;
             string load = backpack.IsOverloaded ? "  OVERLOADED" : weight > backpack.ComfortableLoad ? "  heavy" : "";
-            DrawShadowed(new Rect(x, y + 22f, 500f, 22f), $"Pack {weight:0.0} / {backpack.ComfortableLoad:0} kg{load}");
-        }
-
-        void DrawBar(float x, ref float y, float width, float barHeight, float rowHeight, string label, float value, Color colour,
-            string suffix = "")
-        {
-            float fraction = value / Vitals.Max;
-            DrawShadowed(new Rect(x, y, width, 18f), $"{label}  {value:0}{suffix}");
-            var bar = new Rect(x, y + 18f, width, barHeight);
-            GUI.color = new Color(0f, 0f, 0f, 0.5f);
-            GUI.DrawTexture(bar, Texture2D.whiteTexture);
-            GUI.color = fraction < 0.25f ? Low : colour;
-            GUI.DrawTexture(new Rect(bar.x, bar.y, bar.width * fraction, bar.height), Texture2D.whiteTexture);
-            GUI.color = Color.white;
-            y += rowHeight;
-        }
-
-        void DrawShadowed(Rect rect, string text)
-        {
-            labelStyle.normal.textColor = new Color(0f, 0f, 0f, 0.8f);
-            GUI.Label(new Rect(rect.x + 1f, rect.y + 1f, rect.width, rect.height), text, labelStyle);
-            labelStyle.normal.textColor = Color.white;
-            GUI.Label(rect, text, labelStyle);
+            return $"Pack {weight:0.0} / {backpack.ComfortableLoad:0} kg{load}";
         }
     }
 }

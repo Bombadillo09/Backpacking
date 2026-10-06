@@ -19,7 +19,7 @@ namespace Backpacking.Saving
     /// <summary>
     /// Saves and loads the trip to a single JSON file. Saves automatically after sleeping in the tent,
     /// and when resting at a trading post. F5 / F9 quick-save and quick-load for testing.
-    /// On Play, offers to continue the saved trip.
+    /// The title menu offers to continue the saved trip.
     /// </summary>
     // Start after everything else, so the scene has finished setting itself up before a save is applied.
     [DefaultExecutionOrder(1000)]
@@ -40,8 +40,6 @@ namespace Backpacking.Saving
         static bool loadOnSceneStart;
 
         readonly Dictionary<string, GameObject> pickupsAtStart = new();
-        SaveData offeredSave;
-        GUIStyle titleStyle, textStyle;
 
         string SavePath => Path.Combine(Application.persistentDataPath, fileName);
 
@@ -65,28 +63,23 @@ namespace Backpacking.Saving
                 Save();
         }
 
+        /// <summary>True when the scene was reloaded to apply a save straight away, so the title menu is skipped.</summary>
+        public static bool LoadingOnSceneStart => loadOnSceneStart;
+
         void Start()
         {
+            if (!loadOnSceneStart)
+                return;
+            loadOnSceneStart = false;
             SaveData save = ReadSave();
-            if (save == null)
-                return;
-
-            if (loadOnSceneStart)
-            {
-                loadOnSceneStart = false;
+            if (save != null)
                 Apply(save);
-                return;
-            }
-
-            // Pause and ask before anything happens.
-            offeredSave = save;
-            Time.timeScale = 0f;
-            PlayerControlLock.Lock(this, needsCursor: true);
         }
 
         void Update()
         {
-            if (offeredSave != null)
+            // Not from inside menus.
+            if (PlayerControlLock.CursorNeeded)
                 return;
             Keyboard keyboard = Keyboard.current;
             if (keyboard == null)
@@ -123,6 +116,25 @@ namespace Backpacking.Saving
                 return;
             }
             loadOnSceneStart = true;
+            Time.timeScale = 1f;
+            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        }
+
+        /// <summary>The saved trip's summary ("Day 3, 14:20 near Valley Crossing"), or null if there's no save.</summary>
+        public string SavedSummary() => ReadSave()?.summary;
+
+        /// <summary>Applies the saved trip to this freshly loaded scene. Used by the title menu.</summary>
+        public void ContinueSavedTrip()
+        {
+            SaveData save = ReadSave();
+            if (save != null)
+                Apply(save);
+        }
+
+        /// <summary>Reloads the scene to the title menu. Unsaved progress is lost.</summary>
+        public void ReturnToTitle()
+        {
+            loadOnSceneStart = false;
             Time.timeScale = 1f;
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
         }
@@ -252,43 +264,6 @@ namespace Backpacking.Saving
             }
 
             Notifications.Post($"Welcome back. {data.summary}.");
-        }
-
-        // ---------- Continue prompt ----------
-
-        void ResolveOffer(bool continueTrip)
-        {
-            SaveData save = offeredSave;
-            offeredSave = null;
-            Time.timeScale = 1f;
-            PlayerControlLock.Unlock(this);
-            if (continueTrip)
-                Apply(save);
-        }
-
-        void OnGUI()
-        {
-            if (offeredSave == null)
-                return;
-
-            titleStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 24, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
-            textStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 16, alignment = TextAnchor.MiddleCenter, wordWrap = true };
-
-            GUI.color = new Color(0f, 0f, 0f, 0.6f);
-            GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), Texture2D.whiteTexture);
-            GUI.color = Color.white;
-
-            const float width = 460f, height = 230f;
-            var area = new Rect((Screen.width - width) / 2f, (Screen.height - height) / 2f, width, height);
-            GUI.Box(area, GUIContent.none);
-            GUI.Box(area, GUIContent.none);
-            GUI.Label(new Rect(area.x, area.y + 18f, width, 34f), "Continue your trip?", titleStyle);
-            GUI.Label(new Rect(area.x + 20f, area.y + 62f, width - 40f, 50f), $"Saved: {offeredSave.summary}", textStyle);
-
-            if (GUI.Button(new Rect(area.x + 30f, area.y + 126f, width - 60f, 36f), "Continue saved trip"))
-                ResolveOffer(continueTrip: true);
-            else if (GUI.Button(new Rect(area.x + 30f, area.y + 172f, width - 60f, 36f), "Start a new trip (your next save replaces the old one)"))
-                ResolveOffer(continueTrip: false);
         }
     }
 }

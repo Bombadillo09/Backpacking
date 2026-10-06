@@ -7,9 +7,12 @@ using Backpacking.World;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
+using UnityEngine.UIElements;
 using Compass = Backpacking.Navigation.Compass;
 
 namespace Backpacking.EditorTools
@@ -91,6 +94,7 @@ namespace Backpacking.EditorTools
             var compass = navigation.AddComponent<Compass>();
             SetField(compass, "holder", player.transform);
 
+            CreateGameUI();
             var hud = new GameObject("Prototype HUD").AddComponent<PrototypeHud>();
             SetField(hud, "timeOfDay", timeOfDay);
             SetField(hud, "temperature", temperature);
@@ -332,6 +336,47 @@ namespace Backpacking.EditorTools
                 Debug.LogWarning($"Couldn't find {InputActionsPath}; assign Input Actions on the Player manually.");
             SetField(fpc, "inputActions", inputActions);
             return fpc;
+        }
+
+        // ---------- UI ----------
+
+        const string UIFolder = Root + "/UI";
+
+        /// <summary>The UI Toolkit document all screens draw into, plus an event system so it gets Input System input.</summary>
+        static void CreateGameUI()
+        {
+            var go = new GameObject("Game UI");
+            var document = go.AddComponent<UIDocument>();
+            document.panelSettings = GetOrCreatePanelSettings();
+            var ui = go.AddComponent<GameUI>();
+            var styleSheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(UIFolder + "/Game.uss");
+            if (styleSheet == null)
+                Debug.LogWarning($"Couldn't find {UIFolder}/Game.uss; the UI will be unstyled.");
+            SetField(ui, "styleSheet", styleSheet);
+
+            var events = new GameObject("Event System");
+            events.AddComponent<EventSystem>();
+            events.AddComponent<InputSystemUIInputModule>().AssignDefaultActions();
+        }
+
+        static PanelSettings GetOrCreatePanelSettings()
+        {
+            string path = UIFolder + "/GamePanelSettings.asset";
+            var settings = AssetDatabase.LoadAssetAtPath<PanelSettings>(path);
+            if (settings == null)
+            {
+                settings = ScriptableObject.CreateInstance<PanelSettings>();
+                AssetDatabase.CreateAsset(settings, path);
+            }
+            settings.themeStyleSheet = AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>(UIFolder + "/GameTheme.tss");
+            // Sizes in the stylesheet are for 1920 x 1080 and scale with the window.
+            settings.scaleMode = PanelScaleMode.ScaleWithScreenSize;
+            settings.referenceResolution = new Vector2Int(1920, 1080);
+            settings.screenMatchMode = PanelScreenMatchMode.MatchWidthOrHeight;
+            settings.match = 0.5f;
+            EditorUtility.SetDirty(settings);
+            AssetDatabase.SaveAssets();
+            return settings;
         }
 
         // ---------- Navigation points ----------

@@ -3,12 +3,13 @@ using Backpacking.Player;
 using Backpacking.World;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UIElements;
 
 namespace Backpacking.UI
 {
     /// <summary>
-    /// Temporary on-screen readout for testing: clock, temperature, altitude and speed,
-    /// plus a banner when arriving at a destination. Hold T to fast-forward time.
+    /// The readout in the top-left corner: clock, temperature, altitude, weather and speed, plus the key
+    /// list (can be hidden in settings) and a banner for notifications. Hold T to fast-forward time.
     /// </summary>
     public class PrototypeHud : MonoBehaviour
     {
@@ -18,9 +19,16 @@ namespace Backpacking.UI
         [SerializeField] WeatherSystem weather;
         [SerializeField] float fastForwardMultiplier = 60f;
 
-        GUIStyle style, bannerStyle;
-        string message;
-        float messageHideTime;
+        const string HelpText =
+            "WASD move · Shift sprint · C crouch · Space jump\n" +
+            "M map · Q compass · Tab backpack · E interact\n" +
+            "Hold T fast-forward time · F5 save · F9 load · Esc menu";
+
+        readonly Bindings bindings = new();
+        VisualElement info;
+        Label help;
+        Label banner;
+        float bannerHideTime;
 
         void OnEnable()
         {
@@ -34,44 +42,64 @@ namespace Backpacking.UI
             Notifications.Posted -= ShowMessage;
         }
 
+        void Start()
+        {
+            VisualElement hud = GameUI.Current.Hud;
+            info = UIBuild.Box("hud-info").With(
+                bindings.Text(ClockLine, "hud-info-line", "shadowed"),
+                bindings.Text(TemperatureLine, "hud-info-line", "shadowed"),
+                bindings.Text(WeatherLine, "hud-info-line", "shadowed"),
+                bindings.Text(SpeedLine, "hud-info-line", "shadowed"),
+                help = UIBuild.Text(HelpText, "hud-help", "shadowed"));
+            banner = UIBuild.Text("", "banner", "shadowed");
+            banner.style.opacity = 0f;
+            hud.With(info.IgnoreMouse(), banner.IgnoreMouse());
+        }
+
         void ShowArrival(NavigationPoint point) => ShowMessage($"Arrived at {point.DisplayName}", 5f);
 
         void ShowMessage(string text, float seconds)
         {
-            message = text;
-            messageHideTime = Time.time + seconds;
+            if (banner == null)
+                return;
+            banner.text = text;
+            banner.style.opacity = 1f;
+            bannerHideTime = Time.unscaledTime + seconds;
         }
 
         void Update()
         {
             Keyboard keyboard = Keyboard.current;
-            if (keyboard != null && keyboard.tKey.isPressed)
+            bool fastForward = keyboard != null && keyboard.tKey.isPressed && !PlayerControlLock.CursorNeeded;
+            if (fastForward)
                 timeOfDay.RequestSpeed(this, fastForwardMultiplier);
             else
                 timeOfDay.ClearSpeed(this);
+
+            if (info == null)
+                return;
+            bindings.Refresh();
+            help.SetVisible(GameSettings.ShowControlHints);
+            if (banner.style.opacity.value > 0f && Time.unscaledTime >= bannerHideTime)
+                banner.style.opacity = 0f;
         }
 
-        void OnGUI()
+        string ClockLine()
         {
-            style ??= new GUIStyle(GUI.skin.label) { fontSize = 16 };
-            bannerStyle ??= new GUIStyle(style) { alignment = TextAnchor.UpperCenter, fontSize = 24, wordWrap = true };
-
-            Vector3 position = player.transform.position;
-            string state = player.IsCrouching ? " (crouching)" : player.IsSprinting ? " (sprinting)" : "";
             string fastForward = timeOfDay.TimeMultiplier > 1f ? $"   >> x{timeOfDay.TimeMultiplier:0}" : "";
-            string text =
-                $"Day {timeOfDay.Day}   {timeOfDay.ClockText}{fastForward}\n" +
-                $"{temperature.GetTemperature(position):0.0} °C   Altitude {temperature.GetAltitude(position):0} m\n" +
-                $"{WeatherLine()}\n" +
-                $"Speed {player.HorizontalSpeed:0.0} m/s{state}\n\n" +
-                "WASD move · Shift sprint · C crouch · Space jump\n" +
-                "M map · Q compass · Tab backpack · E interact\n" +
-                "Hold T fast-forward time · F5 save · F9 load · Esc release cursor";
+            return $"Day {timeOfDay.Day}   {timeOfDay.ClockText}{fastForward}";
+        }
 
-            DrawShadowedLabel(new Rect(14f, 12f, 700f, 200f), text, style);
+        string TemperatureLine()
+        {
+            Vector3 position = player.transform.position;
+            return $"{temperature.GetTemperature(position):0.0} °C   Altitude {temperature.GetAltitude(position):0} m";
+        }
 
-            if (message != null && Time.time < messageHideTime)
-                DrawShadowedLabel(new Rect(Screen.width * 0.15f, Screen.height * 0.18f, Screen.width * 0.7f, 120f), message, bannerStyle);
+        string SpeedLine()
+        {
+            string state = player.IsCrouching ? " (crouching)" : player.IsSprinting ? " (sprinting)" : "";
+            return $"Speed {player.HorizontalSpeed:0.0} m/s{state}";
         }
 
         string WeatherLine()
@@ -81,14 +109,6 @@ namespace Backpacking.UI
             string kind = WeatherSystem.Describe(weather.Current);
             string snap = weather.IsColdSnap ? " · cold snap" : "";
             return $"{char.ToUpperInvariant(kind[0])}{kind.Substring(1)} · wind {weather.WindKmh:0} km/h{snap}";
-        }
-
-        static void DrawShadowedLabel(Rect rect, string text, GUIStyle labelStyle)
-        {
-            labelStyle.normal.textColor = new Color(0f, 0f, 0f, 0.8f);
-            GUI.Label(new Rect(rect.x + 1f, rect.y + 1f, rect.width, rect.height), text, labelStyle);
-            labelStyle.normal.textColor = Color.white;
-            GUI.Label(rect, text, labelStyle);
         }
     }
 }

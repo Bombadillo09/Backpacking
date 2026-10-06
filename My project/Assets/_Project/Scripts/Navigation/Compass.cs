@@ -1,5 +1,7 @@
+using Backpacking.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UIElements;
 
 namespace Backpacking.Navigation
 {
@@ -11,8 +13,6 @@ namespace Backpacking.Navigation
     {
         [SerializeField] Transform holder;
         [SerializeField] Key toggleKey = Key.Q;
-        [Tooltip("On-screen diameter in pixels at 1080p; scales with screen height.")]
-        [SerializeField] float sizeAt1080p = 280f;
         [Tooltip("How long the needle takes to settle after turning, in seconds.")]
         [SerializeField] float needleSmoothTime = 0.25f;
 
@@ -21,7 +21,8 @@ namespace Backpacking.Navigation
         float displayedHeading;
         float needleVelocity;
         Texture2D dial;
-        GUIStyle letterStyle, numberStyle, readoutStyle;
+        VisualElement root, face;
+        Label readout;
 
         public bool IsOpen { get; private set; }
 
@@ -35,67 +36,59 @@ namespace Backpacking.Navigation
         public static string CardinalName(float heading) =>
             CardinalNames[Mathf.RoundToInt(Mathf.Repeat(heading, 360f) / 45f) % 8];
 
-        void Start() => displayedHeading = HeadingOf(holder);
+        void Awake() => displayedHeading = HeadingOf(holder);
 
         void Update()
         {
             Keyboard keyboard = Keyboard.current;
-            if (keyboard != null && keyboard[toggleKey].wasPressedThisFrame)
+            if (keyboard != null && keyboard[toggleKey].wasPressedThisFrame && !Player.PlayerControlLock.CursorNeeded)
                 IsOpen = !IsOpen;
 
             displayedHeading = Mathf.SmoothDampAngle(displayedHeading, HeadingOf(holder), ref needleVelocity, needleSmoothTime);
         }
 
-        void OnGUI()
+        void Start()
         {
-            if (!IsOpen)
-                return;
-
-            if (dial == null)
-                dial = CreateDialTexture(512);
-            if (letterStyle == null)
-            {
-                letterStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
-                numberStyle = new GUIStyle(letterStyle) { fontStyle = FontStyle.Normal };
-                readoutStyle = new GUIStyle(letterStyle);
-            }
-
-            float size = sizeAt1080p * Screen.height / 1080f;
-            var rect = new Rect(Screen.width - size - 24f, Screen.height - size - 24f, size, size);
-            Vector2 centre = rect.center;
-
-            letterStyle.fontSize = Mathf.RoundToInt(size * 0.085f);
-            numberStyle.fontSize = Mathf.RoundToInt(size * 0.05f);
-            readoutStyle.fontSize = Mathf.RoundToInt(size * 0.075f);
-            letterStyle.normal.textColor = numberStyle.normal.textColor = new Color(0.12f, 0.12f, 0.14f);
-
-            // Turn the whole dial so north on it lines up with north in the world.
-            Matrix4x4 savedMatrix = GUI.matrix;
-            GUIUtility.RotateAroundPivot(-displayedHeading, centre);
-            GUI.DrawTexture(rect, dial);
+            dial = CreateDialTexture(512);
+            face = UIBuild.Box("compass-dial");
+            face.style.backgroundImage = dial;
             for (int i = 0; i < 12; i++)
             {
                 float angle = i * 30f;
                 bool cardinal = i % 3 == 0;
-                string label = cardinal ? CardinalNames[i / 3 * 2] : angle.ToString("0");
-                float radius = size * (cardinal ? 0.25f : 0.27f);
-                Vector2 position = centre + new Vector2(Mathf.Sin(angle * Mathf.Deg2Rad), -Mathf.Cos(angle * Mathf.Deg2Rad)) * radius;
-                GUI.Label(new Rect(position.x - 30f, position.y - 15f, 60f, 30f), label, cardinal ? letterStyle : numberStyle);
+                Label mark = UIBuild.Text(cardinal ? CardinalNames[i / 3 * 2] : angle.ToString("0"), "compass-mark");
+                mark.style.fontSize = cardinal ? 24f : 14f;
+                mark.style.unityFontStyleAndWeight = cardinal ? FontStyle.Bold : FontStyle.Normal;
+                float radius = cardinal ? 0.25f : 0.27f;
+                mark.style.left = Length.Percent(50f + Mathf.Sin(angle * Mathf.Deg2Rad) * radius * 100f);
+                mark.style.top = Length.Percent(50f - Mathf.Cos(angle * Mathf.Deg2Rad) * radius * 100f);
+                face.Add(mark);
             }
-            GUI.matrix = savedMatrix;
 
-            // Fixed index line and heading readout.
-            GUI.color = new Color(0.85f, 0.1f, 0.1f);
-            GUI.DrawTexture(new Rect(centre.x - 1.5f, rect.y - 8f, 3f, size * 0.17f), Texture2D.whiteTexture);
-            GUI.color = Color.white;
+            readout = UIBuild.Text("", "compass-readout", "shadowed");
+            root = UIBuild.Box("compass").With(face, UIBuild.Box("compass-index"), readout);
+            root.SetVisible(false);
+            GameUI.Current.Hud.Add(root.IgnoreMouse());
+        }
 
+        void LateUpdate()
+        {
+            if (root == null)
+                return;
+            root.SetVisible(IsOpen);
+            if (!IsOpen)
+                return;
+
+            // Turn the whole dial so north on it lines up with north in the world.
+            face.style.rotate = new Rotate(new Angle(-displayedHeading, AngleUnit.Degree));
             float heading = Mathf.Repeat(displayedHeading, 360f);
-            string readout = $"{Mathf.RoundToInt(heading) % 360:000}°  {CardinalName(heading)}";
-            var readoutRect = new Rect(rect.x, rect.y - size * 0.2f, size, size * 0.12f);
-            readoutStyle.normal.textColor = new Color(0f, 0f, 0f, 0.8f);
-            GUI.Label(new Rect(readoutRect.x + 1f, readoutRect.y + 1f, readoutRect.width, readoutRect.height), readout, readoutStyle);
-            readoutStyle.normal.textColor = Color.white;
-            GUI.Label(readoutRect, readout, readoutStyle);
+            readout.SetText($"{Mathf.RoundToInt(heading) % 360:000}°  {CardinalName(heading)}");
+        }
+
+        void OnDestroy()
+        {
+            if (dial != null)
+                Destroy(dial);
         }
 
         /// <summary>Draws the compass face: bezel, degree ticks and a red/white needle pointing to north.</summary>

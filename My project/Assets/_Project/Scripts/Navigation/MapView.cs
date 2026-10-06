@@ -1,5 +1,8 @@
+using System.Collections.Generic;
+using Backpacking.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UIElements;
 
 namespace Backpacking.Navigation
 {
@@ -24,159 +27,201 @@ namespace Backpacking.Navigation
         [Tooltip("Show a 'you are here' marker. Off by default: read your position from the land.")]
         [SerializeField] bool showPlayerPosition;
 
-        static readonly Color Paper = new(0.93f, 0.9f, 0.82f);
         static readonly Color Ink = new(0.15f, 0.13f, 0.12f);
         static readonly Color UnvisitedColour = new(0.8f, 0.15f, 0.1f);
         static readonly Color VisitedColour = new(0.15f, 0.45f, 0.2f);
 
         Texture2D mapTexture;
-        Texture2D dotTexture;
-        GUIStyle labelStyle, titleStyle;
+        VisualElement screen, paper;
+        VisualElement playerMarker;
+        readonly List<(NavigationPoint point, VisualElement marker)> markers = new();
+        float laidOutSide, mapMargin, mapSize;
 
         public bool IsOpen { get; private set; }
 
         void Start()
         {
             mapTexture = TopographicMap.Generate(terrain, resolution, contourInterval, indexContourEvery, gridSpacing);
-            dotTexture = CreateDotTexture(32);
+
+            paper = UIBuild.Box("map-paper");
+            paper.style.position = Position.Absolute;
+            screen = UIBuild.Layer().With(paper);
+            screen.RegisterCallback<GeometryChangedEvent>(_ => LayOut());
+            screen.SetVisible(false);
+            GameUI.Current.Screens.Add(screen.IgnoreMouse());
         }
 
-        void OnDestroy()
-        {
-            Destroy(mapTexture);
-            Destroy(dotTexture);
-        }
+        void OnDestroy() => Destroy(mapTexture);
 
         void Update()
         {
             Keyboard keyboard = Keyboard.current;
-            if (keyboard != null && keyboard[toggleKey].wasPressedThisFrame)
-                IsOpen = !IsOpen;
+            if (keyboard != null && keyboard[toggleKey].wasPressedThisFrame && !Player.PlayerControlLock.CursorNeeded)
+                SetOpen(!IsOpen);
+
+            if (!IsOpen)
+                return;
+            foreach ((NavigationPoint point, VisualElement marker) in markers)
+                if (point != null)
+                    marker.style.backgroundColor = point.Visited ? VisitedColour : UnvisitedColour;
+            if (playerMarker != null)
+                Place(playerMarker, player.position, laidOutSide * 0.014f);
         }
 
-        void OnGUI()
+        void SetOpen(bool open)
         {
-            if (!IsOpen || mapTexture == null)
-                return;
+            IsOpen = open;
+            screen.SetVisible(open);
+            if (open)
+                GameUI.ClaimEscape(this, () => SetOpen(false));
+            else
+                GameUI.ReleaseEscape(this);
+        }
 
-            if (labelStyle == null)
+        /// <summary>Sizes the paper to the screen and places everything on it, in pixels scaled from the paper's size.</summary>
+        void LayOut()
+        {
+            Rect area = screen.contentRect;
+            float side = Mathf.Min(area.width, area.height) * 0.88f;
+            if (side <= 0f || Mathf.Approximately(side, laidOutSide))
+                return;
+            laidOutSide = side;
+
+            paper.style.width = paper.style.height = side;
+            paper.style.left = (area.width - side) / 2f;
+            paper.style.top = (area.height - side) / 2f;
+            paper.Clear();
+            markers.Clear();
+
+            float margin = mapMargin = side * 0.06f;
+            mapSize = side - margin * 2f;
+            float labelSize = side * 0.018f;
+
+            var map = new VisualElement();
+            map.style.position = Position.Absolute;
+            map.style.left = map.style.top = margin;
+            map.style.width = map.style.height = mapSize;
+            map.style.backgroundImage = mapTexture;
+            SetBorder(map, 2f, Ink);
+            paper.Add(map);
+
+            Label title = Label("Prototype Valley", side * 0.026f);
+            title.style.left = 0f;
+            title.style.width = side;
+            title.style.top = margin * 0.2f;
+            title.style.unityTextAlign = TextAnchor.MiddleCenter;
+
+            // Letters along the top for columns (west to east), numbers down the side for rows (north to south).
+            int cells = Mathf.CeilToInt(terrain.terrainData.size.x / gridSpacing);
+            float cell = mapSize * gridSpacing / terrain.terrainData.size.x;
+            for (int i = 0; i < cells; i++)
             {
-                labelStyle = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold };
-                titleStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
+                Label column = Label(((char)('A' + i)).ToString(), labelSize);
+                column.style.left = margin + i * cell;
+                column.style.width = cell;
+                column.style.top = margin * 0.55f;
+                column.style.unityTextAlign = TextAnchor.MiddleCenter;
+                Label row = Label((i + 1).ToString(), labelSize);
+                row.style.left = margin * 0.25f;
+                row.style.width = margin * 0.6f;
+                row.style.top = margin + i * cell + cell * 0.5f - labelSize;
+                row.style.unityTextAlign = TextAnchor.MiddleCenter;
             }
 
-            float side = Mathf.Min(Screen.width, Screen.height) * 0.88f;
-            var paper = new Rect((Screen.width - side) / 2f, (Screen.height - side) / 2f, side, side);
-            float margin = side * 0.06f;
-            var map = new Rect(paper.x + margin, paper.y + margin, side - margin * 2f, side - margin * 2f);
+            // Scale bar: half filled, half outlined, under the map's right edge.
+            float barLength = mapSize * scaleBarMetres / terrain.terrainData.size.x;
+            var bar = new VisualElement();
+            bar.style.position = Position.Absolute;
+            bar.style.left = margin + mapSize - barLength;
+            bar.style.top = margin + mapSize + margin * 0.3f;
+            bar.style.width = barLength;
+            bar.style.height = margin * 0.12f;
+            SetBorder(bar, 1f, Ink);
+            var filled = new VisualElement();
+            filled.style.width = Length.Percent(50f);
+            filled.style.height = Length.Percent(100f);
+            filled.style.backgroundColor = Ink;
+            bar.Add(filled);
+            paper.Add(bar);
+            Label scale = Label(scaleBarMetres >= 1000f ? $"{scaleBarMetres / 1000f:0.#} km" : $"{scaleBarMetres:0} m", labelSize);
+            scale.style.left = margin + mapSize - barLength;
+            scale.style.width = barLength;
+            scale.style.top = margin + mapSize + margin * 0.45f;
+            scale.style.unityTextAlign = TextAnchor.UpperRight;
 
-            labelStyle.fontSize = Mathf.RoundToInt(side * 0.018f);
-            titleStyle.fontSize = Mathf.RoundToInt(side * 0.026f);
-            labelStyle.normal.textColor = titleStyle.normal.textColor = Ink;
+            // North arrow in the right margin.
+            var arrow = new VisualElement();
+            arrow.style.position = Position.Absolute;
+            arrow.style.left = margin + mapSize + margin * 0.5f - 1.5f;
+            arrow.style.top = margin + margin * 0.5f;
+            arrow.style.width = 3f;
+            arrow.style.height = margin * 0.9f;
+            arrow.style.backgroundColor = Ink;
+            paper.Add(arrow);
+            Label north = Label("N", labelSize);
+            north.style.left = margin + mapSize;
+            north.style.width = margin;
+            north.style.top = margin * 0.95f - labelSize;
+            north.style.unityTextAlign = TextAnchor.MiddleCenter;
 
-            FillRect(paper, Paper);
-            GUI.DrawTexture(map, mapTexture);
-            DrawFrame(map, Ink, 2f);
-
-            GUI.Label(new Rect(paper.x, paper.y, paper.width, margin), "Prototype Valley", titleStyle);
-            DrawGridLabels(map, margin);
-            DrawScaleBar(map, margin);
-            DrawNorthArrow(map, margin);
-            GUI.Label(new Rect(paper.x + margin, map.yMax + margin * 0.45f, side, margin * 0.5f),
-                $"Contours every {contourInterval:0} m   ·   Large markers: trading posts   ·   Small: checkpoints", labelStyle);
+            Label legend = Label($"Contours every {contourInterval:0} m   ·   Large markers: trading posts   ·   Small: checkpoints", labelSize);
+            legend.style.left = margin;
+            legend.style.top = margin + mapSize + margin * 0.4f;
 
             foreach (NavigationPoint point in NavigationPoint.All)
             {
                 bool post = point.Kind == NavigationPointKind.TradingPost;
-                Vector2 position = WorldToScreen(point.transform.position, map);
                 float size = side * (post ? 0.024f : 0.013f);
-                DrawDot(position, size, point.Visited ? VisitedColour : UnvisitedColour);
-                string label = post ? point.DisplayName.ToUpperInvariant() : point.DisplayName;
-                GUI.Label(new Rect(position.x + size * 0.7f, position.y - side * 0.016f, side * 0.4f, side * 0.04f),
-                    label, labelStyle);
+                VisualElement marker = UIBuild.Box("map-marker");
+                marker.style.width = marker.style.height = size;
+                Place(marker, point.transform.position, size);
+                paper.Add(marker);
+                markers.Add((point, marker));
+
+                Label name = Label(post ? point.DisplayName.ToUpperInvariant() : point.DisplayName, labelSize);
+                Vector2 at = MapPosition(point.transform.position);
+                name.style.left = at.x + size * 0.7f;
+                name.style.top = at.y - labelSize * 0.9f;
             }
 
+            playerMarker = null;
             if (showPlayerPosition && player != null)
-                DrawDot(WorldToScreen(player.position, map), side * 0.014f, new Color(0.1f, 0.3f, 0.9f));
+            {
+                playerMarker = UIBuild.Box("map-marker");
+                playerMarker.style.width = playerMarker.style.height = side * 0.014f;
+                playerMarker.style.backgroundColor = new Color(0.1f, 0.3f, 0.9f);
+                paper.Add(playerMarker);
+            }
+
+            Label Label(string text, float fontSize)
+            {
+                Label label = UIBuild.Text(text, "map-label");
+                label.style.fontSize = fontSize;
+                paper.Add(label);
+                return label;
+            }
+
         }
 
-        Vector2 WorldToScreen(Vector3 world, Rect map)
+        /// <summary>Where a world position falls on the paper, in pixels from its top-left corner.</summary>
+        Vector2 MapPosition(Vector3 world)
         {
             Vector3 size = terrain.terrainData.size;
             Vector3 local = world - terrain.transform.position;
-            float u = local.x / size.x, v = local.z / size.z;
-            return new Vector2(map.x + u * map.width, map.yMax - v * map.height);
+            return new Vector2(mapMargin + local.x / size.x * mapSize, mapMargin + (1f - local.z / size.z) * mapSize);
         }
 
-        /// <summary>Letters along the top for columns (west to east), numbers down the side for rows (north to south).</summary>
-        void DrawGridLabels(Rect map, float margin)
+        void Place(VisualElement marker, Vector3 world, float size)
         {
-            int cells = Mathf.CeilToInt(terrain.terrainData.size.x / gridSpacing);
-            float cell = map.width * gridSpacing / terrain.terrainData.size.x;
-            var centred = new GUIStyle(labelStyle) { alignment = TextAnchor.MiddleCenter };
-            for (int i = 0; i < cells; i++)
-            {
-                GUI.Label(new Rect(map.x + i * cell, map.y - margin * 0.5f, cell, margin * 0.5f), ((char)('A' + i)).ToString(), centred);
-                GUI.Label(new Rect(map.x - margin * 0.7f, map.y + i * cell, margin * 0.6f, cell), (i + 1).ToString(), centred);
-            }
+            Vector2 at = MapPosition(world);
+            marker.style.left = at.x - size / 2f;
+            marker.style.top = at.y - size / 2f;
         }
 
-        void DrawScaleBar(Rect map, float margin)
+        static void SetBorder(VisualElement element, float width, Color colour)
         {
-            float lengthMetres = scaleBarMetres;
-            float length = map.width * lengthMetres / terrain.terrainData.size.x;
-            var bar = new Rect(map.xMax - length, map.yMax + margin * 0.3f, length, margin * 0.12f);
-            FillRect(new Rect(bar.x, bar.y, bar.width / 2f, bar.height), Ink);
-            DrawFrame(bar, Ink, 1f);
-            var right = new GUIStyle(labelStyle) { alignment = TextAnchor.UpperRight };
-            GUI.Label(new Rect(bar.x - length, bar.yMax, length * 2f, margin * 0.5f), lengthMetres >= 1000f ? $"{lengthMetres / 1000f:0.#} km" : $"{lengthMetres:0} m", right);
-        }
-
-        void DrawNorthArrow(Rect map, float margin)
-        {
-            float x = map.xMax + margin * 0.5f;
-            FillRect(new Rect(x - 1.5f, map.y + margin * 0.5f, 3f, margin * 0.9f), Ink);
-            var centred = new GUIStyle(labelStyle) { alignment = TextAnchor.MiddleCenter };
-            GUI.Label(new Rect(x - margin * 0.5f, map.y, margin, margin * 0.5f), "N", centred);
-        }
-
-        void DrawDot(Vector2 centre, float diameter, Color colour)
-        {
-            GUI.color = colour;
-            GUI.DrawTexture(new Rect(centre.x - diameter / 2f, centre.y - diameter / 2f, diameter, diameter), dotTexture);
-            GUI.color = Color.white;
-        }
-
-        static void FillRect(Rect rect, Color colour)
-        {
-            GUI.color = colour;
-            GUI.DrawTexture(rect, Texture2D.whiteTexture);
-            GUI.color = Color.white;
-        }
-
-        static void DrawFrame(Rect rect, Color colour, float thickness)
-        {
-            FillRect(new Rect(rect.x, rect.y, rect.width, thickness), colour);
-            FillRect(new Rect(rect.x, rect.yMax - thickness, rect.width, thickness), colour);
-            FillRect(new Rect(rect.x, rect.y, thickness, rect.height), colour);
-            FillRect(new Rect(rect.xMax - thickness, rect.y, thickness, rect.height), colour);
-        }
-
-        static Texture2D CreateDotTexture(int size)
-        {
-            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
-            float half = size / 2f;
-            for (int y = 0; y < size; y++)
-            for (int x = 0; x < size; x++)
-            {
-                float r = new Vector2(x + 0.5f - half, y + 0.5f - half).magnitude / half;
-                // White fill with a dark rim, so it reads on any map colour once tinted.
-                float alpha = Mathf.Clamp01((1f - r) * half);
-                float rim = Mathf.InverseLerp(0.65f, 0.8f, r);
-                texture.SetPixel(x, y, new Color(1f - rim * 0.8f, 1f - rim * 0.8f, 1f - rim * 0.8f, alpha));
-            }
-            texture.Apply();
-            return texture;
+            element.style.borderLeftWidth = element.style.borderRightWidth = element.style.borderTopWidth = element.style.borderBottomWidth = width;
+            element.style.borderLeftColor = element.style.borderRightColor = element.style.borderTopColor = element.style.borderBottomColor = colour;
         }
     }
 }

@@ -1,0 +1,504 @@
+/* The game's look: dark, slightly see-through panels with warm text and a trail-marker orange accent.
+   Sizes are in pixels at 1920 x 1080; the panel settings scale them to the screen.
+   Everything the game draws sits inside a .layer, so the colours and base text live there,
+   and button rules are prefixed with .layer to outrank the default theme's button styles. */
+
+.layer {
+    --ink: #EDE6D6;
+    --ink-dim: #B8B09F;
+    --ink-faint: #8C8576;
+    --accent: #E07B39;
+    --accent-dark: #A9531F;
+    --moss: #8DB070;
+    --danger: #E0533F;
+    --panel: rgba(18, 20, 18, 0.9);
+    --panel-light: rgba(40, 44, 38, 0.9);
+    --edge: rgba(255, 255, 255, 0.09);
+    color: var(--ink);
+    font-size: 18px;
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.centred {
+    align-items: center;
+    justify-content: center;
+}
+
+/* ---------- Text ---------- */
+
+.title {
+    font-size: 30px;
+    -unity-font-style: bold;
+    margin-bottom: 4px;
+}
+
+.heading {
+    font-size: 16px;
+    -unity-font-style: bold;
+    color: var(--accent);
+    letter-spacing: 2px;
+    margin-top: 14px;
+    margin-bottom: 6px;
+}
+
+.text {
+    white-space: normal;
+}
+
+.small {
+    font-size: 15px;
+    color: var(--ink-dim);
+    white-space: normal;
+}
+
+.reason {
+    font-size: 14px;
+    color: var(--ink-faint);
+    -unity-font-style: italic;
+    white-space: normal;
+}
+
+.shadowed {
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.85);
+}
+
+.money {
+    font-size: 22px;
+    -unity-font-style: bold;
+    color: var(--moss);
+}
+
+/* ---------- Panels ---------- */
+
+.panel {
+    background-color: var(--panel);
+    border-width: 1px;
+    border-color: var(--edge);
+    border-radius: 8px;
+    padding: 20px 24px;
+}
+
+.panel-header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-end;
+    border-bottom-width: 1px;
+    border-color: var(--edge);
+    padding-bottom: 10px;
+    margin-bottom: 6px;
+}
+
+.row {
+    flex-direction: row;
+    align-items: center;
+}
+
+.spread {
+    justify-content: space-between;
+}
+
+.grow {
+    flex-grow: 1;
+    flex-shrink: 1;
+}
+
+.columns {
+    flex-direction: row;
+    flex-grow: 1;
+}
+
+.column {
+    flex-grow: 1;
+    flex-basis: 0;
+}
+
+/* USS has no sibling selectors, so the second column gets this explicitly. */
+.column.next {
+    margin-left: 28px;
+}
+
+.list-row {
+    flex-direction: row;
+    align-items: center;
+    padding: 6px 8px;
+    border-radius: 4px;
+    margin-bottom: 2px;
+}
+
+.list-row:hover {
+    background-color: rgba(255, 255, 255, 0.04);
+}
+
+.footer {
+    flex-direction: row;
+    justify-content: flex-end;
+    margin-top: 14px;
+}
+
+/* ---------- Buttons ---------- */
+
+.layer .button {
+    background-color: var(--panel-light);
+    color: var(--ink);
+    border-width: 1px;
+    border-color: var(--edge);
+    border-radius: 5px;
+    padding: 6px 14px;
+    margin: 2px 3px;
+    font-size: 16px;
+    -unity-text-align: middle-center;
+    transition-duration: 0.08s;
+}
+
+.layer .button:hover {
+    background-color: rgb(62, 68, 58);
+    border-color: rgba(224, 123, 57, 0.6);
+}
+
+.layer .button:active {
+    background-color: var(--accent-dark);
+}
+
+.layer .button:disabled {
+    opacity: 0.4;
+}
+
+.layer .button.primary {
+    background-color: var(--accent-dark);
+    border-color: var(--accent);
+}
+
+.layer .button.primary:hover {
+    background-color: var(--accent);
+}
+
+.layer .button.menu {
+    font-size: 20px;
+    padding: 10px 18px;
+    margin: 4px 0;
+    min-width: 320px;
+}
+
+.menu-reason {
+    -unity-text-align: middle-center;
+    margin-bottom: 4px;
+}
+
+.layer .button.quiet {
+    background-color: rgba(0, 0, 0, 0);
+    border-color: rgba(0, 0, 0, 0);
+    color: var(--ink-dim);
+}
+
+.layer .button.quiet:hover {
+    color: var(--ink);
+    border-color: var(--edge);
+}
+
+/* ---------- HUD ---------- */
+
+.hud-info {
+    position: absolute;
+    left: 16px;
+    top: 12px;
+}
+
+.hud-info-line {
+    font-size: 17px;
+}
+
+.hud-help {
+    font-size: 14px;
+    color: var(--ink-dim);
+    margin-top: 10px;
+}
+
+.banner {
+    position: absolute;
+    left: 15%;
+    right: 15%;
+    top: 17%;
+    font-size: 24px;
+    -unity-text-align: upper-center;
+    white-space: normal;
+    transition-property: opacity;
+    transition-duration: 0.4s;
+}
+
+.vitals {
+    position: absolute;
+    left: 16px;
+    bottom: 16px;
+    width: 240px;
+}
+
+.vital {
+    margin-bottom: 8px;
+}
+
+.vital-label {
+    font-size: 15px;
+}
+
+.bar {
+    height: 8px;
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 2px;
+}
+
+.bar-fill {
+    height: 100%;
+    border-radius: 4px;
+}
+
+.vitals-status {
+    font-size: 15px;
+    margin-top: 2px;
+    width: 600px;
+}
+
+.crosshair {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 4px;
+    height: 4px;
+    margin-left: -2px;
+    margin-top: -2px;
+    border-radius: 2px;
+    background-color: rgba(255, 255, 255, 0.75);
+}
+
+.prompt {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    margin-top: 28px;
+    font-size: 19px;
+    -unity-text-align: middle-center;
+}
+
+.prompt-key {
+    color: var(--accent);
+    -unity-font-style: bold;
+}
+
+.hint {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 72%;
+    font-size: 19px;
+    -unity-text-align: middle-center;
+}
+
+/* ---------- Progress & activity ---------- */
+
+.progress {
+    position: absolute;
+    left: 50%;
+    top: 68%;
+    width: 380px;
+    margin-left: -190px;
+    align-items: center;
+}
+
+.progress-label {
+    font-size: 20px;
+    margin-bottom: 8px;
+}
+
+.progress .bar {
+    width: 100%;
+    height: 12px;
+}
+
+.progress .bar-fill {
+    background-color: rgb(242, 204, 102);
+}
+
+.fade {
+    background-color: rgb(0, 0, 3);
+}
+
+.fade-label {
+    font-size: 22px;
+    -unity-text-align: middle-center;
+}
+
+.bite {
+    font-size: 48px;
+    -unity-font-style: bold;
+    color: rgb(255, 216, 77);
+    -unity-text-align: middle-center;
+}
+
+/* ---------- Menus ---------- */
+
+.screen-dim {
+    background-color: rgba(0, 0, 0, 0.55);
+}
+
+.menu-panel {
+    min-width: 420px;
+    align-items: stretch;
+}
+
+.game-title {
+    font-size: 64px;
+    -unity-font-style: bold;
+    letter-spacing: 6px;
+    -unity-text-align: middle-center;
+    margin-bottom: 2px;
+}
+
+.game-subtitle {
+    font-size: 18px;
+    color: var(--ink-dim);
+    letter-spacing: 3px;
+    -unity-text-align: middle-center;
+    margin-bottom: 36px;
+}
+
+.save-summary {
+    font-size: 15px;
+    color: var(--ink-dim);
+    -unity-text-align: middle-center;
+    margin-top: -2px;
+    margin-bottom: 8px;
+}
+
+.setting {
+    flex-direction: row;
+    align-items: center;
+    margin: 6px 0;
+}
+
+.setting-label {
+    width: 200px;
+}
+
+.setting-value {
+    width: 70px;
+    -unity-text-align: middle-right;
+    color: var(--ink-dim);
+}
+
+.setting .unity-base-slider {
+    flex-grow: 1;
+}
+
+.controls-key {
+    width: 220px;
+    color: var(--accent);
+    -unity-font-style: bold;
+}
+
+/* Sliders and toggles: tint the default theme's controls to match. */
+.unity-base-slider__dragger {
+    background-color: var(--accent);
+    border-color: var(--accent-dark);
+}
+
+.unity-base-slider__tracker {
+    background-color: rgba(255, 255, 255, 0.15);
+    border-color: rgba(0, 0, 0, 0);
+}
+
+.unity-toggle__checkmark {
+    background-color: var(--panel-light);
+    border-color: var(--edge);
+}
+
+.unity-scroll-view__content-container {
+    padding-right: 8px;
+}
+
+/* ---------- Map & compass ---------- */
+
+.map-paper {
+    background-color: rgb(237, 230, 209);
+    border-radius: 3px;
+    color: rgb(38, 33, 31);
+}
+
+.map-label {
+    position: absolute;
+    -unity-font-style: bold;
+    color: rgb(38, 33, 31);
+}
+
+.map-marker {
+    position: absolute;
+    border-radius: 50%;
+    border-width: 2px;
+    border-color: rgba(30, 25, 20, 0.85);
+}
+
+.compass {
+    position: absolute;
+    right: 24px;
+    bottom: 24px;
+    width: 280px;
+    height: 280px;
+}
+
+.compass-dial {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.compass-mark {
+    position: absolute;
+    width: 60px;
+    height: 30px;
+    margin-left: -30px;
+    margin-top: -15px;
+    -unity-text-align: middle-center;
+    color: rgb(31, 31, 36);
+}
+
+.compass-index {
+    position: absolute;
+    left: 50%;
+    top: -8px;
+    width: 3px;
+    height: 48px;
+    margin-left: -1.5px;
+    background-color: rgb(217, 26, 26);
+}
+
+.compass-readout {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -52px;
+    font-size: 21px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+
+/* ---------- Condition overlays ---------- */
+
+.vignette {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    -unity-background-scale-mode: stretch-to-fill;
+}
+
+.blackout {
+    background-color: rgb(0, 0, 0);
+}

@@ -4,6 +4,7 @@ using Backpacking.UI;
 using Backpacking.World;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UIElements;
 
 namespace Backpacking.Gathering
 {
@@ -45,7 +46,8 @@ namespace Backpacking.Gathering
         int caughtThisSession;
         string lastResult;
         float lastResultTime;
-        GUIStyle statusStyle, biteStyle;
+        VisualElement panel;
+        Label bite, result, status;
 
         public bool IsFishing => state != State.Idle;
 
@@ -59,6 +61,7 @@ namespace Backpacking.Gathering
             caughtThisSession = 0;
             lastResult = null;
             PlayerControlLock.Lock(this, needsCursor: false);
+            GameUI.ClaimEscape(this, Stop);
             timeOfDay.RequestSpeed(this, timeMultiplier);
             StartWaiting();
         }
@@ -69,6 +72,7 @@ namespace Backpacking.Gathering
                 return;
             state = State.Idle;
             PlayerControlLock.Unlock(this);
+            GameUI.ReleaseEscape(this);
             timeOfDay.ClearSpeed(this);
             Notifications.Post(caughtThisSession > 0
                 ? $"You reel in your line with {caughtThisSession} trout."
@@ -141,25 +145,31 @@ namespace Backpacking.Gathering
             lastResultTime = Time.time;
         }
 
-        void OnGUI()
+        void Start()
         {
+            bite = UIBuild.Text("BITE!  Press E", "bite", "shadowed");
+            result = UIBuild.Text("", "progress-label", "shadowed");
+            status = UIBuild.Text("", "progress-label", "shadowed");
+            panel = UIBuild.Box("progress").With(bite, result, status);
+            panel.style.top = Length.Percent(52f);
+            panel.SetVisible(false);
+            GameUI.Current.Overlay.Add(panel.IgnoreMouse());
+        }
+
+        void LateUpdate()
+        {
+            if (panel == null)
+                return;
+            panel.SetVisible(IsFishing);
             if (!IsFishing)
                 return;
 
-            statusStyle ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 18 };
-            biteStyle ??= new GUIStyle(statusStyle) { fontSize = 44, fontStyle = FontStyle.Bold };
-
-            float y = Screen.height * 0.62f;
-            if (state == State.Bite)
-            {
-                biteStyle.normal.textColor = new Color(1f, 0.85f, 0.3f);
-                GUI.Label(new Rect(0f, y - 70f, Screen.width, 60f), "BITE!  Press E", biteStyle);
-            }
-            else if (lastResult != null && Time.time - lastResultTime < 2.5f)
-                GUI.Label(new Rect(0f, y - 50f, Screen.width, 30f), lastResult, statusStyle);
-
-            string status = $"Fishing...  {timeOfDay.ClockText}   Caught: {caughtThisSession}     ·     E to hook  ·  Right-click to stop";
-            GUI.Label(new Rect(0f, y, Screen.width, 30f), status, statusStyle);
+            bite.SetVisible(state == State.Bite);
+            bool showResult = state != State.Bite && lastResult != null && Time.time - lastResultTime < 2.5f;
+            result.SetVisible(showResult);
+            if (showResult)
+                result.SetText(lastResult);
+            status.SetText($"Fishing...  {timeOfDay.ClockText}   Caught: {caughtThisSession}     ·     E to hook  ·  Right-click or Esc to stop");
         }
     }
 }

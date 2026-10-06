@@ -3,6 +3,7 @@ using Backpacking.Interaction;
 using Backpacking.Player;
 using Backpacking.Survival;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace Backpacking.UI
 {
@@ -40,6 +41,7 @@ namespace Backpacking.UI
         static readonly Color Blood = new(0.6f, 0f, 0f);
 
         Texture2D vignette;
+        VisualElement weakness, frost, blood, drowsiness, eyelids;
         float nextBlinkTime;
         float blinkStartTime = -10f;
         float lastBeatTime = -10f;
@@ -103,45 +105,44 @@ namespace Backpacking.UI
             }
         }
 
-        void OnGUI()
+        void Start()
         {
-            // Behind the HUD and menus.
-            GUI.depth = 10;
-            if (activity.IsSleeping || Event.current.type != EventType.Repaint)
-                return;
-
-            var screen = new Rect(0f, 0f, Screen.width, Screen.height);
-
-            DrawVignette(screen, Color.black, Weak * 0.85f);
-            DrawVignette(screen, Frost, Cold * 0.6f);
-
-            float hurt = Hurt;
-            if (hurt > 0f)
-            {
-                float beat = Mathf.Exp(-(Time.time - lastBeatTime) * 9f);
-                DrawVignette(screen, Blood, hurt * (0.45f + 0.35f * beat));
-            }
-
-            float drowsy = Drowsy;
-            if (drowsy > 0f)
-            {
-                // Eyelids drift shut for a moment, then snap open.
-                float blinkLength = Mathf.Lerp(0.35f, 0.9f, drowsy);
-                float progress = (Time.time - blinkStartTime) / blinkLength;
-                float closed = progress is > 0f and < 1f ? Mathf.Sin(progress * Mathf.PI) : 0f;
-                DrawVignette(screen, Color.black, drowsy * 0.5f);
-                GUI.color = new Color(0f, 0f, 0f, closed * Mathf.Lerp(0.6f, 0.95f, drowsy));
-                GUI.DrawTexture(screen, Texture2D.whiteTexture);
-            }
-            GUI.color = Color.white;
+            weakness = Vignette(Color.black);
+            frost = Vignette(Frost);
+            blood = Vignette(Blood);
+            drowsiness = Vignette(Color.black);
+            eyelids = UIBuild.Layer("blackout");
+            GameUI.Current.Effects.With(weakness, frost, blood, drowsiness, eyelids);
         }
 
-        void DrawVignette(Rect screen, Color colour, float strength)
+        VisualElement Vignette(Color colour)
         {
-            if (strength <= 0.001f)
+            VisualElement element = UIBuild.Layer("vignette");
+            element.style.backgroundImage = vignette;
+            element.style.unityBackgroundImageTintColor = colour;
+            element.style.opacity = 0f;
+            return element;
+        }
+
+        void LateUpdate()
+        {
+            if (eyelids == null)
                 return;
-            GUI.color = new Color(colour.r, colour.g, colour.b, Mathf.Clamp01(strength));
-            GUI.DrawTexture(screen, vignette, ScaleMode.StretchToFill);
+
+            bool awake = !activity.IsSleeping;
+            float hurt = Hurt, drowsy = Drowsy;
+            weakness.style.opacity = awake ? Weak * 0.85f : 0f;
+            frost.style.opacity = awake ? Cold * 0.6f : 0f;
+
+            float beat = Mathf.Exp(-(Time.time - lastBeatTime) * 9f);
+            blood.style.opacity = awake ? Mathf.Clamp01(hurt * (0.45f + 0.35f * beat)) : 0f;
+
+            // Eyelids drift shut for a moment, then snap open.
+            float blinkLength = Mathf.Lerp(0.35f, 0.9f, drowsy);
+            float progress = (Time.time - blinkStartTime) / blinkLength;
+            float closed = drowsy > 0f && progress is > 0f and < 1f ? Mathf.Sin(progress * Mathf.PI) : 0f;
+            drowsiness.style.opacity = awake ? drowsy * 0.5f : 0f;
+            eyelids.style.opacity = awake ? closed * Mathf.Lerp(0.6f, 0.95f, drowsy) : 0f;
         }
 
         /// <summary>White, clear in the middle and opaque toward the edges. Stretched to the screen, it becomes an oval.</summary>

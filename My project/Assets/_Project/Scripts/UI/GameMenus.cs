@@ -1,0 +1,285 @@
+using System;
+using Backpacking.Player;
+using Backpacking.Saving;
+using UnityEngine;
+using UnityEngine.UIElements;
+
+namespace Backpacking.UI
+{
+    /// <summary>
+    /// The title menu shown on start (continue the saved trip or start a new one), the pause menu on Esc,
+    /// and the settings and controls pages both of them open. The world stays paused while either is up.
+    /// </summary>
+    public class GameMenus : MonoBehaviour
+    {
+        [SerializeField] SaveSystem saves;
+
+        const string ControlsText =
+            "WASD|Walk\nShift|Sprint\nC|Crouch\nSpace|Jump\nMouse|Look around\n" +
+            "E|Interact, hook a fish\nTab|Backpack, leave a shop\nM|Map\nQ|Compass\n" +
+            "Hold T|Fast-forward time\nRight-click|Cancel placing, stop fishing\nF5 / F9|Quick-save / quick-load\nEsc|Close screen, pause";
+
+        enum Page { None, Title, Pause, Settings, Controls, Confirm }
+
+        Page page;
+        Page returnPage;
+        VisualElement screen;
+        VisualElement titlePage, pausePage, settingsPage, controlsPage, confirmPage;
+        Button continueButton;
+        Label continueSummary, confirmText;
+        Button loadButton;
+        Action confirmAction;
+        float timeScaleBeforePause = 1f;
+        bool onTitle;
+
+        public bool IsOpen => page != Page.None;
+
+        void OnEnable()
+        {
+            GameUI.EscapeUnhandled += OnEscape;
+            GameSettings.Changed += ApplyAudio;
+        }
+
+        void OnDisable()
+        {
+            GameUI.EscapeUnhandled -= OnEscape;
+            GameSettings.Changed -= ApplyAudio;
+            AudioListener.pause = false;
+        }
+
+        void Start()
+        {
+            ApplyAudio();
+            BuildPages();
+            if (!SaveSystem.LoadingOnSceneStart)
+                ShowTitle();
+        }
+
+        static void ApplyAudio() => AudioListener.volume = GameSettings.MasterVolume;
+
+        // ---------- Pages ----------
+
+        void BuildPages()
+        {
+            continueButton = UIBuild.Button("Continue trip", ContinueTrip, "menu", "primary");
+            continueSummary = UIBuild.Text("", "save-summary");
+            titlePage = UIBuild.Box("centred").With(
+                UIBuild.Text("BACKPACKING", "game-title", "shadowed"),
+                UIBuild.Text("hike  ·  camp  ·  survive", "game-subtitle", "shadowed"),
+                UIBuild.Box("panel", "menu-panel").With(
+                    continueButton,
+                    continueSummary,
+                    UIBuild.Button("New trip", NewTrip, "menu"),
+                    UIBuild.Button("Settings", () => ShowPage(Page.Settings), "menu"),
+                    UIBuild.Button("Controls", () => ShowPage(Page.Controls), "menu"),
+                    UIBuild.Button("Quit", QuitGame, "menu", "quiet")));
+
+            loadButton = UIBuild.Button("Load last save", () => Confirm("Load your last save? Progress since then will be lost.", saves.QuickLoad), "menu");
+            pausePage = UIBuild.Box("panel", "menu-panel").With(
+                UIBuild.Text("Paused", "title"),
+                UIBuild.Button("Resume", Resume, "menu", "primary"),
+                UIBuild.Button("Save trip", () =>
+                {
+                    saves.Save();
+                    Resume();
+                }, "menu"),
+                loadButton,
+                UIBuild.Button("Settings", () => ShowPage(Page.Settings), "menu"),
+                UIBuild.Button("Controls", () => ShowPage(Page.Controls), "menu"),
+                UIBuild.Button("Quit to title", () => Confirm("Quit to the title screen? Progress since your last save will be lost.", saves.ReturnToTitle), "menu"),
+                UIBuild.Button("Quit game", () => Confirm("Quit the game? Progress since your last save will be lost.", QuitGame), "menu", "quiet"));
+
+            settingsPage = BuildSettings();
+            controlsPage = BuildControls();
+
+            confirmText = UIBuild.Text("", "text");
+            confirmPage = UIBuild.Box("panel", "menu-panel").With(
+                confirmText,
+                UIBuild.Box("footer").With(
+                    UIBuild.Button("Cancel", Back),
+                    UIBuild.Button("Yes", () =>
+                    {
+                        Action action = confirmAction;
+                        HideAll();
+                        action?.Invoke();
+                    }, "primary")));
+            confirmPage.style.maxWidth = 520f;
+
+            screen = UIBuild.Layer("screen-dim", "centred").With(titlePage, pausePage, settingsPage, controlsPage, confirmPage);
+            screen.pickingMode = PickingMode.Position;
+            GameUI.Current.Menus.Add(screen);
+            ShowPage(Page.None);
+        }
+
+        VisualElement BuildSettings()
+        {
+            var fullscreen = new Toggle { value = GameSettings.Fullscreen };
+            fullscreen.RegisterValueChangedCallback(change => GameSettings.Fullscreen = change.newValue);
+
+            VisualElement panel = UIBuild.Box("panel", "menu-panel").With(
+                UIBuild.Text("Settings", "title"),
+                SliderRow("Master volume", 0f, 1f, GameSettings.MasterVolume, value => GameSettings.MasterVolume = value, value => $"{value * 100f:0}%"),
+                SliderRow("Mouse sensitivity", 0.02f, 0.4f, GameSettings.MouseSensitivity, value => GameSettings.MouseSensitivity = value, value => $"{value * 10f:0.0}"),
+                SliderRow("Field of view", 55f, 95f, GameSettings.FieldOfView, value => GameSettings.FieldOfView = value, value => $"{value:0}°"),
+                ToggleRow("Invert mouse Y", GameSettings.InvertMouseY, value => GameSettings.InvertMouseY = value),
+                ToggleRow("Show control hints", GameSettings.ShowControlHints, value => GameSettings.ShowControlHints = value),
+                UIBuild.Box("setting").With(UIBuild.Text("Fullscreen", "setting-label"), fullscreen),
+                UIBuild.Box("footer").With(UIBuild.Button("Back", Back, "primary")));
+            panel.style.width = 600f;
+            return panel;
+        }
+
+        static VisualElement SliderRow(string label, float min, float max, float value, Action<float> set, Func<float, string> format)
+        {
+            var slider = new Slider(min, max) { value = value };
+            Label shown = UIBuild.Text(format(value), "setting-value");
+            slider.RegisterValueChangedCallback(change =>
+            {
+                set(change.newValue);
+                shown.text = format(change.newValue);
+            });
+            return UIBuild.Box("setting").With(UIBuild.Text(label, "setting-label"), slider, shown);
+        }
+
+        static VisualElement ToggleRow(string label, bool value, Action<bool> set)
+        {
+            var toggle = new Toggle { value = value };
+            toggle.RegisterValueChangedCallback(change => set(change.newValue));
+            return UIBuild.Box("setting").With(UIBuild.Text(label, "setting-label"), toggle);
+        }
+
+        VisualElement BuildControls()
+        {
+            VisualElement panel = UIBuild.Box("panel", "menu-panel").With(UIBuild.Text("Controls", "title"));
+            foreach (string line in ControlsText.Split('\n'))
+            {
+                string[] parts = line.Split('|');
+                panel.Add(UIBuild.Box("row").With(UIBuild.Text(parts[0], "controls-key"), UIBuild.Text(parts[1])));
+            }
+            panel.Add(UIBuild.Box("footer").With(UIBuild.Button("Back", Back, "primary")));
+            panel.style.width = 560f;
+            return panel;
+        }
+
+        // ---------- Navigation ----------
+
+        void ShowPage(Page next)
+        {
+            if ((next is Page.Settings or Page.Controls or Page.Confirm) && (page is Page.Title or Page.Pause))
+                returnPage = page;
+            page = next;
+
+            screen.SetVisible(next != Page.None);
+            titlePage.SetVisible(next == Page.Title);
+            pausePage.SetVisible(next == Page.Pause);
+            settingsPage.SetVisible(next == Page.Settings);
+            controlsPage.SetVisible(next == Page.Controls);
+            confirmPage.SetVisible(next == Page.Confirm);
+            // The HUD would only clutter the title screen.
+            GameUI.Current.Hud.SetVisible(!onTitle);
+
+            if (next == Page.Pause)
+                loadButton.SetEnabled(saves.HasSave);
+        }
+
+        void Back()
+        {
+            if (page is Page.Settings or Page.Controls or Page.Confirm)
+                ShowPage(returnPage);
+            else if (page == Page.Pause)
+                Resume();
+        }
+
+        void Confirm(string question, Action action)
+        {
+            confirmText.text = question;
+            confirmAction = action;
+            ShowPage(Page.Confirm);
+        }
+
+        /// <summary>
+        /// Esc reaches here only when no other screen is open: it pauses, steps back out of a sub-page,
+        /// or resumes. It does nothing on the title page itself.
+        /// </summary>
+        void OnEscape()
+        {
+            if (page == Page.None)
+            {
+                if (!PlayerControlLock.CursorNeeded)
+                    Pause();
+            }
+            else if (page != Page.Title)
+                Back();
+        }
+
+        void Freeze()
+        {
+            timeScaleBeforePause = Time.timeScale > 0f ? Time.timeScale : 1f;
+            Time.timeScale = 0f;
+            PlayerControlLock.Lock(this, needsCursor: true);
+        }
+
+        void Unfreeze()
+        {
+            Time.timeScale = timeScaleBeforePause;
+            AudioListener.pause = false;
+            PlayerControlLock.Unlock(this);
+        }
+
+        void HideAll()
+        {
+            Unfreeze();
+            onTitle = false;
+            returnPage = Page.None;
+            ShowPage(Page.None);
+        }
+
+        // ---------- Title ----------
+
+        void ShowTitle()
+        {
+            Freeze();
+            onTitle = true;
+            string summary = saves.SavedSummary();
+            continueButton.SetVisible(summary != null);
+            continueSummary.SetVisible(summary != null);
+            continueSummary.text = summary ?? "";
+            returnPage = Page.Title;
+            ShowPage(Page.Title);
+        }
+
+        void ContinueTrip()
+        {
+            HideAll();
+            saves.ContinueSavedTrip();
+        }
+
+        void NewTrip()
+        {
+            HideAll();
+            Notifications.Post(saves.HasSave
+                ? "A new trip begins. Your next save replaces the old one."
+                : "A new trip begins. Head north along the route.", 6f);
+        }
+
+        // ---------- Pause ----------
+
+        void Pause()
+        {
+            Freeze();
+            AudioListener.pause = true;
+            ShowPage(Page.Pause);
+        }
+
+        void Resume() => HideAll();
+
+        static void QuitGame()
+        {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
+        }
+    }
+}

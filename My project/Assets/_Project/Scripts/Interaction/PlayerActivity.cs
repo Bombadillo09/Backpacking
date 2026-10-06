@@ -4,6 +4,7 @@ using Backpacking.Survival;
 using Backpacking.UI;
 using Backpacking.World;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace Backpacking.Interaction
 {
@@ -36,7 +37,8 @@ namespace Backpacking.Interaction
         float elapsedHours;
         Action onComplete;
         bool sleeping;
-        GUIStyle labelStyle;
+        VisualElement progressPanel, progressFill, sleepOverlay;
+        Label taskLabel, sleepLabel;
 
         bool sleepingInTent;
 
@@ -160,33 +162,37 @@ namespace Backpacking.Interaction
                 Finish();
         }
 
-        void OnGUI()
+        void Start()
         {
+            taskLabel = UIBuild.Text("", "progress-label", "shadowed");
+            progressPanel = UIBuild.Box("progress").With(taskLabel, UIBuild.Bar(out progressFill));
+            sleepLabel = UIBuild.Text("", "fade-label");
+            sleepOverlay = UIBuild.Layer("fade", "centred").With(sleepLabel);
+            progressPanel.SetVisible(false);
+            sleepOverlay.SetVisible(false);
+            GameUI.Current.Overlay.With(progressPanel.IgnoreMouse(), sleepOverlay.IgnoreMouse());
+        }
+
+        void LateUpdate()
+        {
+            if (progressPanel == null)
+                return;
+            progressPanel.SetVisible(IsBusy && !sleeping);
+            sleepOverlay.SetVisible(IsBusy && sleeping);
             if (!IsBusy)
                 return;
-
-            labelStyle ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 20 };
-            float progress = durationHours > 0f ? Mathf.Clamp01(elapsedHours / durationHours) : 1f;
 
             if (sleeping)
             {
                 // Fade to near-black while asleep.
-                GUI.color = new Color(0f, 0f, 0.02f, Mathf.Clamp01(elapsedHours * 4f) * 0.92f);
-                GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), Texture2D.whiteTexture);
-                GUI.color = Color.white;
-                string text = unconscious ? "Unconscious..." : "Sleeping...";
-                GUI.Label(new Rect(0f, Screen.height * 0.45f, Screen.width, 30f), $"{text}   {timeOfDay.ClockText}", labelStyle);
-                return;
+                sleepOverlay.style.opacity = Mathf.Clamp01(elapsedHours * 4f) * 0.92f;
+                sleepLabel.SetText($"{(unconscious ? "Unconscious..." : "Sleeping...")}   {timeOfDay.ClockText}");
             }
-
-            const float width = 360f;
-            var bar = new Rect((Screen.width - width) / 2f, Screen.height * 0.7f, width, 14f);
-            GUI.Label(new Rect(0f, bar.y - 34f, Screen.width, 30f), label, labelStyle);
-            GUI.color = new Color(0f, 0f, 0f, 0.6f);
-            GUI.DrawTexture(bar, Texture2D.whiteTexture);
-            GUI.color = new Color(0.95f, 0.8f, 0.4f);
-            GUI.DrawTexture(new Rect(bar.x, bar.y, bar.width * progress, bar.height), Texture2D.whiteTexture);
-            GUI.color = Color.white;
+            else
+            {
+                taskLabel.SetText(label);
+                progressFill.SetFill(durationHours > 0f ? elapsedHours / durationHours : 1f);
+            }
         }
     }
 }

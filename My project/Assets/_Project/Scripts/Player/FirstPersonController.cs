@@ -1,3 +1,4 @@
+using Backpacking.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -54,6 +55,7 @@ namespace Backpacking.Player
         float pitch;
 
         bool cursorWasNeeded;
+        bool invertY;
 
         public bool IsGrounded => controller.isGrounded;
         public bool IsSprinting { get; private set; }
@@ -91,12 +93,23 @@ namespace Backpacking.Player
         {
             moveAction?.actionMap.Enable();
             SetCursorLocked(true);
+            GameSettings.Changed += ApplySettings;
+            ApplySettings();
         }
 
         void OnDisable()
         {
             moveAction?.actionMap.Disable();
             SetCursorLocked(false);
+            GameSettings.Changed -= ApplySettings;
+        }
+
+        void ApplySettings()
+        {
+            mouseSensitivity = GameSettings.MouseSensitivity;
+            invertY = GameSettings.InvertMouseY;
+            if (cameraPivot != null && cameraPivot.TryGetComponent(out Camera view))
+                view.fieldOfView = GameSettings.FieldOfView;
         }
 
         void Update()
@@ -116,6 +129,8 @@ namespace Backpacking.Player
             Vector2 delta = lookAction.ReadValue<Vector2>();
             bool fromPointer = lookAction.activeControl?.device is Pointer;
             delta *= fromPointer ? mouseSensitivity : gamepadLookSpeed * Time.deltaTime;
+            if (invertY)
+                delta.y = -delta.y;
 
             transform.Rotate(0f, delta.x, 0f);
             pitch = Mathf.Clamp(pitch - delta.y, -maxPitch, maxPitch);
@@ -214,11 +229,9 @@ namespace Backpacking.Player
             if (cursorNeeded)
                 return;
 
-            Keyboard keyboard = Keyboard.current;
+            // Take the cursor back if the window lost it (Alt-Tab and the like). Esc opens the pause menu.
             Mouse mouse = Mouse.current;
-            if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
-                SetCursorLocked(false);
-            else if (mouse != null && mouse.leftButton.wasPressedThisFrame && Cursor.lockState != CursorLockMode.Locked)
+            if (mouse != null && mouse.leftButton.wasPressedThisFrame && Cursor.lockState != CursorLockMode.Locked)
                 SetCursorLocked(true);
         }
 
