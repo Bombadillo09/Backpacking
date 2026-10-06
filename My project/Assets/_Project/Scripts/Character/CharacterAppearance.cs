@@ -95,6 +95,13 @@ namespace Backpacking.Character
                 : new[] { hiker.body, hiker.head };
             Body.updateWhenOffscreen = true;
             fullBody = Body.sharedMesh;
+            if (!fullBody.isReadable)
+            {
+                // The editor can read any mesh, so this only shows in Play mode and builds.
+                Debug.LogError($"{hiker.id}'s mesh isn't readable, so the first-person head and bare feet can't be cut from it. " +
+                    "Run Backpacking > Set Up Art and Rebuild Scene to fix its import settings.");
+                return;
+            }
 
             posed = StandOnGround();
             if (posed == null)

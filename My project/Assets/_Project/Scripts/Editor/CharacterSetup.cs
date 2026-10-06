@@ -39,6 +39,30 @@ namespace Backpacking.EditorTools
             ("Female_Adult_17", "Green tee", true, 0.08f, Light),
         };
 
+        /// <summary>
+        /// Saves the import settings <see cref="CharacterImport"/> applies into each Rocketbox model's .meta and
+        /// re-imports any model imported without them (e.g. before the importer knew about Rocketbox). Without
+        /// Read/Write the game can't cut the head or feet from the meshes; Unity only lets the editor read them.
+        /// </summary>
+        static void EnsureImported()
+        {
+            foreach (string guid in AssetDatabase.FindAssets("t:Model", new[] { RocketboxFolder }))
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                if (AssetImporter.GetAtPath(path) is not ModelImporter importer)
+                    continue;
+                if (importer.isReadable && importer.materialImportMode == ModelImporterMaterialImportMode.None
+                    && importer.animationType == ModelImporterAnimationType.Human && importer.bakeAxisConversion)
+                    continue;
+                importer.isReadable = true;
+                importer.materialImportMode = ModelImporterMaterialImportMode.None;
+                importer.animationType = ModelImporterAnimationType.Human;
+                importer.avatarSetup = ModelImporterAvatarSetup.CreateFromThisModel;
+                importer.bakeAxisConversion = true;
+                importer.SaveAndReimport();
+            }
+        }
+
         public static CharacterLibrary GetOrCreateLibrary()
         {
             if (!AssetDatabase.IsValidFolder(RocketboxFolder))
@@ -46,6 +70,7 @@ namespace Backpacking.EditorTools
                 Debug.LogWarning($"Character models not found in {RocketboxFolder}; the player will have no body.");
                 return null;
             }
+            EnsureImported();
             if (!AssetDatabase.IsValidFolder(OutputFolder))
                 AssetDatabase.CreateFolder("Assets/_Project/Generated", "Characters");
 
