@@ -234,7 +234,11 @@ namespace Backpacking.EditorTools
         /// <summary>Grass everywhere it grows, plus optional ground plants for forest floors and meadows.</summary>
         static void GrowGrass(TerrainData data, RouteLayout route, BiomeArtSettings art)
         {
-            data.SetDetailResolution(DetailResolution, 32);
+            // Small patches: each one is a single mesh, and dense grass would overflow larger ones.
+            data.SetDetailResolution(DetailResolution, 16);
+            data.wavingGrassStrength = art.grassWaveStrength;
+            data.wavingGrassSpeed = art.grassWaveSpeed;
+            data.wavingGrassAmount = art.grassWaveAmount;
             // Densities below are plants per detail cell.
             data.SetDetailScatterMode(DetailScatterMode.InstanceCountMode);
 

@@ -41,6 +41,12 @@ namespace Backpacking.EditorTools
         public Vector2 grassHeight = new(0.35f, 0.75f);
         [Tooltip("Grass width range in metres.")]
         public Vector2 grassWidth = new(0.5f, 1f);
+        [Tooltip("How far grass bends in the wind (Unity's default is 0.5).")]
+        [Range(0f, 1f)] public float grassWaveStrength = 0.12f;
+        [Tooltip("How fast the wind ripples through the grass (default 0.5).")]
+        [Range(0f, 1f)] public float grassWaveSpeed = 0.2f;
+        [Tooltip("How much of the grass the wind moves at once (default 0.5).")]
+        [Range(0f, 1f)] public float grassWaveAmount = 0.2f;
 
         [Header("Wildflowers (optional; textures with transparency, drawn like grass)")]
         public Texture2D[] flowerTextures;
@@ -89,7 +95,7 @@ namespace Backpacking.EditorTools
         [Tooltip("Multiplies all tree densities.")]
         [Range(0f, 3f)] public float treeDensity = 1f;
         [Tooltip("At 1, full meadow has about one grass tuft per 3 m². Higher costs frame rate.")]
-        [Range(0f, 6f)] public float grassDensity = 1f;
+        [Range(0f, 10f)] public float grassDensity = 1f;
         [Range(0f, 3f)] public float plantDensity = 1f;
         [Range(0f, 3f)] public float boulderDensity = 1f;
         [Tooltip("Trees and grass further than this aren't drawn, in metres. Lower it if the frame rate struggles.")]
