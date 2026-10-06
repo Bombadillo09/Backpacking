@@ -2,6 +2,8 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using Backpacking.Character;
+using Backpacking.Player;
+using Backpacking.Survival;
 using UnityEditor;
 using UnityEngine;
 
@@ -82,6 +84,101 @@ namespace Backpacking.EditorTools
                 }
             }
             return report.ToString();
+        }
+
+        /// <summary>The hiker holding each hotbar item: from outside, and through the eyes (held-*.png).</summary>
+        public static string RenderHeld()
+        {
+            var library = AssetDatabase.LoadAssetAtPath<CharacterLibrary>("Assets/_Project/Settings/CharacterLibrary.asset");
+            var heldLibrary = AssetDatabase.LoadAssetAtPath<HeldItemLibrary>("Assets/_Project/Settings/HeldItemLibrary.asset");
+            Directory.CreateDirectory(Folder);
+            var report = new StringBuilder();
+            var preview = new PreviewRenderUtility();
+            var root = new GameObject("Snapshot Hiker");
+            var owned = new System.Collections.Generic.List<Material>();
+            GameObject item = null;
+            try
+            {
+                var appearance = root.AddComponent<CharacterAppearance>();
+                appearance.Library = library;
+                appearance.Build(new CharacterProfile { hiker = "Male_Adult_05" });
+                float eyes = appearance.EyeHeight;
+                root.transform.localScale = Vector3.one * (eyes > 0.5f ? 1.68f / eyes : 1f);
+                appearance.SetFirstPerson(false);
+                preview.AddSingleGO(root);
+                preview.camera.fieldOfView = 70f;
+                preview.camera.nearClipPlane = 0.02f;
+                preview.camera.clearFlags = CameraClearFlags.SolidColor;
+                preview.camera.backgroundColor = new Color(0.55f, 0.65f, 0.75f);
+                preview.lights[0].intensity = 1.3f;
+                preview.lights[0].transform.rotation = Quaternion.Euler(40f, -30f, 0f);
+                preview.lights[1].intensity = 0.5f;
+                preview.ambientColor = new Color(0.4f, 0.4f, 0.42f);
+                Animator animator = appearance.Animator;
+
+                (HotbarSlot slot, string name)[] items =
+                {
+                    (new HotbarSlot(HotbarKind.Machete), "machete"), (new HotbarSlot(HotbarKind.Water), "water"),
+                    (new HotbarSlot(HotbarKind.Bandage), "bandage"), (new HotbarSlot(HotbarKind.Antibiotics), "antibiotics"),
+                    (new HotbarSlot(HotbarKind.Food, FoodKind.TrailMeal), "meal"), (new HotbarSlot(HotbarKind.Food, FoodKind.TrailMix), "trailmix"),
+                    (new HotbarSlot(HotbarKind.Food, FoodKind.CookedFish), "fish"), (new HotbarSlot(HotbarKind.Food, FoodKind.Berries), "berries"),
+                };
+                Vector3 eye = new(0f, 1.68f, 0f);
+                Quaternion look = Quaternion.Euler(12f, 0f, 0f);
+                foreach ((HotbarSlot slot, string name) in items)
+                {
+                    if (item != null)
+                        Object.DestroyImmediate(item);
+                    GameObject prefab = heldLibrary.PrefabFor(slot);
+                    item = prefab != null ? Object.Instantiate(prefab) : HeldFood.Build(slot.food, heldLibrary.plain, owned);
+                    preview.AddSingleGO(item);
+
+                    void Pose(bool firstPerson)
+                    {
+                        // As in the game: in first person the head is hidden and the body sits a little behind the eyes.
+                        appearance.SetFirstPerson(firstPerson);
+                        root.transform.position = new Vector3(0f, 0f, firstPerson ? -0.12f : 0f);
+                        appearance.Pose.HandTarget = eye + look * new Vector3(0.22f, -0.22f, 0.42f);
+                        appearance.Pose.HandWeight = 1f;
+                        appearance.Pose.HandFrame = look * Quaternion.Euler(-15f, 0f, -8f);
+                        animator.Rebind();
+                        for (int k = 0; k < 20; k++)
+                            animator.Update(0.05f);
+                        HeldItemView.Place(item.transform, animator, appearance.Pose.HandFrame);
+                        foreach (SkinnedMeshRenderer skin in root.GetComponentsInChildren<SkinnedMeshRenderer>())
+                            skin.forceMatrixRecalculationPerRender = true;
+                    }
+                    Pose(false);
+
+                    void Shot(string file, Vector3 camera, Vector3 target)
+                    {
+                        preview.BeginStaticPreview(new Rect(0, 0, 640, 640));
+                        preview.camera.transform.position = camera;
+                        preview.camera.transform.LookAt(target);
+                        preview.Render(true);
+                        Texture2D texture = preview.EndStaticPreview();
+                        File.WriteAllBytes($"{Folder}/held-{name}-{file}.png", texture.EncodeToPNG());
+                        Object.DestroyImmediate(texture);
+                    }
+                    Vector3 at = item.transform.position;
+                    preview.camera.fieldOfView = 35f;
+                    Shot("outside", at + new Vector3(0.55f, 0.15f, 0.75f), at);
+                    preview.camera.fieldOfView = 70f;
+                    Pose(true);
+                    Shot("eyes", eye, eye + look * Vector3.forward);
+                    report.AppendLine($"{name}: item at {at:F2}, hand {animator.GetBoneTransform(HumanBodyBones.RightHand).position:F2}");
+                }
+                return report.ToString();
+            }
+            finally
+            {
+                preview.Cleanup();
+                Object.DestroyImmediate(root);
+                if (item != null)
+                    Object.DestroyImmediate(item);
+                foreach (Material material in owned)
+                    Object.DestroyImmediate(material);
+            }
         }
 
         public static string Render() => RenderHiker("Male_Adult_05", false);

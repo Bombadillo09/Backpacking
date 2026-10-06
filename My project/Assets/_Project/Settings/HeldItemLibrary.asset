@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 215fdf7636576004fbbc9e112dad2fc1, type: 3}
+  m_Name: HeldItemLibrary
+  m_EditorClassIdentifier: Assembly-CSharp::Backpacking.Player.HeldItemLibrary
+  entries:
+  - kind: 1
+    food: 0
+    prefab: {fileID: 5865071540805038893, guid: 01a0a474adb75574ea32f449c57789a0, type: 3}
+  - kind: 2
+    food: 0
+    prefab: {fileID: 6373683499227699496, guid: 7ad7860f4879dc84796fce7d91b9f7a7, type: 3}
+  - kind: 5
+    food: 0
+    prefab: {fileID: 7064448738299068147, guid: 59d1551c2aba5ff41a6be52339e71828, type: 3}
+  - kind: 4
+    food: 0
+    prefab: {fileID: 5256912107808036262, guid: 7d267adada6365942a6307a00946a51d, type: 3}
+  - kind: 3
+    food: 1
+    prefab: {fileID: 1288797489206235668, guid: 9853fb7a8d38aec438e9f4872373aae8, type: 3}
+  plain: {fileID: 2100000, guid: 05f10cc1e6a81c84c81b1aa48a0d6215, type: 2}

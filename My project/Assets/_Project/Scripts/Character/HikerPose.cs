@@ -20,6 +20,11 @@ namespace Backpacking.Character
         /// snapshots, which stand on nothing in particular.
         /// </summary>
         public bool GroundFeet { get; set; }
+        /// <summary>Where the right hand reaches to hold an item out, or null to leave the arm to the animation.</summary>
+        public Vector3? HandTarget { get; set; }
+        public float HandWeight { get; set; }
+        /// <summary>The held item's frame, for bending the elbow out and down naturally.</summary>
+        public Quaternion HandFrame { get; set; } = Quaternion.identity;
 
         Animator animator;
         Transform ground;
@@ -60,6 +65,8 @@ namespace Backpacking.Character
                 animator.SetLookAtWeight(lookWeight * 0.9f, Mathf.Lerp(0.2f, 0.05f, Seated), 0.7f, 0f, 0.55f);
             }
 
+            HoldOut();
+
             float seated = Mathf.SmoothStep(0f, 1f, Seated);
             if (seated > 0f)
                 Sit(seated, scale);
@@ -67,6 +74,27 @@ namespace Backpacking.Character
                 PlantFeet(scale);
             else
                 lowerBody = 0f;
+        }
+
+        /// <summary>Raises the right hand to hold an item, the elbow out and down behind it.</summary>
+        void HoldOut()
+        {
+            if (!HandTarget.HasValue || HandWeight <= 0f)
+            {
+                animator.SetIKPositionWeight(AvatarIKGoal.RightHand, 0f);
+                animator.SetIKHintPositionWeight(AvatarIKHint.RightElbow, 0f);
+                return;
+            }
+            float weight = Mathf.SmoothStep(0f, 1f, HandWeight);
+            animator.SetIKPositionWeight(AvatarIKGoal.RightHand, weight);
+            animator.SetIKPosition(AvatarIKGoal.RightHand, HandTarget.Value);
+            Transform shoulder = animator.GetBoneTransform(HumanBodyBones.RightUpperArm);
+            if (shoulder != null)
+            {
+                animator.SetIKHintPositionWeight(AvatarIKHint.RightElbow, weight);
+                animator.SetIKHintPosition(AvatarIKHint.RightElbow,
+                    Vector3.Lerp(shoulder.position, HandTarget.Value, 0.5f) + HandFrame * new Vector3(0.25f, -0.3f, -0.1f));
+            }
         }
 
         /// <summary>Hip joint to ankle, measured while standing so it's right for either body and any scale.</summary>
@@ -131,6 +159,9 @@ namespace Backpacking.Character
 
             foreach ((AvatarIKGoal goal, float side) in new[] { (AvatarIKGoal.LeftHand, -1f), (AvatarIKGoal.RightHand, 1f) })
             {
+                // A hand holding something stays up holding it.
+                if (goal == AvatarIKGoal.RightHand && HandTarget.HasValue && HandWeight > 0f)
+                    continue;
                 Vector3 hand = seat - forward * 0.16f * scale + right * side * 0.3f * scale;
                 hand += up * (GroundRise(hand, scale, Vector3.zero) + 0.03f * scale);
                 animator.SetIKPositionWeight(goal, weight * 0.85f);

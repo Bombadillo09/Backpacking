@@ -280,6 +280,13 @@ namespace Backpacking.EditorTools
             SetField(avatar, "appearance", appearance);
             SetField(avatar, "player", player);
             SetField(avatar, "activity", activity);
+            // What's on the hotbar, shown in the hiker's hand.
+            var held = go.AddComponent<HeldItemView>();
+            SetField(held, "hotbar", go.GetComponent<Hotbar>());
+            SetField(held, "library", HeldItemSetup.GetOrCreateLibrary());
+            SetField(held, "player", player);
+            SetField(held, "appearance", appearance);
+            SetField(held, "activity", activity);
             var creator = hud.AddComponent<CharacterCreator>();
             SetField(creator, "library", library);
             SetField(menus, "creator", creator);

@@ -35,6 +35,9 @@ namespace Backpacking.Player
         public int Selected { get; private set; } = -1;
         public static Hotbar Current => current;
 
+        /// <summary>Raised when the held item is used (drunk, eaten, taken, applied), for the hand animation.</summary>
+        public static event System.Action<HotbarKind> Used;
+
         /// <summary>What's in hand right now (Empty with nothing held).</summary>
         public HotbarSlot Held => Selected >= 0 && Selected < backpack.Hotbar.Count ? backpack.Hotbar[Selected] : new HotbarSlot(HotbarKind.Empty);
 
@@ -42,7 +45,11 @@ namespace Backpacking.Player
         public static bool HoldingMachete => current != null && current.Held.kind == HotbarKind.Machete && current.backpack.HasMachete;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() => current = null;
+        static void ResetStatics()
+        {
+            current = null;
+            Used = null;
+        }
 
         void Awake()
         {
@@ -109,7 +116,10 @@ namespace Backpacking.Player
             {
                 case HotbarKind.Water:
                     if (backpack.SafeWater > 0f)
+                    {
                         backpack.DrinkSafeWater();
+                        Used?.Invoke(held.kind);
+                    }
                     else if (backpack.UntreatedWater > 0f)
                         Notifications.Post("Only untreated water left. Drink it from the backpack if you must, or boil it first.", 3f);
                     else
@@ -121,7 +131,10 @@ namespace Backpacking.Player
                     else if (FoodCatalog.Get(held.food).NotEdibleReason is { } reason)
                         Notifications.Post(reason, 2.5f);
                     else
+                    {
                         backpack.Eat(held.food);
+                        Used?.Invoke(held.kind);
+                    }
                     break;
                 case HotbarKind.Antibiotics:
                     if (!vitals.IsInfected)
@@ -131,6 +144,7 @@ namespace Backpacking.Player
                     else if (backpack.TryUseAntibiotics())
                     {
                         vitals.TakeAntibiotics();
+                        Used?.Invoke(held.kind);
                         Notifications.Post("You take a course of antibiotics.", 3f);
                     }
                     else
@@ -141,12 +155,12 @@ namespace Backpacking.Player
                         Notifications.Post("No cut to bandage.", 2f);
                     else if (backpack.Bandages <= 0)
                         Notifications.Post("No bandages left. Trading posts sell them.", 2.5f);
-                    else
-                        activity.Begin("Cleaning and bandaging the cut", bandageMinutes, () =>
+                    else if (activity.Begin("Cleaning and bandaging the cut", bandageMinutes, () =>
                         {
                             if (backpack.TryUseBandage() && vitals.Bandage())
                                 Notifications.Post("Cut cleaned and bandaged.", 2.5f);
-                        });
+                        }))
+                        Used?.Invoke(held.kind);
                     break;
             }
         }
