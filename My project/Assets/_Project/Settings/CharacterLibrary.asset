@@ -17,6 +17,7 @@ MonoBehaviour:
     label: Field vest
     female: 0
     model: {fileID: 919132149155446097, guid: 619c143ceaec491499a5e256dcad2936, type: 3}
+    avatar: {fileID: 9000000, guid: 3f165abbe8b340e49b83772c6ba09b41, type: 2}
     body: {fileID: 2100000, guid: c5afdf4245f89744398622694c367e2b, type: 2}
     head: {fileID: 2100000, guid: 11bb62af9f39cc848921784189237f35, type: 2}
     hair: {fileID: 2100000, guid: f80791c81c0d2744f9d9ac7da001b231, type: 2}
@@ -26,6 +27,7 @@ MonoBehaviour:
     label: Black jacket
     female: 0
     model: {fileID: 919132149155446097, guid: 38e0faceebd833e4e86863c6559c5f33, type: 3}
+    avatar: {fileID: 9000000, guid: e5cb1ba730929274dbec9544a6e62538, type: 2}
     body: {fileID: 2100000, guid: 954798098b6794a49bb18c7e10f6033c, type: 2}
     head: {fileID: 2100000, guid: f5c83f13f4720f14484a048ffd8adab8, type: 2}
     hair: {fileID: 2100000, guid: cd0b5484ca2734146b06cf4660b60994, type: 2}
@@ -35,6 +37,7 @@ MonoBehaviour:
     label: Wool jacket
     female: 0
     model: {fileID: 919132149155446097, guid: 0115dfe2a4d32424e8e3fd4be6fd5209, type: 3}
+    avatar: {fileID: 9000000, guid: a3f7fa0b8ce364f40af09804f3737704, type: 2}
     body: {fileID: 2100000, guid: 28095231e55713f4b93521a0b9fcd7cb, type: 2}
     head: {fileID: 2100000, guid: 63ddede74cffcbb4e9a0fcd2b7499f20, type: 2}
     hair: {fileID: 2100000, guid: e9078d77aed197144b0be197dfe00bed, type: 2}
@@ -44,6 +47,7 @@ MonoBehaviour:
     label: Denim jacket
     female: 0
     model: {fileID: 919132149155446097, guid: 02151a317d40ab3439742e265b54b653, type: 3}
+    avatar: {fileID: 9000000, guid: 3666d8e9c87c33a4fbe132d00f50c87b, type: 2}
     body: {fileID: 2100000, guid: fb664b7e54d477b4ca60c655eb5466f0, type: 2}
     head: {fileID: 2100000, guid: 47115a9dff0453b4aa18d883c2291a0b, type: 2}
     hair: {fileID: 0}
@@ -53,6 +57,7 @@ MonoBehaviour:
     label: Grey hoodie
     female: 0
     model: {fileID: 919132149155446097, guid: cfbf5e9837c77e442b4dfc562fff2dd1, type: 3}
+    avatar: {fileID: 9000000, guid: 6c4f7558d6acfb14ca92727f1f350ea2, type: 2}
     body: {fileID: 2100000, guid: 4cd11adb6e7b51642aecd5664f0b81ad, type: 2}
     head: {fileID: 2100000, guid: 4470cfeea91b2c64ba94c71013556b0b, type: 2}
     hair: {fileID: 0}
@@ -62,6 +67,7 @@ MonoBehaviour:
     label: Work shirt and cap
     female: 0
     model: {fileID: 919132149155446097, guid: 6fdd03d4b86f8114989796ee852f0946, type: 3}
+    avatar: {fileID: 9000000, guid: 1c3af54916777ab44874774cef63bc2a, type: 2}
     body: {fileID: 2100000, guid: 4232b935be14ad04da33657adc56682b, type: 2}
     head: {fileID: 2100000, guid: 7957c1d8b2c282e4094bad96a2f973ef, type: 2}
     hair: {fileID: 0}
@@ -71,6 +77,7 @@ MonoBehaviour:
     label: Leather jacket
     female: 1
     model: {fileID: 919132149155446097, guid: 0d0bd6bb5b2acec408ea20951045cf96, type: 3}
+    avatar: {fileID: 9000000, guid: 3372a28637bef3e4fbe7585c6fb9741f, type: 2}
     body: {fileID: 2100000, guid: 28ad061fd827d7d428a9f7a0e1853f38, type: 2}
     head: {fileID: 2100000, guid: 7a97f2d42faac6348a7090d18aa1e5fd, type: 2}
     hair: {fileID: 2100000, guid: e8a49d38f365ea24da53717065f3d9b7, type: 2}
@@ -80,6 +87,7 @@ MonoBehaviour:
     label: Brown jacket
     female: 1
     model: {fileID: 919132149155446097, guid: 329a055e77cab434c907309c624d1c99, type: 3}
+    avatar: {fileID: 9000000, guid: d20ede9e87517d74a94092df1cfebdd3, type: 2}
     body: {fileID: 2100000, guid: 0a6da421f2107674ca548843a02c912e, type: 2}
     head: {fileID: 2100000, guid: aeb7a3ee30d8ee9418d93a717df572d6, type: 2}
     hair: {fileID: 2100000, guid: 7435c9bac33274d4088d4305986091e9, type: 2}
@@ -89,6 +97,7 @@ MonoBehaviour:
     label: Hoodie and shorts
     female: 1
     model: {fileID: 919132149155446097, guid: b5afc363d756c3a44896b37f16a27164, type: 3}
+    avatar: {fileID: 9000000, guid: 101d83f3a1a4fa542823eb15dde6cb9f, type: 2}
     body: {fileID: 2100000, guid: 2d6d8e85aed98bf40b42778760532525, type: 2}
     head: {fileID: 2100000, guid: df5692a0edc703d4eb7b7aa30e100cc5, type: 2}
     hair: {fileID: 2100000, guid: 1586af7cb6c4abf449dcc99e21bbce68, type: 2}
@@ -98,6 +107,7 @@ MonoBehaviour:
     label: Waistcoat
     female: 1
     model: {fileID: 919132149155446097, guid: 0b40ae0a0aea42e4ab4db9a10968372f, type: 3}
+    avatar: {fileID: 9000000, guid: da7cbfaff20ace846bf5a4785cb53252, type: 2}
     body: {fileID: 2100000, guid: fbf1e4f206dc8e547805a54aef921457, type: 2}
     head: {fileID: 2100000, guid: 1d24f67b49685fa408b88eec6e6c6306, type: 2}
     hair: {fileID: 2100000, guid: 4f3671c876d8a8e4893b2a89c2797c54, type: 2}
@@ -107,6 +117,7 @@ MonoBehaviour:
     label: Cardigan
     female: 1
     model: {fileID: 919132149155446097, guid: ad4f6d1e99f630a439e61b724ceba9de, type: 3}
+    avatar: {fileID: 9000000, guid: 0eceac3f909c03e4a821015eb943f4ae, type: 2}
     body: {fileID: 2100000, guid: ee3e9fca58d964248a9147f65bd571f6, type: 2}
     head: {fileID: 2100000, guid: 6f580ca1e3c7e09408c6e7d672c32bb1, type: 2}
     hair: {fileID: 2100000, guid: 27afb6299e0de654a883ba5e988100a9, type: 2}
@@ -116,6 +127,7 @@ MonoBehaviour:
     label: Green tee
     female: 1
     model: {fileID: 919132149155446097, guid: 79c30de609c88c64f856c83b5b69b112, type: 3}
+    avatar: {fileID: 9000000, guid: 4f9a5ee92da03904ba418a3a026ed6ae, type: 2}
     body: {fileID: 2100000, guid: fe59c89a3390c944bb9519a36de6cc4e, type: 2}
     head: {fileID: 2100000, guid: d37e64ac33e8f0e4e91f2578b433d075, type: 2}
     hair: {fileID: 2100000, guid: 94e0a50a49a258c4ca4007983df4cb22, type: 2}

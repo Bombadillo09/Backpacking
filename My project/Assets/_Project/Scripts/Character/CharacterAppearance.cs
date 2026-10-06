@@ -73,6 +73,8 @@ namespace Backpacking.Character
             Animator = model.GetComponent<Animator>();
             if (Animator == null)
                 Animator = model.AddComponent<Animator>();
+            if (hiker.avatar != null)
+                Animator.avatar = hiker.avatar;
             Animator.runtimeAnimatorController = library.animator;
             Animator.applyRootMotion = false;
             Animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;

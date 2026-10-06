@@ -96,6 +96,7 @@ namespace Backpacking.EditorTools
                     label = label,
                     female = female,
                     model = model,
+                    avatar = TPoseAvatar(id, model),
                     body = PersonMaterial(id, "body", 0.25f),
                     head = PersonMaterial(id, "head", 0.35f),
                     hair = HairMaterial(id),
@@ -115,6 +116,100 @@ namespace Backpacking.EditorTools
             EditorUtility.SetDirty(library);
             AssetDatabase.SaveAssets();
             return library;
+        }
+
+        /// <summary>
+        /// A humanoid avatar for one person, defined from a proper T-pose, saved next to their materials.
+        /// Rocketbox people stand in an A-pose with the hands turned; Unity measures each bone's zero from the
+        /// pose it's given, so the imported avatar retargets every animation with the hands twisted round the
+        /// forearm (thumbs out, fingers curling the wrong way). This does what the avatar editor's "Enforce
+        /// T-Pose" does for the arms: straight out to the sides, palms down with the thumbs forward. (The legs are
+        /// left as modelled; straightening them turned the hips round.)
+        /// </summary>
+        static Avatar TPoseAvatar(string id, GameObject model)
+        {
+            if (AssetImporter.GetAtPath(AssetDatabase.GetAssetPath(model)) is not ModelImporter importer)
+                return null;
+            GameObject instance = Object.Instantiate(model);
+            instance.name = model.name;
+            try
+            {
+                var animator = instance.GetComponent<Animator>();
+                if (animator == null || !animator.isHuman)
+                    return null;
+                Transform Bone(HumanBodyBones bone) => animator.GetBoneTransform(bone);
+
+                // Start from the rest pose the importer built its avatar from (the scene copy isn't quite the same).
+                HumanDescription description = importer.humanDescription;
+                SkeletonBone[] skeleton = description.skeleton;
+                var transforms = new Dictionary<string, Transform>();
+                foreach (Transform t in instance.GetComponentsInChildren<Transform>(true))
+                    transforms.TryAdd(t.name, t);
+                for (int b = 1; b < skeleton.Length; b++)
+                    if (transforms.TryGetValue(skeleton[b].name, out Transform t))
+                    {
+                        t.localPosition = skeleton[b].position;
+                        t.localRotation = skeleton[b].rotation;
+                        t.localScale = skeleton[b].scale;
+                    }
+
+                foreach ((float side, HumanBodyBones upper, HumanBodyBones lower, HumanBodyBones hand, HumanBodyBones index, HumanBodyBones middle, HumanBodyBones little) in new[]
+                         {
+                             (-1f, HumanBodyBones.LeftUpperArm, HumanBodyBones.LeftLowerArm, HumanBodyBones.LeftHand, HumanBodyBones.LeftIndexProximal,
+                                 HumanBodyBones.LeftMiddleProximal, HumanBodyBones.LeftLittleProximal),
+                             (1f, HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm, HumanBodyBones.RightHand, HumanBodyBones.RightIndexProximal,
+                                 HumanBodyBones.RightMiddleProximal, HumanBodyBones.RightLittleProximal),
+                         })
+                {
+                    Vector3 outward = new(side, 0f, 0f);
+                    Aim(Bone(upper), Bone(lower), outward);
+                    Aim(Bone(lower), Bone(hand), outward);
+                    Aim(Bone(hand), Bone(middle), outward);
+                    // Palm down: turn the hand about the arm until the index side (the thumb side) faces forward.
+                    Transform h = Bone(hand), i = Bone(index), l = Bone(little);
+                    if (h != null && i != null && l != null)
+                    {
+                        Vector3 across = Vector3.ProjectOnPlane(i.position - l.position, outward);
+                        h.rotation = Quaternion.AngleAxis(Vector3.SignedAngle(across, Vector3.forward, outward), outward) * h.rotation;
+                    }
+                }
+                // Write back only the turned arm bones.
+                for (int b = 1; b < skeleton.Length; b++)
+                    if (transforms.TryGetValue(skeleton[b].name, out Transform t))
+                        skeleton[b].rotation = t.localRotation;
+                description.skeleton = skeleton;
+                Avatar avatar = AvatarBuilder.BuildHumanAvatar(instance, description);
+                if (avatar == null || !avatar.isValid || !avatar.isHuman)
+                {
+                    Debug.LogWarning($"Couldn't build a T-pose avatar for {id}; using the imported one.");
+                    return null;
+                }
+                avatar.name = $"{id} T-Pose";
+
+                string path = $"{OutputFolder}/Rocketbox/{id}_Avatar.asset";
+                var existing = AssetDatabase.LoadAssetAtPath<Avatar>(path);
+                if (existing == null)
+                {
+                    AssetDatabase.CreateAsset(avatar, path);
+                    return avatar;
+                }
+                EditorUtility.CopySerialized(avatar, existing);
+                Object.DestroyImmediate(avatar);
+                EditorUtility.SetDirty(existing);
+                return existing;
+            }
+            finally
+            {
+                Object.DestroyImmediate(instance);
+            }
+        }
+
+        /// <summary>Turns a bone so its child lies in the given direction from it.</summary>
+        static void Aim(Transform bone, Transform child, Vector3 direction)
+        {
+            if (bone == null || child == null)
+                return;
+            bone.rotation = Quaternion.FromToRotation(child.position - bone.position, direction) * bone.rotation;
         }
 
         static GameObject Model(string id) => AssetDatabase.LoadAssetAtPath<GameObject>($"{RocketboxFolder}/{id}/{id}.fbx");

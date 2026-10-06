@@ -20,6 +20,8 @@ namespace Backpacking.Character
             public string label;
             public bool female;
             public GameObject model;
+            [Tooltip("Humanoid avatar defined from a proper T-pose (palms down), so animations put the hands the right way round.")]
+            public Avatar avatar;
             public Material body, head, hair;
             [Tooltip("Height of the top of their shoes or boots, standing (metres). Below it they're cut away for bare feet, and that piece is the footwear set down beside them.")]
             public float footwearTop = 0.12f;

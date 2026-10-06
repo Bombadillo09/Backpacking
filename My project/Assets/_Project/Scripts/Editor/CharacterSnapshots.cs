@@ -161,10 +161,21 @@ namespace Backpacking.EditorTools
                     Vector3 at = root.transform.InverseTransformPoint(hand.position);
                     Shot("1e-hand-front", root.transform.TransformPoint(at + new Vector3(0.15f, 0.05f, 0.35f)), hand.position);
                     Shot("1f-hand-side", root.transform.TransformPoint(at + new Vector3(0.4f, 0.05f, 0f)), hand.position);
-                    foreach (HumanBodyBones bone in new[] { HumanBodyBones.RightThumbProximal, HumanBodyBones.RightThumbIntermediate, HumanBodyBones.RightThumbDistal, HumanBodyBones.RightIndexProximal })
+                    foreach (HumanBodyBones bone in new[] { HumanBodyBones.LeftUpperArm, HumanBodyBones.LeftHand, HumanBodyBones.LeftThumbProximal, HumanBodyBones.RightHand, HumanBodyBones.RightThumbProximal })
                     {
                         Transform t = animator.GetBoneTransform(bone);
-                        report.AppendLine($"{bone}: {(t != null ? t.name + " local " + t.localEulerAngles : "unmapped")}");
+                        report.AppendLine($"{bone}: {(t != null ? t.name + " at " + root.transform.InverseTransformPoint(t.position).ToString("F2") : "unmapped")}");
+                    }
+                    // Idle, arms down: the thumb should be forward (+z) of the hand, the index finger forward of the little finger.
+                    foreach (bool left in new[] { true, false })
+                    {
+                        Transform h = animator.GetBoneTransform(left ? HumanBodyBones.LeftHand : HumanBodyBones.RightHand);
+                        Transform thumb = animator.GetBoneTransform(left ? HumanBodyBones.LeftThumbProximal : HumanBodyBones.RightThumbProximal);
+                        Transform index = animator.GetBoneTransform(left ? HumanBodyBones.LeftIndexProximal : HumanBodyBones.RightIndexProximal);
+                        Transform little = animator.GetBoneTransform(left ? HumanBodyBones.LeftLittleProximal : HumanBodyBones.RightLittleProximal);
+                        Transform middle = animator.GetBoneTransform(left ? HumanBodyBones.LeftMiddleProximal : HumanBodyBones.RightMiddleProximal);
+                        Vector3 L(Transform t) => root.transform.InverseTransformDirection(t.position - h.position).normalized;
+                        report.AppendLine($"{(left ? "left" : "right")} hand idle: thumb dir {L(thumb):F2}, index-little {root.transform.InverseTransformDirection(index.position - little.position).normalized:F2}, fingers dir {L(middle):F2}");
                     }
                 }
                 if (rosterOnly)
