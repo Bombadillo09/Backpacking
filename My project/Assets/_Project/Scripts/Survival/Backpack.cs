@@ -76,7 +76,7 @@ namespace Backpacking.Survival
         [SerializeField, Min(0)] int pelts;
 
         [Header("Shelter & Cooking")]
-        [SerializeField] string tentName = "1-person trekking tent";
+        [SerializeField] string tentName = "1-person tunnel tent";
         [SerializeField] Camp.TentModel tentModel = Camp.TentModel.OnePerson;
         [Tooltip("°C the tent adds when sleeping in it.")]
         [SerializeField] float tentShelter = 4f;

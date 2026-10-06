@@ -35,7 +35,7 @@ namespace Backpacking.Camp
     /// in front. Meshes are generated (and cached) here for every stage, for the tent in the world and for the
     /// see-through preview when choosing a spot.
     /// </summary>
-    public static class TentDesign
+    public static partial class TentDesign
     {
         public readonly struct Spec
         {
@@ -68,8 +68,9 @@ namespace Backpacking.Camp
         public static Spec Of(TentModel model) => model switch
         {
             // A narrow trekking tent: one hoop pole near the head and a short strut at the foot.
-            TentModel.OnePerson => new Spec("1-person trekking tent", 0.46f, 1.1f, 0.92f, 0.42f, 0.7f, 0.5f,
-                new Color(0.36f, 0.45f, 0.26f), new Color(0.85f, 0.83f, 0.68f), false),
+            // A two-hoop tunnel (see TentDesign.Tunnel): olive fly over a dark mesh inner, porch at the front.
+            TentModel.OnePerson => new Spec("1-person tunnel tent", 0.45f, 1.18f, 0.98f, 0.62f, 0.9f, 0.65f,
+                new Color(0.37f, 0.41f, 0.28f), new Color(0.14f, 0.15f, 0.14f), false),
             // A freestanding dome: two poles crossing over the top from corner to corner.
             TentModel.TwoPerson => new Spec("2-person dome tent", 0.66f, 1.06f, 1.08f, 1f, 1f, 0.5f,
                 new Color(0.86f, 0.46f, 0.16f), new Color(0.9f, 0.86f, 0.55f), false),
@@ -86,42 +87,8 @@ namespace Backpacking.Camp
         /// </summary>
         static float CanopyHeight(TentModel model, in Spec spec, float u, float v)
         {
-            if (model == TentModel.OnePerson)
-            {
-                // Across, the half-circle of the hoop; along, the fabric's taut run between the poles and stakes.
-                float hoopSection = Mathf.Sqrt(Mathf.Clamp01(1f - u * u));
-                return spec.Height * Mathf.Pow(hoopSection, 0.85f) * HoopTentRidge(spec, v);
-            }
             // A dome's fabric slopes down between the poles to the corners.
             return spec.Height * Slope(u, 0.8f) * Slope(v, 0.8f);
-        }
-
-        /// <summary>Where the 1-person tent's hoop pole and foot strut cross the floor (v, from −1 foot to 1 head).</summary>
-        const float HoopAt = 0.22f, StrutAt = -0.74f;
-
-        /// <summary>
-        /// Height along the 1-person tent's ridge, as a fraction of its peak: up from the stakes at the foot to the
-        /// low strut, a long taut rise to the hoop near the head, then a steep run down over the vestibule to the
-        /// stakes at the head end. Fabric between supports sags a little.
-        /// </summary>
-        static float HoopTentRidge(in Spec spec, float v)
-        {
-            float foot = spec.FootHeight;
-            if (v <= StrutAt)
-            {
-                float t = Mathf.InverseLerp(-1f, StrutAt, v);
-                return foot * Mathf.Sin(t * Mathf.PI * 0.5f);
-            }
-            // The rise to the hoop and the fall to the head stakes, each a taut line that sags a little, meet in a
-            // rounded crown where the fly drapes over the pole rather than a sharp peak.
-            float up = (v - StrutAt) / (HoopAt - StrutAt);
-            float rise = Mathf.Lerp(foot, 1f, up) - 0.06f * Mathf.Sin(Mathf.Clamp01(up) * Mathf.PI);
-            float down = (v - HoopAt) / (1f - HoopAt);
-            float fall = 1f - down - 0.08f * Mathf.Sin(Mathf.Clamp01(down) * Mathf.PI);
-            const float crown = 0.14f;
-            float soft = -crown * Mathf.Log(Mathf.Exp(-rise / crown) + Mathf.Exp(-fall / crown));
-            // Keep the hoop at full height despite the rounding.
-            return Mathf.Max(0f, soft + crown * Mathf.Log(2f) * Mathf.Clamp01(1f - Mathf.Abs(v - HoopAt) * 1.6f));
         }
 
         /// <summary>1 in the middle, curving down to 0 at ±1; lower <paramref name="sharpness"/> keeps it fuller.</summary>
@@ -170,7 +137,22 @@ namespace Backpacking.Camp
             }
 
             // The floor, a touch bigger than the body, with a stake at each corner.
-            Add("Floor", Cached(model, "floor", () => Floor(spec)), materials.floor);
+            if (model != TentModel.OnePerson)
+                Add("Floor", Cached(model, "floor", () => Floor(spec)), materials.floor);
+            if (model == TentModel.OnePerson)
+            {
+                Add("Floor", Cached(model, "tunnel floor", TunnelFloor), materials.floor);
+                // The 1-person tunnel is shaped differently from the domes; it shares only the flat stage.
+                if (stage == TentStage.LaidOut)
+                {
+                    Add("Body (flat)", Cached(model, "flat", () => Canopy(model, spec, 0.03f, 1f, 0f, true)), materials.inner, spec.Inner);
+                    Add("Pole bundle", Cached(model, "bundle", () => PoleBundle(spec)), materials.pole);
+                }
+                else if (stage == TentStage.Poled)
+                    Add("Body (flat)", Cached(model, "flat", () => Canopy(model, spec, 0.03f, 1f, 0f, true)), materials.inner, spec.Inner);
+                BuildTunnel(Add, stage, spec, materials);
+                return bounds;
+            }
             Add("Stakes", Cached(model, "stakes", () => Stakes(model, spec, stage == TentStage.Pitched)), materials.stake);
 
             switch (stage)
@@ -298,20 +280,11 @@ namespace Backpacking.Camp
                 return path;
             }
 
-            if (model == TentModel.OnePerson)
-            {
-                // One hoop across near the head, one short strut across the foot.
-                paths.Add(Along(t => new Vector2(t * 0.999f, HoopAt)));
-                paths.Add(Along(t => new Vector2(t * 0.999f, StrutAt)));
-            }
-            else
-            {
-                // Two poles crossing over the top, corner to corner.
-                paths.Add(Along(t => new Vector2(t, t) * 0.999f));
-                paths.Add(Along(t => new Vector2(t, -t) * 0.999f));
-                if (model == TentModel.FourSeason)
-                    paths.Add(Along(t => new Vector2(t * 0.999f, 0.45f)));
-            }
+            // Two poles crossing over the top, corner to corner (the 1-person tunnel has its own hoops).
+            paths.Add(Along(t => new Vector2(t, t) * 0.999f));
+            paths.Add(Along(t => new Vector2(t, -t) * 0.999f));
+            if (model == TentModel.FourSeason)
+                paths.Add(Along(t => new Vector2(t * 0.999f, 0.45f)));
             return paths;
         }
 

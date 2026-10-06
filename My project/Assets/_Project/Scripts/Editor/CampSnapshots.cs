@@ -81,9 +81,9 @@ namespace Backpacking.EditorTools
 
                 Shot("overview", new Vector3(5f, 7.5f, 11f), new Vector3(0.6f, 0f, 0f));
                 // Each model pitched, from the front three-quarters.
-                Shot("pitched-1p", new Vector3(5.6f, 1.7f, 6.4f), new Vector3(2.4f, 0.35f, 3.5f), 900, 700);
-                Shot("pitched-1p-side", new Vector3(5.4f, 1.0f, 3.4f), new Vector3(2.4f, 0.35f, 3.4f), 900, 600);
-                Shot("poles-1p", new Vector3(3.4f, 1.6f, 6.2f), new Vector3(0f, 0.3f, 3.4f), 900, 700);
+                Shot("pitched-1p", new Vector3(0.6f, 1.9f, 7.2f), new Vector3(2.4f, 0.35f, 3.7f), 900, 700);
+                Shot("pitched-1p-side", new Vector3(6.2f, 0.9f, 3.8f), new Vector3(2.4f, 0.35f, 3.8f), 900, 600);
+                Shot("poles-1p", new Vector3(-1.6f, 1.6f, 6.6f), new Vector3(0f, 0.3f, 3.6f), 900, 700);
                 Shot("pitched-2p", new Vector3(4.4f, 1.7f, 3.4f), new Vector3(2.4f, 0.45f, 0f), 900, 700);
                 Shot("pitched-4s", new Vector3(4.4f, 1.7f, 0f), new Vector3(2.4f, 0.45f, -3.4f), 900, 700);
                 Shot("poles-2p", new Vector3(1.6f, 1.9f, 2.6f), new Vector3(0f, 0.3f, 0f), 900, 700);
