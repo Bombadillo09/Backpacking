@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using Backpacking.Character;
 using UnityEditor;
 using UnityEditor.Animations;
@@ -7,44 +8,42 @@ using UnityEngine;
 namespace Backpacking.EditorTools
 {
     /// <summary>
-    /// Builds the <see cref="CharacterLibrary"/> from the Quaternius models: materials for skin, hair, eyes and
-    /// clothing, and an animator that blends idle, walk, jog and sprint, crouching, jumping, kneeling for
-    /// camp tasks and a swing for the machete. Run by the scene builder; safe to run again.
+    /// Builds the <see cref="CharacterLibrary"/> from the Microsoft Rocketbox people in Art/Characters/Rocketbox
+    /// (URP materials for each person's body, head and hair), and an animator from the Quaternius animation
+    /// library that blends idle, walk, jog and sprint, crouching, jumping, sitting, kneeling for camp tasks and a
+    /// swing for the machete. Run by the scene builder; safe to run again.
     /// </summary>
     public static class CharacterSetup
     {
         const string ArtFolder = "Assets/_Project/Art/Characters";
+        const string RocketboxFolder = ArtFolder + "/Rocketbox";
         const string OutputFolder = "Assets/_Project/Generated/Characters";
         const string LibraryPath = "Assets/_Project/Settings/CharacterLibrary.asset";
 
-        /// <summary>
-        /// Re-imports any character file imported before <see cref="CharacterImport"/> existed, so it picks up
-        /// the right rig and settings.
-        /// </summary>
-        static void EnsureImported()
+        static readonly Color Light = Color.white, Brown = new(0.62f, 0.45f, 0.36f), Dark = new(0.42f, 0.3f, 0.24f);
+
+        /// <summary>The roster: outdoorsy outfits, with where their footwear ends and their skin for bare feet.</summary>
+        static readonly (string id, string label, bool female, float footwearTop, Color skin)[] Roster =
         {
-            foreach (string guid in AssetDatabase.FindAssets("", new[] { ArtFolder }))
-            {
-                string path = AssetDatabase.GUIDToAssetPath(guid);
-                AssetImporter importer = AssetImporter.GetAtPath(path);
-                bool stale = importer switch
-                {
-                    ModelImporter model => !model.bakeAxisConversion || (path.Contains("/Bodies/") && !model.isReadable),
-                    TextureImporter texture => path.EndsWith("_Normal.png") && texture.textureType != TextureImporterType.NormalMap,
-                    _ => false,
-                };
-                if (stale)
-                    AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
-            }
-        }
+            ("Male_Adult_05", "Field vest", false, 0.12f, Light),
+            ("Male_Adult_04", "Black jacket", false, 0.11f, Brown),
+            ("Male_Adult_07", "Wool jacket", false, 0.1f, Light),
+            ("Male_Adult_12", "Denim jacket", false, 0.1f, Dark),
+            ("Male_Adult_18", "Grey hoodie", false, 0.1f, Dark),
+            ("Wood_Male_01", "Work shirt and cap", false, 0.12f, Brown),
+            ("Female_Adult_04", "Leather jacket", true, 0.42f, Light),
+            ("Female_Adult_07", "Brown jacket", true, 0.42f, Light),
+            ("Female_Adult_12", "Hoodie and shorts", true, 0.11f, Light),
+            ("Female_Adult_13", "Waistcoat", true, 0.12f, Light),
+            ("Female_Adult_14", "Cardigan", true, 0.4f, Light),
+            ("Female_Adult_17", "Green tee", true, 0.08f, Light),
+        };
 
         public static CharacterLibrary GetOrCreateLibrary()
         {
-            EnsureImported();
-            var maleBody = AssetDatabase.LoadAssetAtPath<GameObject>($"{ArtFolder}/Bodies/Superhero_Male_FullBody.fbx");
-            if (maleBody == null)
+            if (!AssetDatabase.IsValidFolder(RocketboxFolder))
             {
-                Debug.LogWarning($"Character models not found in {ArtFolder}; the player will have no body.");
+                Debug.LogWarning($"Character models not found in {RocketboxFolder}; the player will have no body.");
                 return null;
             }
             if (!AssetDatabase.IsValidFolder(OutputFolder))
@@ -57,28 +56,35 @@ namespace Backpacking.EditorTools
                 AssetDatabase.CreateAsset(library, LibraryPath);
             }
 
-            library.maleBody = maleBody;
-            library.femaleBody = AssetDatabase.LoadAssetAtPath<GameObject>($"{ArtFolder}/Bodies/Superhero_Female_FullBody.fbx");
-            library.hairStyles = new[]
+            var hikers = new List<CharacterLibrary.Hiker>();
+            foreach ((string id, string label, bool female, float footwearTop, Color skin) in Roster)
             {
-                new CharacterLibrary.HairStyle { name = "Shaved" },
-                Hair("Short", "Hair_SimpleParted", true, true),
-                Hair("Buzz cut", "Hair_Buzzed", true, false),
-                Hair("Buzz cut", "Hair_BuzzedFemale", false, true),
-                Hair("Long", "Hair_Long", true, true),
-                Hair("Buns", "Hair_Buns", true, true),
-            };
-            library.beard = Model("Hair_Beard");
-
-            Texture2D Tex(string name) => AssetDatabase.LoadAssetAtPath<Texture2D>($"{ArtFolder}/Textures/{name}.png");
-            library.maleSkin = GetOrCreateMaterial("Skin_Male", Tex("T_Superhero_Male_Light"), Tex("T_Superhero_Male_Normal"), 0.22f);
-            library.femaleSkin = GetOrCreateMaterial("Skin_Female", Tex("T_Superhero_Female_Light"), Tex("T_Superhero_Female_Normal"), 0.22f);
-            library.hairShort = GetOrCreateMaterial("Hair_Short", Tex("T_Hair_1_BaseColor"), Tex("T_Hair_1_Normal"), 0.3f);
-            library.hairLong = GetOrCreateMaterial("Hair_Long", Tex("T_Hair_2_BaseColor"), Tex("T_Hair_2_Normal"), 0.3f);
-            library.eyes = GetOrCreateMaterial("Eyes", Tex("T_Eye_Brown"), Tex("T_Eye_Normal"), 0.8f);
-            library.clothing = GetOrCreateMaterial("Clothing", null, null, 0.12f);
-            library.boots = GetOrCreateMaterial("Boots", null, null, 0.25f, new Color(0.4f, 0.27f, 0.16f));
+                GameObject model = Model(id);
+                if (model == null)
+                {
+                    Debug.LogWarning($"Rocketbox model {id} is missing from {RocketboxFolder}; it's left out of the roster.");
+                    continue;
+                }
+                hikers.Add(new CharacterLibrary.Hiker
+                {
+                    id = id,
+                    label = label,
+                    female = female,
+                    model = model,
+                    body = PersonMaterial(id, "body", 0.25f),
+                    head = PersonMaterial(id, "head", 0.35f),
+                    hair = HairMaterial(id),
+                    footwearTop = footwearTop,
+                    skinTint = skin,
+                });
+            }
+            library.hikers = hikers.ToArray();
+            library.maleFeet = Model("Sports_Male_01");
+            library.femaleFeet = Model("Sports_Female_01");
+            library.maleFeetSkin = PersonMaterial("Sports_Male_01", "body", 0.3f);
+            library.femaleFeetSkin = PersonMaterial("Sports_Female_01", "body", 0.3f);
             library.pack = GetOrCreateMaterial("Pack", null, null, 0.2f);
+            library.socks = GetOrCreateMaterial("Socks", null, null, 0.05f);
             library.animator = BuildAnimator();
 
             EditorUtility.SetDirty(library);
@@ -86,14 +92,49 @@ namespace Backpacking.EditorTools
             return library;
         }
 
-        static CharacterLibrary.HairStyle Hair(string name, string model, bool male, bool female) =>
-            new() { name = name, model = Model(model), male = male, female = female };
+        static GameObject Model(string id) => AssetDatabase.LoadAssetAtPath<GameObject>($"{RocketboxFolder}/{id}/{id}.fbx");
 
-        static GameObject Model(string name) => AssetDatabase.LoadAssetAtPath<GameObject>($"{ArtFolder}/Hair/{name}.fbx");
+        /// <summary>A texture of one person by its part and kind, e.g. ("body", "color") finds m009_body_color.png.</summary>
+        static Texture2D PersonTexture(string id, string part, string kind)
+        {
+            string folder = $"{RocketboxFolder}/{id}/Textures";
+            if (!AssetDatabase.IsValidFolder(folder))
+                return null;
+            foreach (string guid in AssetDatabase.FindAssets("t:Texture2D", new[] { folder }))
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                if (Path.GetFileNameWithoutExtension(path).EndsWith($"_{part}_{kind}"))
+                    return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+            }
+            return null;
+        }
+
+        static Material PersonMaterial(string id, string part, float smoothness) =>
+            GetOrCreateMaterial($"Rocketbox/{id}_{part}", PersonTexture(id, part, "color"), PersonTexture(id, part, "normal"), smoothness);
+
+        /// <summary>Hair and eyelash cards: cut out by the opacity texture's alpha and drawn from both sides.</summary>
+        static Material HairMaterial(string id)
+        {
+            Texture2D cards = PersonTexture(id, "opacity", "color");
+            if (cards == null)
+                return null;
+            Material material = GetOrCreateMaterial($"Rocketbox/{id}_hair", cards, null, 0.3f);
+            material.SetFloat("_AlphaClip", 1f);
+            material.SetFloat("_Cutoff", 0.45f);
+            material.EnableKeyword("_ALPHATEST_ON");
+            material.SetFloat("_Cull", 0f);
+            material.doubleSidedGI = true;
+            material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.AlphaTest;
+            EditorUtility.SetDirty(material);
+            return material;
+        }
 
         static Material GetOrCreateMaterial(string name, Texture2D baseMap, Texture2D normal, float smoothness, Color? colour = null)
         {
             string path = $"{OutputFolder}/{name}.mat";
+            string folder = Path.GetDirectoryName(path).Replace('\\', '/');
+            if (!AssetDatabase.IsValidFolder(folder))
+                AssetDatabase.CreateFolder(Path.GetDirectoryName(folder).Replace('\\', '/'), Path.GetFileName(folder));
             var material = AssetDatabase.LoadAssetAtPath<Material>(path);
             if (material == null)
             {

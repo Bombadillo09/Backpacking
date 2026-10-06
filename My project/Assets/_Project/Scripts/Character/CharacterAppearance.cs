@@ -1,28 +1,36 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
+using Object = UnityEngine.Object;
 
 namespace Backpacking.Character
 {
     /// <summary>
-    /// Builds a hiker from a <see cref="CharacterProfile"/>: the chosen body with its skin tone, a hairstyle and
-    /// beard attached to the same skeleton, clothes and a backpack. The base models wear only underwear, so
-    /// the clothes are shells cut from the body mesh itself (jacket over the torso and arms, pants over the
-    /// hips and legs, boots over the feet), pushed out slightly so they sit on top and bend with the body.
+    /// Builds a hiker from a <see cref="CharacterProfile"/>: one of the Rocketbox people from the roster, dressed as
+    /// they come, with a backpack fitted to their back. Taking boots off swaps their shoes and lower legs for bare
+    /// feet borrowed from the swimwear model (same skeleton), and the cut-off shoes become the pair set down
+    /// beside them. Body parts are found through the humanoid rig, so nothing depends on bone names.
     /// </summary>
     public class CharacterAppearance : MonoBehaviour
     {
         [SerializeField] CharacterLibrary library;
 
-        static readonly Dictionary<Mesh, (Mesh clothes, Mesh headless)> derivedMeshes = new();
+        [Flags]
+        enum Cut { None = 0, Head = 1, Feet = 2 }
+
+        static readonly Dictionary<(Mesh, Cut, float), Mesh> cutMeshes = new();
 
         readonly List<Material> ownedMaterials = new();
-        readonly List<Renderer> headParts = new();
+        readonly List<Object> ownedMeshes = new();
         GameObject model;
-        Mesh fullBody, headlessBody;
-        SkinnedMeshRenderer shadowBody;
-        readonly List<GameObject> wornBoots = new();
-        bool bootsOn = true;
+        CharacterLibrary.Hiker hiker;
+        Mesh fullBody;
+        SkinnedMeshRenderer shadowBody, bareFeet;
+        HumanBodyBones[] owners;
+        Vector3[] posed;
+        Mesh leftShoe, rightShoe;
+        bool firstPerson, bootsOn = true;
 
         public CharacterLibrary Library { get => library; set => library = value; }
         public Animator Animator { get; private set; }
@@ -31,24 +39,30 @@ namespace Backpacking.Character
         public SkinnedMeshRenderer Body { get; private set; }
         /// <summary>Height of the eyes above the feet, in the model's own scale.</summary>
         public float EyeHeight { get; private set; } = 1.7f;
+        /// <summary>Overall height of the posed hiker, in the model's own scale.</summary>
+        public float Height { get; private set; } = 1.8f;
         public bool IsBuilt => model != null;
+        /// <summary>The body's vertices as measured standing, in this object's space (for editor diagnostics).</summary>
+        public IReadOnlyList<Vector3> MeasuredVertices => posed;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() => derivedMeshes.Clear();
+        static void ResetStatics() => cutMeshes.Clear();
 
-        void OnDestroy() => ClearMaterials();
+        void OnDestroy() => ClearOwned();
 
         public void Build(CharacterProfile profile)
         {
-            if (library == null || library.maleBody == null)
+            hiker = library != null ? library.Find(profile.hiker) : null;
+            if (hiker == null)
                 return;
             if (model != null)
                 Discard(model);
-            ClearMaterials();
-            headParts.Clear();
-            shadowBody = null;
+            ClearOwned();
+            Body = shadowBody = bareFeet = null;
+            firstPerson = false;
+            bootsOn = true;
 
-            model = Instantiate(profile.female ? library.femaleBody : library.maleBody, transform);
+            model = Instantiate(hiker.model, transform);
             model.name = "Model";
             model.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
             model.transform.localScale = Vector3.one;
@@ -60,126 +74,118 @@ namespace Backpacking.Character
             Animator.applyRootMotion = false;
             Animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
             Pose = model.AddComponent<HikerPose>();
-            bootsOn = true;
 
-            var bones = new Dictionary<string, Transform>();
-            foreach (Transform bone in model.GetComponentsInChildren<Transform>())
-                bones.TryAdd(bone.name, bone);
-
-            Color hair = profile.hairColour;
-            foreach (SkinnedMeshRenderer part in model.GetComponentsInChildren<SkinnedMeshRenderer>())
+            // Each model carries levels of detail; keep the finest. Its submeshes are body, head and, for people
+            // with long hair or lashes, see-through hair cards.
+            foreach (SkinnedMeshRenderer part in model.GetComponentsInChildren<SkinnedMeshRenderer>(true))
             {
-                string original = part.sharedMaterial != null ? part.sharedMaterial.name : "";
-                if (original.Contains("Superhero"))
-                {
+                if (Body == null && part.name.ToLowerInvariant().Contains("hipoly"))
                     Body = part;
-                    part.sharedMaterial = Tinted(profile.female ? library.femaleSkin : library.maleSkin, CharacterProfile.SkinTint(profile.skinTone));
-                }
                 else
-                {
-                    part.sharedMaterial = original.Contains("Eyes") ? library.eyes
-                        : Tinted(original.Contains("Hair_2") ? library.hairLong : library.hairShort, hair);
-                    headParts.Add(part);
-                }
+                    Discard(part.gameObject);
             }
             if (Body == null)
                 return;
-
-            CharacterLibrary.HairStyle style = library.hairStyles != null && profile.hairStyle >= 0 && profile.hairStyle < library.hairStyles.Length
-                ? library.hairStyles[profile.hairStyle] : null;
-            if (style != null && style.model != null)
-                headParts.Add(AttachSkinned(style.model, bones, Tinted(style.name == "Long" || style.name == "Buns" ? library.hairLong : library.hairShort, hair)));
-            if (profile.beard && !profile.female && library.beard != null)
-                headParts.Add(AttachSkinned(library.beard, bones, Tinted(library.hairShort, hair)));
-
-            AddClothes(profile);
+            Body.gameObject.SetActive(true);
+            Body.sharedMaterials = Body.sharedMesh.subMeshCount > 2
+                ? new[] { hiker.body, hiker.head, hiker.hair }
+                : new[] { hiker.body, hiker.head };
+            Body.updateWhenOffscreen = true;
             fullBody = Body.sharedMesh;
-            Vector3[] posed = StandOnGround(bones);
+
+            posed = StandOnGround();
             if (posed == null)
                 return;
-
-            // Gear is fitted to the posed body: the pack against the back, straps over the shoulders, the hip
-            // belt round the waist (hiding the seam between jacket and trousers), boots on the feet.
-            string[] owners = OwningBones(Body.sharedMesh, Body.bones);
-            bool[] torso = System.Array.ConvertAll(owners, bone => bone.StartsWith("spine") || bone == "pelvis" || bone.StartsWith("clavicle"));
+            owners = Owners(Body);
             Material bag = Tinted(library.pack, profile.packColour);
             Material webbing = Tinted(library.pack, Color.Lerp(profile.packColour, Color.black, 0.55f));
-            AddPack(bones, posed, torso, bag, webbing);
-            AddBoots(bones, posed, owners);
-            AddCuffs(bones, posed, owners, profile);
+            AddPack(bag, webbing);
+            AddBareFeet();
+            leftShoe = ShoeMesh(LeftLeg, HumanBodyBones.LeftFoot, HumanBodyBones.LeftToes);
+            rightShoe = ShoeMesh(RightLeg, HumanBodyBones.RightFoot, HumanBodyBones.RightToes);
         }
-
-        /// <summary>Overall height of the posed hiker, in the model's own scale.</summary>
-        public float Height { get; private set; } = 1.8f;
 
         /// <summary>
         /// Poses the hiker in its idle stance, measures the posed body, and lifts it so the soles of the feet rest
         /// on the ground at this object's origin. The eye height is measured from the posed head.
         /// </summary>
         /// <returns>The posed body's vertices in this object's space, standing on the ground; null if unmeasurable.</returns>
-        Vector3[] StandOnGround(Dictionary<string, Transform> bones)
+        Vector3[] StandOnGround()
         {
-            if (Animator != null && Animator.runtimeAnimatorController != null)
+            if (Animator.runtimeAnimatorController != null)
             {
                 Animator.Rebind();
                 Animator.Update(0f);
             }
 
-            var baked = new Mesh();
-            Body.BakeMesh(baked, true);
-            Matrix4x4 toLocal = transform.worldToLocalMatrix * Body.transform.localToWorldMatrix;
-            Vector3[] posed = baked.vertices;
+            Vector3[] vertices = Skinned(Body);
+            Matrix4x4 toLocal = transform.worldToLocalMatrix;
             float lowest = float.MaxValue, highest = float.MinValue;
-            for (int i = 0; i < posed.Length; i++)
+            for (int i = 0; i < vertices.Length; i++)
             {
-                posed[i] = toLocal.MultiplyPoint3x4(posed[i]);
-                lowest = Mathf.Min(lowest, posed[i].y);
-                highest = Mathf.Max(highest, posed[i].y);
+                vertices[i] = toLocal.MultiplyPoint3x4(vertices[i]);
+                lowest = Mathf.Min(lowest, vertices[i].y);
+                highest = Mathf.Max(highest, vertices[i].y);
             }
-            Discard(baked);
             if (lowest == float.MaxValue)
                 return null;
 
             model.transform.localPosition -= new Vector3(0f, lowest, 0f);
-            for (int i = 0; i < posed.Length; i++)
-                posed[i].y -= lowest;
+            for (int i = 0; i < vertices.Length; i++)
+                vertices[i].y -= lowest;
             Height = highest - lowest;
-            EyeHeight = bones.TryGetValue("Head", out Transform head)
-                ? transform.InverseTransformPoint(head.position).y + 0.09f
-                : Height * 0.93f;
-            return posed;
+            Transform head = Animator.isHuman ? Animator.GetBoneTransform(HumanBodyBones.Head) : null;
+            EyeHeight = head != null ? transform.InverseTransformPoint(head.position).y + 0.09f : Height * 0.93f;
+            return vertices;
         }
 
         /// <summary>
-        /// In first person, the camera sits inside the head, so the head and hair only cast shadows and the visible
-        /// body has no head; a separate shadow-only copy keeps the full silhouette on the ground.
+        /// In first person, the camera sits inside the head, so the visible body has no head (or hair); a separate
+        /// shadow-only copy keeps the full silhouette on the ground.
         /// </summary>
-        public void SetFirstPerson(bool firstPerson)
+        public void SetFirstPerson(bool on)
         {
             if (Body == null)
                 return;
-            if (firstPerson && shadowBody == null)
+            firstPerson = on;
+            if (on && shadowBody == null)
             {
                 var shadow = new GameObject("Body Shadow");
                 shadow.transform.SetParent(Body.transform.parent, false);
+                shadow.transform.SetLocalPositionAndRotation(Body.transform.localPosition, Body.transform.localRotation);
+                shadow.transform.localScale = Body.transform.localScale;
                 shadow.layer = Body.gameObject.layer;
                 shadowBody = shadow.AddComponent<SkinnedMeshRenderer>();
-                shadowBody.sharedMesh = fullBody;
                 shadowBody.bones = Body.bones;
                 shadowBody.rootBone = Body.rootBone;
-                shadowBody.sharedMaterial = Body.sharedMaterial;
+                shadowBody.sharedMaterials = Body.sharedMaterials;
                 shadowBody.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
                 shadowBody.updateWhenOffscreen = true;
             }
             if (shadowBody != null)
-                shadowBody.enabled = firstPerson;
+                shadowBody.enabled = on;
+            Body.shadowCastingMode = on ? ShadowCastingMode.Off : ShadowCastingMode.On;
+            ApplyMeshes();
+        }
 
-            Body.sharedMesh = firstPerson ? Headless(fullBody, Body.bones) : fullBody;
-            Body.shadowCastingMode = firstPerson ? ShadowCastingMode.Off : ShadowCastingMode.On;
-            Body.updateWhenOffscreen = true;
-            foreach (Renderer part in headParts)
-                if (part != null)
-                    part.shadowCastingMode = firstPerson ? ShadowCastingMode.ShadowsOnly : ShadowCastingMode.On;
+        /// <summary>Shoes on, or bare feet and lower legs (the shoes are set down elsewhere).</summary>
+        public void SetBootsOn(bool on)
+        {
+            if (on == bootsOn || Body == null)
+                return;
+            bootsOn = on;
+            ApplyMeshes();
+        }
+
+        void ApplyMeshes()
+        {
+            bool barefoot = !bootsOn && bareFeet != null;
+            Cut feet = barefoot ? Cut.Feet : Cut.None;
+            Body.sharedMesh = CutMesh(feet | (firstPerson ? Cut.Head : Cut.None));
+            if (shadowBody != null)
+                shadowBody.sharedMesh = CutMesh(feet);
+            if (bareFeet != null)
+                bareFeet.enabled = barefoot;
         }
 
         /// <summary>Puts every part of the hiker on one layer, e.g. so only the preview camera sees it.</summary>
@@ -187,127 +193,326 @@ namespace Backpacking.Character
         {
             if (model == null)
                 return;
-            foreach (Transform child in model.GetComponentsInChildren<Transform>(true))
+            foreach (Transform child in GetComponentsInChildren<Transform>(true))
                 child.gameObject.layer = layer;
         }
 
-        // ---------- Parts ----------
-
-        /// <summary>Takes the skinned mesh out of a hair model and binds it to this body's bones by name.</summary>
-        Renderer AttachSkinned(GameObject source, Dictionary<string, Transform> bones, Material material)
+        /// <summary>
+        /// Where each vertex of a skinned mesh is right now, in world space, worked out from its bones the way the
+        /// GPU does it. (BakeMesh's result depends on the renderer's own rotation, which the Rocketbox meshes have.)
+        /// </summary>
+        static Vector3[] Skinned(SkinnedMeshRenderer renderer)
         {
-            GameObject copy = Instantiate(source, model.transform);
-            SkinnedMeshRenderer part = copy.GetComponentInChildren<SkinnedMeshRenderer>();
-            if (part == null)
+            Mesh mesh = renderer.sharedMesh;
+            Transform[] bones = renderer.bones;
+            Matrix4x4[] bindposes = mesh.bindposes;
+            var skinning = new Matrix4x4[bones.Length];
+            for (int b = 0; b < bones.Length; b++)
+                skinning[b] = bones[b] != null && b < bindposes.Length ? bones[b].localToWorldMatrix * bindposes[b] : renderer.transform.localToWorldMatrix;
+
+            Vector3[] vertices = mesh.vertices;
+            BoneWeight[] weights = mesh.boneWeights;
+            for (int i = 0; i < vertices.Length; i++)
             {
-                Discard(copy);
-                return null;
+                BoneWeight w = weights[i];
+                Vector3 v = vertices[i];
+                vertices[i] = skinning[w.boneIndex0].MultiplyPoint3x4(v) * w.weight0
+                    + skinning[w.boneIndex1].MultiplyPoint3x4(v) * w.weight1
+                    + skinning[w.boneIndex2].MultiplyPoint3x4(v) * w.weight2
+                    + skinning[w.boneIndex3].MultiplyPoint3x4(v) * w.weight3;
             }
-            var mapped = new Transform[part.bones.Length];
-            for (int i = 0; i < mapped.Length; i++)
-                mapped[i] = part.bones[i] != null && bones.TryGetValue(part.bones[i].name, out Transform bone) ? bone : null;
-            part.bones = mapped;
-            if (part.rootBone != null && bones.TryGetValue(part.rootBone.name, out Transform root))
-                part.rootBone = root;
-            part.sharedMaterial = material;
-            part.updateWhenOffscreen = true;
-            part.transform.SetParent(model.transform, false);
-            Discard(copy);
-            return part;
+            return vertices;
         }
 
-        void AddClothes(CharacterProfile profile)
+        // ---------- Body parts by humanoid bone ----------
+
+        static readonly HumanBodyBones[] LeftLeg = { HumanBodyBones.LeftUpperLeg, HumanBodyBones.LeftLowerLeg, HumanBodyBones.LeftFoot, HumanBodyBones.LeftToes };
+        static readonly HumanBodyBones[] RightLeg = { HumanBodyBones.RightUpperLeg, HumanBodyBones.RightLowerLeg, HumanBodyBones.RightFoot, HumanBodyBones.RightToes };
+
+        /// <summary>
+        /// Arms, hands and legs. Everything else, including skin bound to bones outside the humanoid map (some
+        /// of the men's backs), counts as torso.
+        /// </summary>
+        static bool IsLimb(HumanBodyBones bone) => bone is >= HumanBodyBones.LeftUpperLeg and <= HumanBodyBones.RightFoot
+            or >= HumanBodyBones.LeftUpperArm and <= HumanBodyBones.RightHand
+            or HumanBodyBones.LeftToes or HumanBodyBones.RightToes
+            or >= HumanBodyBones.LeftThumbProximal and < HumanBodyBones.UpperChest;
+
+        static bool IsHead(HumanBodyBones bone) => bone is HumanBodyBones.Head or HumanBodyBones.Neck or HumanBodyBones.Jaw
+            or HumanBodyBones.LeftEye or HumanBodyBones.RightEye;
+
+        /// <summary>
+        /// For each vertex, the humanoid bone that moves it most: its strongest bone, or the nearest mapped bone
+        /// above it (face and twist bones count as their parent). LastBone where nothing maps.
+        /// </summary>
+        static HumanBodyBones[] Owners(SkinnedMeshRenderer renderer)
         {
-            var go = new GameObject("Clothes");
-            go.transform.SetParent(Body.transform.parent, false);
-            var clothes = go.AddComponent<SkinnedMeshRenderer>();
-            clothes.sharedMesh = Clothes(Body.sharedMesh, Body.bones);
-            clothes.bones = Body.bones;
-            clothes.rootBone = Body.rootBone;
-            clothes.updateWhenOffscreen = true;
-            clothes.sharedMaterials = new[]
+            Animator animator = renderer.GetComponentInParent<Animator>();
+            var mapped = new Dictionary<Transform, HumanBodyBones>();
+            if (animator != null && animator.isHuman)
+                for (var bone = HumanBodyBones.Hips; bone < HumanBodyBones.LastBone; bone++)
+                {
+                    Transform t = animator.GetBoneTransform(bone);
+                    if (t != null)
+                        mapped.TryAdd(t, bone);
+                }
+
+            Transform[] bones = renderer.bones;
+            var boneOwner = new HumanBodyBones[bones.Length];
+            for (int b = 0; b < bones.Length; b++)
             {
-                Tinted(library.clothing, profile.jacketColour),
-                Tinted(library.clothing, profile.pantsColour),
-            };
+                boneOwner[b] = HumanBodyBones.LastBone;
+                for (Transform t = bones[b]; t != null; t = t.parent)
+                    if (mapped.TryGetValue(t, out HumanBodyBones found))
+                    {
+                        boneOwner[b] = found;
+                        break;
+                    }
+            }
+
+            BoneWeight[] weights = renderer.sharedMesh.boneWeights;
+            var owners = new HumanBodyBones[weights.Length];
+            for (int i = 0; i < weights.Length; i++)
+            {
+                int strongest = Strongest(weights[i]);
+                owners[i] = strongest < boneOwner.Length ? boneOwner[strongest] : HumanBodyBones.LastBone;
+            }
+            return owners;
         }
 
-        /// <summary>Boots on the feet, or bare feet (the boots are set down elsewhere).</summary>
-        public void SetBootsOn(bool on)
+        static int Strongest(BoneWeight w)
         {
-            if (on == bootsOn)
-                return;
-            bootsOn = on;
-            foreach (GameObject boot in wornBoots)
-                if (boot != null)
-                    boot.SetActive(on);
+            int strongest = w.boneIndex0;
+            float best = w.weight0;
+            if (w.weight1 > best) { best = w.weight1; strongest = w.boneIndex1; }
+            if (w.weight2 > best) { best = w.weight2; strongest = w.boneIndex2; }
+            if (w.weight3 > best) strongest = w.boneIndex3;
+            return strongest;
         }
 
         /// <summary>
-        /// The hiker's boots with the socks pulled off, to set down beside them: one boot standing, one tipped on
-        /// its side with a sock stuffed in it, the other sock lying on the ground. Origin on the ground, facing +Z.
-        /// The caller owns the object; its materials belong to this hiker.
+        /// Footwear: everything the feet and toes carry (the whole shoe, whatever its shape), plus the lower legs
+        /// below the top of the footwear (tall boots, and the trouser hems over the shoes).
+        /// </summary>
+        static bool IsFootwear(HumanBodyBones owner, float height, float top) =>
+            owner is HumanBodyBones.LeftFoot or HumanBodyBones.RightFoot or HumanBodyBones.LeftToes or HumanBodyBones.RightToes
+            || (owner is HumanBodyBones.LeftLowerLeg or HumanBodyBones.RightLowerLeg && height < top);
+
+        bool BelowFootwear(int vertex, float top) => IsFootwear(owners[vertex], posed[vertex].y, top);
+
+        /// <summary>The body with the head and/or the footwear cut away, made once per body and cut.</summary>
+        Mesh CutMesh(Cut cut)
+        {
+            if (cut == Cut.None)
+                return fullBody;
+            float top = hiker.footwearTop;
+            if (cutMeshes.TryGetValue((fullBody, cut, top), out Mesh cached) && cached != null)
+                return cached;
+
+            Mesh mesh = Instantiate(fullBody);
+            mesh.name = $"{fullBody.name} without {cut}";
+            for (int sub = 0; sub < fullBody.subMeshCount; sub++)
+            {
+                int[] triangles = fullBody.GetTriangles(sub);
+                var kept = new List<int>(triangles.Length);
+                for (int t = 0; t < triangles.Length; t += 3)
+                {
+                    int a = triangles[t], b = triangles[t + 1], c = triangles[t + 2];
+                    if ((cut & Cut.Head) != 0 && (IsHead(owners[a]) || IsHead(owners[b]) || IsHead(owners[c])))
+                        continue;
+                    // Footwear goes if most of the triangle is in it; the bare legs reach a little higher.
+                    if ((cut & Cut.Feet) != 0 && (BelowFootwear(a, top) ? 1 : 0) + (BelowFootwear(b, top) ? 1 : 0) + (BelowFootwear(c, top) ? 1 : 0) >= 2)
+                        continue;
+                    kept.Add(a);
+                    kept.Add(b);
+                    kept.Add(c);
+                }
+                mesh.SetTriangles(kept, sub);
+            }
+            cutMeshes[(fullBody, cut, top)] = mesh;
+            return mesh;
+        }
+
+        // ---------- Bare feet ----------
+
+        /// <summary>
+        /// The swimwear model's feet and lower legs, bound to this hiker's bones by name (every Rocketbox person
+        /// shares the skeleton) and tinted to their skin. Hidden until the boots come off.
+        /// </summary>
+        void AddBareFeet()
+        {
+            GameObject source = hiker.female ? library.femaleFeet : library.maleFeet;
+            Material skin = hiker.female ? library.femaleFeetSkin : library.maleFeetSkin;
+            if (source == null || skin == null)
+                return;
+
+            // Far below the world, so it's never seen in the moment it exists.
+            GameObject donor = Instantiate(source, new Vector3(0f, -1000f, 0f), Quaternion.identity);
+            try
+            {
+                SkinnedMeshRenderer donorBody = null;
+                foreach (SkinnedMeshRenderer part in donor.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+                    if (donorBody == null && part.name.ToLowerInvariant().Contains("hipoly"))
+                        donorBody = part;
+                if (donorBody == null)
+                    return;
+
+                var bones = new Dictionary<string, Transform>();
+                foreach (Transform bone in model.GetComponentsInChildren<Transform>())
+                    bones.TryAdd(bone.name, bone);
+                var mapped = new Transform[donorBody.bones.Length];
+                for (int i = 0; i < mapped.Length; i++)
+                    if (donorBody.bones[i] != null && !bones.TryGetValue(donorBody.bones[i].name, out mapped[i]))
+                        return;
+
+                // Keep the leg below a little above the hiker's footwear, measured on the donor standing in its
+                // rest pose from its lowest point.
+                HumanBodyBones[] donorOwners = Owners(donorBody);
+                Mesh donorMesh = donorBody.sharedMesh;
+                Vector3[] vertices = Skinned(donorBody);
+                var heights = new float[vertices.Length];
+                float lowest = float.MaxValue;
+                for (int i = 0; i < vertices.Length; i++)
+                {
+                    heights[i] = vertices[i].y;
+                    lowest = Mathf.Min(lowest, heights[i]);
+                }
+                float top = hiker.footwearTop + 0.04f;
+                bool Leg(int v) => IsFootwear(donorOwners[v], heights[v] - lowest, top);
+
+                Mesh feet = Instantiate(donorMesh);
+                feet.name = "Bare Feet";
+                ownedMeshes.Add(feet);
+                var kept = new List<int>();
+                for (int sub = 0; sub < donorMesh.subMeshCount; sub++)
+                {
+                    int[] triangles = donorMesh.GetTriangles(sub);
+                    for (int t = 0; t < triangles.Length; t += 3)
+                        if (Leg(triangles[t]) && Leg(triangles[t + 1]) && Leg(triangles[t + 2]))
+                            kept.AddRange(new[] { triangles[t], triangles[t + 1], triangles[t + 2] });
+                }
+                feet.subMeshCount = 1;
+                feet.SetTriangles(kept, 0);
+
+                var go = new GameObject("Bare Feet");
+                go.transform.SetParent(Body.transform.parent, false);
+                go.transform.SetLocalPositionAndRotation(Body.transform.localPosition, Body.transform.localRotation);
+                go.layer = Body.gameObject.layer;
+                bareFeet = go.AddComponent<SkinnedMeshRenderer>();
+                bareFeet.sharedMesh = feet;
+                bareFeet.bones = mapped;
+                bareFeet.rootBone = Body.rootBone;
+                bareFeet.sharedMaterial = Tinted(skin, hiker.skinTint);
+                bareFeet.updateWhenOffscreen = true;
+                bareFeet.enabled = false;
+            }
+            finally
+            {
+                Discard(donor);
+            }
+        }
+
+        // ---------- Footwear set aside ----------
+
+        /// <summary>
+        /// The hiker's own shoes or boots with the socks pulled off, to set down beside them: one standing, one
+        /// tipped on its side with a sock stuffed in it, the other sock lying on the ground. The shoes are the
+        /// pieces cut from the body for bare feet, as they look standing. Origin on the ground, facing +Z.
+        /// The caller owns the object; its materials and meshes belong to this hiker.
         /// </summary>
         public GameObject BuildBootsAndSocks()
         {
             var pile = new GameObject("Boots and Socks");
-            Material leather = library.boots;
-            Material sole = Tinted(library.boots, new Color(0.08f, 0.07f, 0.06f));
-            Material wool = Tinted(library.clothing, new Color(0.62f, 0.6f, 0.55f));
+            if (Body == null || posed == null)
+                return pile;
+            Material wool = Tinted(library.socks, new Color(0.62f, 0.6f, 0.55f));
 
-            Boot(pile.transform, new Vector3(-0.09f, 0f, 0f), Quaternion.Euler(0f, -8f, 0f), leather, sole);
-            Transform tipped = Boot(pile.transform, new Vector3(0.11f, 0.055f, 0.03f), Quaternion.Euler(0f, 24f, 78f), leather, sole);
-            // A sock stuffed into the tipped boot, its end hanging out of the top.
-            Part(tipped, PrimitiveType.Capsule, new Vector3(0f, 0.2f, -0.01f), Quaternion.Euler(20f, 0f, 0f), new Vector3(0.07f, 0.06f, 0.07f), wool);
+            Shoe(pile.transform, leftShoe, new Vector3(-0.1f, 0f, 0f), Quaternion.Euler(0f, -8f, 0f));
+            Transform tipped = Shoe(pile.transform, rightShoe, new Vector3(0.12f, 0.05f, 0.03f), Quaternion.Euler(0f, 24f, 80f));
+            if (tipped != null)
+            {
+                // A sock stuffed into its opening.
+                Part(tipped, PrimitiveType.Capsule, new Vector3(0f, hiker.footwearTop + 0.02f, -0.01f), Quaternion.Euler(20f, 0f, 0f),
+                    new Vector3(0.07f, 0.06f, 0.07f), wool);
+            }
             // The other sock dropped on the ground in front, leg and foot at an angle.
             var sock = new GameObject("Sock").transform;
             sock.SetParent(pile.transform, false);
-            sock.localPosition = new Vector3(-0.05f, 0.012f, 0.24f);
-            sock.localRotation = Quaternion.Euler(0f, 60f, 0f);
-            Part(sock, PrimitiveType.Capsule, new Vector3(0f, 0f, 0f), Quaternion.Euler(90f, 0f, 0f), new Vector3(0.075f, 0.1f, 0.025f), wool);
-            Part(sock, PrimitiveType.Capsule, new Vector3(0.05f, 0f, 0.1f), Quaternion.Euler(90f, 50f, 0f), new Vector3(0.07f, 0.065f, 0.025f), wool);
+            sock.SetLocalPositionAndRotation(new Vector3(-0.05f, 0.012f, 0.26f), Quaternion.Euler(0f, 60f, 0f));
+            Part(sock, PrimitiveType.Capsule, Vector3.zero, Quaternion.Euler(90f, 0f, 0f), new Vector3(0.07f, 0.1f, 0.022f), wool);
+            Part(sock, PrimitiveType.Capsule, new Vector3(0.05f, 0f, 0.1f), Quaternion.Euler(90f, 50f, 0f), new Vector3(0.065f, 0.065f, 0.022f), wool);
             return pile;
         }
 
-        /// <summary>
-        /// A hiking boot: a rounded upper and toe box over a chunky sole, and an ankle shaft with a padded collar.
-        /// Origin on the ground under the ankle, toes towards +Z.
-        /// </summary>
-        static Transform Boot(Transform parent, Vector3 position, Quaternion rotation, Material leather, Material sole)
+        Transform Shoe(Transform parent, Mesh mesh, Vector3 position, Quaternion rotation)
         {
-            var boot = new GameObject("Boot").transform;
-            boot.SetParent(parent, false);
-            boot.SetLocalPositionAndRotation(position, rotation);
-            // Sole and heel: a capsule squashed flat, so the toe and heel are rounded.
-            Part(boot, PrimitiveType.Capsule, new Vector3(0f, 0.016f, 0.075f), Quaternion.Euler(90f, 0f, 0f), new Vector3(0.108f, 0.15f, 0.032f), sole);
-            // The upper over the foot, rising towards the ankle, with a full toe box down to the sole.
-            Part(boot, PrimitiveType.Capsule, new Vector3(0f, 0.055f, 0.08f), Quaternion.Euler(84f, 0f, 0f), new Vector3(0.1f, 0.135f, 0.095f), leather);
-            Part(boot, PrimitiveType.Sphere, new Vector3(0f, 0.045f, 0.165f), Quaternion.identity, new Vector3(0.102f, 0.08f, 0.13f), leather);
-            Part(boot, PrimitiveType.Sphere, new Vector3(0f, 0.055f, -0.02f), Quaternion.identity, new Vector3(0.1f, 0.1f, 0.1f), leather);
-            // Ankle shaft and padded collar.
-            Part(boot, PrimitiveType.Cylinder, new Vector3(0f, 0.115f, 0f), Quaternion.Euler(-8f, 0f, 0f), new Vector3(0.098f, 0.06f, 0.1f), leather);
-            Part(boot, PrimitiveType.Cylinder, new Vector3(0f, 0.175f, -0.008f), Quaternion.Euler(-8f, 0f, 0f), new Vector3(0.106f, 0.014f, 0.108f), sole);
-            return boot;
+            if (mesh == null)
+                return null;
+            var shoe = new GameObject("Shoe");
+            shoe.transform.SetParent(parent, false);
+            shoe.transform.SetLocalPositionAndRotation(position, rotation);
+            shoe.AddComponent<MeshFilter>().sharedMesh = mesh;
+            shoe.AddComponent<MeshRenderer>().sharedMaterials = Body.sharedMaterials;
+            return shoe.transform;
         }
 
-        static void Part(Transform parent, PrimitiveType type, Vector3 position, Quaternion rotation, Vector3 scale, Material material)
+        /// <summary>
+        /// One shoe cut from the standing body, re-centred under its ankle with the toes along +Z. Made while the
+        /// bones are still in the idle pose the body was measured in.
+        /// </summary>
+        Mesh ShoeMesh(HumanBodyBones[] leg, HumanBodyBones foot, HumanBodyBones toes)
         {
-            GameObject part = GameObject.CreatePrimitive(type);
-            Discard(part.GetComponent<Collider>());
-            part.transform.SetParent(parent, false);
-            part.transform.SetLocalPositionAndRotation(position, rotation);
-            part.transform.localScale = scale;
-            part.GetComponent<Renderer>().sharedMaterial = material;
+            Transform ankle = Animator.GetBoneTransform(foot);
+            if (ankle == null)
+                return null;
+            Transform ball = Animator.GetBoneTransform(toes);
+            Vector3 at = transform.InverseTransformPoint(ankle.position);
+            at.y = 0f;
+            Vector3 forward = ball != null
+                ? Vector3.ProjectOnPlane(transform.InverseTransformPoint(ball.position) - at, Vector3.up).normalized
+                : Vector3.forward;
+            if (forward.sqrMagnitude < 0.5f)
+                forward = Vector3.forward;
+            Quaternion frame = Quaternion.Inverse(Quaternion.LookRotation(forward));
+
+            float top = hiker.footwearTop;
+            bool InShoe(int v) => Array.IndexOf(leg, owners[v]) >= 0 && IsFootwear(owners[v], posed[v].y, top);
+            var mesh = new Mesh { name = "Shoe", indexFormat = IndexFormat.UInt32 };
+            ownedMeshes.Add(mesh);
+            var vertices = new Vector3[posed.Length];
+            for (int i = 0; i < posed.Length; i++)
+                vertices[i] = frame * (posed[i] - at);
+            mesh.vertices = vertices;
+            mesh.uv = fullBody.uv;
+            mesh.subMeshCount = fullBody.subMeshCount;
+            for (int sub = 0; sub < fullBody.subMeshCount; sub++)
+            {
+                int[] triangles = fullBody.GetTriangles(sub);
+                var kept = new List<int>();
+                for (int t = 0; t < triangles.Length; t += 3)
+                    if (InShoe(triangles[t]) && InShoe(triangles[t + 1]) && InShoe(triangles[t + 2]))
+                        kept.AddRange(new[] { triangles[t], triangles[t + 1], triangles[t + 2] });
+                mesh.SetTriangles(kept, sub);
+            }
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
         }
+
+        // ---------- Pack ----------
 
         /// <summary>
         /// A pack on the upper back with its lid, front pocket and a sleeping bag strapped under it; shoulder straps
         /// over the shoulders and down the chest with a sternum strap; and a padded hip belt with a buckle.
         /// </summary>
-        void AddPack(Dictionary<string, Transform> bones, Vector3[] posed, bool[] torso, Material bag, Material webbing)
+        void AddPack(Material bag, Material webbing)
         {
-            if (!bones.TryGetValue("spine_03", out Transform chest))
+            Transform chest = Animator.GetBoneTransform(HumanBodyBones.UpperChest);
+            if (chest == null)
+                chest = Animator.GetBoneTransform(HumanBodyBones.Chest);
+            if (chest == null)
                 return;
+            bool[] torso = Array.ConvertAll(owners, owner => !IsHead(owner) && !IsLimb(owner));
             float chestY = transform.InverseTransformPoint(chest.position).y;
 
             Transform pack = Holder("Backpack");
@@ -319,7 +524,7 @@ namespace Backpacking.Character
             Part(pack, PrimitiveType.Cylinder, back + new Vector3(0f, -0.33f, 0.02f), Quaternion.Euler(0f, 0f, 90f), new Vector3(0.16f, 0.2f, 0.16f),
                 Tinted(library.pack, new Color(0.25f, 0.27f, 0.22f)));
 
-            // Shoulder straps: from the top of the pack, over each shoulder, down the chest and out towards the armpit.
+            // Shoulder straps: from inside the pack, over each shoulder, down the chest and out towards the armpit.
             var sternum = new Vector3[2];
             for (int i = 0; i < 2; i++)
             {
@@ -349,11 +554,11 @@ namespace Backpacking.Character
                 Strap(pack, sternum[0], sternum[1], 0.02f, 0.01f, webbing);
             pack.SetParent(chest, true);
 
-            if (bones.TryGetValue("spine_01", out Transform waist) && bones.TryGetValue("pelvis", out Transform pelvis))
+            Transform waist = Animator.GetBoneTransform(HumanBodyBones.Spine), hips = Animator.GetBoneTransform(HumanBodyBones.Hips);
+            if (waist != null && hips != null)
             {
                 Transform belt = Holder("Hip Belt");
-                float y = transform.InverseTransformPoint(waist.position).y;
-                Vector3[] ring = Ring(posed, torso, y, 16);
+                Vector3[] ring = Ring(posed, torso, transform.InverseTransformPoint(waist.position).y, 16);
                 if (ring != null)
                 {
                     for (int k = 0; k < ring.Length; k++)
@@ -361,78 +566,7 @@ namespace Backpacking.Character
                     Part(belt, PrimitiveType.Cube, ring[0] + new Vector3(0f, 0f, 0.012f), Quaternion.identity, new Vector3(0.05f, 0.04f, 0.012f),
                         Tinted(library.pack, new Color(0.1f, 0.1f, 0.1f)));
                 }
-                belt.SetParent(pelvis, true);
-            }
-        }
-
-        /// <summary>A boot on each foot, sized to the foot and following the foot bone.</summary>
-        void AddBoots(Dictionary<string, Transform> bones, Vector3[] posed, string[] owners)
-        {
-            wornBoots.Clear();
-            Material sole = Tinted(library.boots, new Color(0.08f, 0.07f, 0.06f));
-            foreach ((string foot, string toes) in new[] { ("foot_l", "ball_l"), ("foot_r", "ball_r") })
-            {
-                if (!bones.TryGetValue(foot, out Transform ankle))
-                    continue;
-                Vector3 at = transform.InverseTransformPoint(ankle.position);
-                at.y = 0f;
-                Vector3 forward = Vector3.forward;
-                if (bones.TryGetValue(toes, out Transform ball))
-                    forward = Vector3.ProjectOnPlane(transform.InverseTransformPoint(ball.position) - at, Vector3.up).normalized;
-                Vector3 right = Vector3.Cross(Vector3.up, forward);
-
-                // The foot's extent from heel to toe and side to side, below the ankle.
-                float heel = float.MaxValue, toe = float.MinValue, inner = float.MaxValue, outer = float.MinValue;
-                for (int i = 0; i < posed.Length; i++)
-                {
-                    if (owners[i] != foot && owners[i] != toes)
-                        continue;
-                    Vector3 offset = posed[i] - at;
-                    float along = Vector3.Dot(offset, forward), across = Vector3.Dot(offset, right);
-                    heel = Mathf.Min(heel, along);
-                    toe = Mathf.Max(toe, along);
-                    inner = Mathf.Min(inner, across);
-                    outer = Mathf.Max(outer, across);
-                }
-                if (heel == float.MaxValue)
-                    (heel, toe, inner, outer) = (-0.06f, 0.2f, -0.045f, 0.045f);
-
-                // The boot is modelled 0.3 m long (heel at -0.075) and 0.108 m wide; stretch it round the foot.
-                float length = toe - heel + 0.035f, width = outer - inner + 0.025f;
-                var size = new Vector3(width / 0.108f, Mathf.Lerp(1f, length / 0.3f, 0.5f), length / 0.3f);
-                Vector3 origin = at + forward * (heel - 0.015f + 0.075f * size.z) + right * ((inner + outer) / 2f);
-                Transform holder = Holder("Boot");
-                Boot(holder, origin, Quaternion.LookRotation(forward), library.boots, sole).localScale = size;
-                holder.SetParent(ankle, true);
-                holder.gameObject.SetActive(bootsOn);
-                wornBoots.Add(holder.gameObject);
-            }
-        }
-
-        /// <summary>Hemmed cuffs where the trousers end above the ankles and the sleeves end at the wrists.</summary>
-        void AddCuffs(Dictionary<string, Transform> bones, Vector3[] posed, string[] owners, CharacterProfile profile)
-        {
-            Material trousers = Tinted(library.clothing, Color.Lerp(profile.pantsColour, Color.black, 0.2f));
-            Material sleeves = Tinted(library.clothing, Color.Lerp(profile.jacketColour, Color.black, 0.2f));
-            foreach ((string bone, Material material) in new[] { ("calf_l", trousers), ("calf_r", trousers), ("lowerarm_l", sleeves), ("lowerarm_r", sleeves) })
-            {
-                if (!bones.TryGetValue(bone, out Transform limb))
-                    continue;
-                bool[] mask = System.Array.ConvertAll(owners, owner => owner == bone);
-                // The garment ends at the lowest vertex of the limb (legs stand and arms hang straight down).
-                float hem = float.MaxValue;
-                for (int i = 0; i < posed.Length; i++)
-                    if (mask[i])
-                        hem = Mathf.Min(hem, posed[i].y);
-                if (hem == float.MaxValue)
-                    continue;
-                Vector3[] ring = Ring(posed, mask, hem + 0.035f, 12, 0.02f);
-                if (ring == null)
-                    continue;
-                Transform cuff = Holder("Cuff");
-                for (int k = 0; k < ring.Length; k++)
-                    Strap(cuff, ring[k], ring[(k + 1) % ring.Length], 0.045f, 0.012f, material, ring);
-                cuff.SetParent(limb, true);
+                belt.SetParent(hips, true);
             }
         }
 
@@ -469,23 +603,21 @@ namespace Backpacking.Character
             Part(parent, PrimitiveType.Cube, middle, rotation, new Vector3(width, thickness, along.magnitude + thickness), material);
         }
 
-        // ---------- Measuring the posed body ----------
-
-        /// <summary>The name of the bone that moves each vertex most ("" if none).</summary>
-        static string[] OwningBones(Mesh body, Transform[] bones)
+        static void Part(Transform parent, PrimitiveType type, Vector3 position, Quaternion rotation, Vector3 scale, Material material)
         {
-            BoneWeight[] weights = body.boneWeights;
-            var owners = new string[weights.Length];
-            for (int i = 0; i < weights.Length; i++)
-            {
-                int strongest = Strongest(weights[i]);
-                owners[i] = strongest < bones.Length && bones[strongest] != null ? bones[strongest].name : "";
-            }
-            return owners;
+            GameObject part = GameObject.CreatePrimitive(type);
+            Discard(part.GetComponent<Collider>());
+            part.transform.SetParent(parent, false);
+            part.transform.SetLocalPositionAndRotation(position, rotation);
+            part.transform.localScale = scale;
+            part.GetComponent<Renderer>().sharedMaterial = material;
         }
 
+        // ---------- Measuring the posed body ----------
+
         /// <summary>The front (largest z) or back (smallest z) of the torso near (x, y); NaN if nothing is there.</summary>
-        static float Surface(Vector3[] posed, bool[] torso, float x, float y, bool front, float reach = 0.03f)
+        // Rocketbox meshes are sparse (a few thousand vertices), so look a hand's width around the point.
+        static float Surface(Vector3[] posed, bool[] torso, float x, float y, bool front, float reach = 0.07f)
         {
             float best = float.NaN;
             for (int i = 0; i < posed.Length; i++)
@@ -503,7 +635,7 @@ namespace Backpacking.Character
         {
             float best = float.NaN;
             for (int i = 0; i < posed.Length; i++)
-                if (torso[i] && Mathf.Abs(posed[i].x - x) < 0.025f && (float.IsNaN(best) || posed[i].y > best))
+                if (torso[i] && Mathf.Abs(posed[i].x - x) < 0.05f && (float.IsNaN(best) || posed[i].y > best))
                     best = posed[i].y;
             return best;
         }
@@ -547,9 +679,13 @@ namespace Backpacking.Character
             return ring;
         }
 
+        // ---------- Ownership ----------
+
         /// <summary>Destroy, or DestroyImmediate when built outside Play mode (editor snapshots).</summary>
         static void Discard(Object thing)
         {
+            if (thing == null)
+                return;
             if (Application.isPlaying)
                 Destroy(thing);
             else
@@ -566,124 +702,14 @@ namespace Backpacking.Character
             return material;
         }
 
-        void ClearMaterials()
+        void ClearOwned()
         {
             foreach (Material material in ownedMaterials)
-                if (material != null)
-                    Discard(material);
+                Discard(material);
             ownedMaterials.Clear();
-        }
-
-        // ---------- Meshes cut from the body ----------
-
-        enum Region { Skin = -1, Jacket, Pants, Boots, Head }
-
-        static Region RegionOf(string bone)
-        {
-            if (bone.StartsWith("spine") || bone.StartsWith("clavicle") || bone.StartsWith("upperarm") || bone.StartsWith("lowerarm"))
-                return Region.Jacket;
-            if (bone == "pelvis" || bone.StartsWith("thigh") || bone.StartsWith("calf"))
-                return Region.Pants;
-            if (bone.StartsWith("foot") || bone.StartsWith("ball"))
-                return Region.Boots;
-            if (bone == "Head" || bone.StartsWith("neck"))
-                return Region.Head;
-            return Region.Skin;
-        }
-
-        /// <summary>Which region each vertex belongs to, by the bone that moves it most.</summary>
-        static Region[] VertexRegions(Mesh body, Transform[] bones)
-        {
-            BoneWeight[] weights = body.boneWeights;
-            var regions = new Region[weights.Length];
-            for (int i = 0; i < weights.Length; i++)
-            {
-                int strongest = Strongest(weights[i]);
-                regions[i] = strongest < bones.Length && bones[strongest] != null ? RegionOf(bones[strongest].name) : Region.Skin;
-            }
-            return regions;
-        }
-
-        static int Strongest(BoneWeight w)
-        {
-            int strongest = w.boneIndex0;
-            float best = w.weight0;
-            if (w.weight1 > best) { best = w.weight1; strongest = w.boneIndex1; }
-            if (w.weight2 > best) { best = w.weight2; strongest = w.boneIndex2; }
-            if (w.weight3 > best) strongest = w.boneIndex3;
-            return strongest;
-        }
-
-        /// <summary>Jacket and trousers as two submeshes of one shell, each pushed out along the normals.</summary>
-        static Mesh Clothes(Mesh body, Transform[] bones)
-        {
-            if (derivedMeshes.TryGetValue(body, out (Mesh clothes, Mesh headless) cached) && cached.clothes != null)
-                return cached.clothes;
-
-            Region[] regions = VertexRegions(body, bones);
-            // Loose enough to soften the body's muscle lines; the jacket is a fleece, the trousers lighter.
-            float[] thickness = { 0.022f, 0.015f };
-            Vector3[] vertices = body.vertices;
-            Vector3[] normals = body.normals;
-            for (int i = 0; i < vertices.Length; i++)
-            {
-                int region = (int)regions[i];
-                if (region is >= 0 and < 2)
-                    vertices[i] += normals[i] * thickness[region];
-            }
-
-            var pieces = new[] { new List<int>(), new List<int>() };
-            for (int sub = 0; sub < body.subMeshCount; sub++)
-            {
-                int[] triangles = body.GetTriangles(sub);
-                for (int t = 0; t < triangles.Length; t += 3)
-                {
-                    // A triangle belongs to a garment only if all its corners do: taking triangles that merely
-                    // reach into it leaves spiky hems. The waist seam is under the hip belt, the ankles in the boots.
-                    Region a = regions[triangles[t]], b = regions[triangles[t + 1]], c = regions[triangles[t + 2]];
-                    Region region = a == b && b == c ? a : Region.Skin;
-                    if (region is Region.Jacket or Region.Pants)
-                        pieces[(int)region].AddRange(new[] { triangles[t], triangles[t + 1], triangles[t + 2] });
-                }
-            }
-
-            var mesh = new Mesh { name = body.name + " Clothes", indexFormat = IndexFormat.UInt32 };
-            mesh.vertices = vertices;
-            mesh.normals = normals;
-            mesh.uv = body.uv;
-            mesh.boneWeights = body.boneWeights;
-            mesh.bindposes = body.bindposes;
-            mesh.subMeshCount = pieces.Length;
-            for (int i = 0; i < pieces.Length; i++)
-                mesh.SetTriangles(pieces[i], i);
-            mesh.RecalculateBounds();
-            derivedMeshes[body] = (mesh, cached.headless);
-            return mesh;
-        }
-
-        /// <summary>The body without its head and neck, for the first-person view.</summary>
-        static Mesh Headless(Mesh body, Transform[] bones)
-        {
-            if (derivedMeshes.TryGetValue(body, out (Mesh clothes, Mesh headless) cached) && cached.headless != null)
-                return cached.headless;
-
-            Region[] regions = VertexRegions(body, bones);
-            Mesh mesh = Instantiate(body);
-            mesh.name = body.name + " Headless";
-            for (int sub = 0; sub < body.subMeshCount; sub++)
-            {
-                int[] triangles = body.GetTriangles(sub);
-                var kept = new List<int>(triangles.Length);
-                for (int t = 0; t < triangles.Length; t += 3)
-                {
-                    if (regions[triangles[t]] == Region.Head || regions[triangles[t + 1]] == Region.Head || regions[triangles[t + 2]] == Region.Head)
-                        continue;
-                    kept.AddRange(new[] { triangles[t], triangles[t + 1], triangles[t + 2] });
-                }
-                mesh.SetTriangles(kept, sub);
-            }
-            derivedMeshes[body] = (cached.clothes, mesh);
-            return mesh;
+            foreach (Object mesh in ownedMeshes)
+                Discard(mesh);
+            ownedMeshes.Clear();
         }
     }
 }

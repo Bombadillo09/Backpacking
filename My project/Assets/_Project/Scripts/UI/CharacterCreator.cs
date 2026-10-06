@@ -9,9 +9,9 @@ using Background = Backpacking.Character.Background;
 namespace Backpacking.UI
 {
     /// <summary>
-    /// The new-trip screen: name your hiker, choose their body, skin, hair and beard, the colours of their
-    /// jacket, pants and pack, and a background with its own strengths. A turntable preview shows the
-    /// result; drag it to turn the hiker around.
+    /// The new-trip screen: name your hiker, pick who they are from the roster (men or women, then step through
+    /// the outfits), the colour of their pack, and a background with its own strengths. A turntable preview
+    /// shows the result; drag it to turn the hiker around.
     /// </summary>
     public class CharacterCreator : MonoBehaviour
     {
@@ -28,10 +28,7 @@ namespace Backpacking.UI
         VisualElement screen, previewImage;
         TextField nameField;
         Button maleButton, femaleButton;
-        Slider skinSlider;
-        Label hairLabel, backgroundText;
-        VisualElement beardRow;
-        Toggle beardToggle;
+        Label hikerLabel, backgroundText;
         readonly List<(Button button, Background background)> backgroundButtons = new();
         readonly Dictionary<string, List<(Button button, Color colour)>> swatchRows = new();
 
@@ -71,7 +68,6 @@ namespace Backpacking.UI
             EnsureStage();
             previewCamera.enabled = true;
             nameField.SetValueWithoutNotify(profile.name);
-            skinSlider.SetValueWithoutNotify(profile.skinTone);
             Refresh();
             IsOpen = true;
             screen.SetVisible(true);
@@ -130,22 +126,7 @@ namespace Backpacking.UI
 
             maleButton = UIBuild.Button("Male", () => SetBody(false));
             femaleButton = UIBuild.Button("Female", () => SetBody(true));
-            skinSlider = new Slider(0f, 1f);
-            skinSlider.AddToClassList("grow");
-            skinSlider.RegisterValueChangedCallback(change =>
-            {
-                profile.skinTone = change.newValue;
-                RebuildPreview();
-            });
-
-            hairLabel = UIBuild.Text("", "creator-choice");
-            beardToggle = new Toggle();
-            beardToggle.RegisterValueChangedCallback(change =>
-            {
-                profile.beard = change.newValue;
-                RebuildPreview();
-            });
-            beardRow = Row("Beard", beardToggle);
+            hikerLabel = UIBuild.Text("", "creator-choice");
 
             VisualElement backgrounds = UIBuild.Box("row", "creator-wrap");
             foreach (Background background in Backgrounds.All)
@@ -165,13 +146,8 @@ namespace Backpacking.UI
                 UIBuild.Text("Your hiker", "title"),
                 Row("Name", nameField),
                 Row("Body", UIBuild.Box("row").With(maleButton, femaleButton)),
-                Row("Skin", skinSlider),
-                Row("Hair", UIBuild.Box("row").With(
-                    UIBuild.Button("<", () => StepHair(-1)), hairLabel, UIBuild.Button(">", () => StepHair(1)))),
-                Row("Hair colour", Swatches("hair", CharacterProfile.HairColours, c => profile.hairColour = c)),
-                beardRow,
-                Row("Jacket", Swatches("jacket", CharacterProfile.GearColours, c => profile.jacketColour = c)),
-                Row("Pants", Swatches("pants", CharacterProfile.GearColours, c => profile.pantsColour = c)),
+                Row("Hiker", UIBuild.Box("row").With(
+                    UIBuild.Button("<", () => StepHiker(-1)), hikerLabel, UIBuild.Button(">", () => StepHiker(1)))),
                 Row("Pack", Swatches("pack", CharacterProfile.GearColours, c => profile.packColour = c)),
                 UIBuild.Text("BACKGROUND", "heading"),
                 backgrounds,
@@ -210,51 +186,47 @@ namespace Backpacking.UI
             return row;
         }
 
+        bool Female => library != null && library.Find(profile.hiker) is { female: true };
+
+        /// <summary>The roster entries for one body, in roster order.</summary>
+        List<CharacterLibrary.Hiker> Hikers(bool female)
+        {
+            var hikers = new List<CharacterLibrary.Hiker>();
+            if (library != null && library.hikers != null)
+                foreach (CharacterLibrary.Hiker hiker in library.hikers)
+                    if (hiker.model != null && hiker.female == female)
+                        hikers.Add(hiker);
+            return hikers;
+        }
+
         void SetBody(bool female)
         {
-            profile.female = female;
-            // Keep a hairstyle that suits the new body.
-            if (!HairSuits(profile.hairStyle))
-                StepHair(1);
+            List<CharacterLibrary.Hiker> hikers = Hikers(female);
+            if (female != Female && hikers.Count > 0)
+                profile.hiker = hikers[0].id;
             Refresh();
         }
 
-        void StepHair(int direction)
+        void StepHiker(int direction)
         {
-            int count = library != null && library.hairStyles != null ? library.hairStyles.Length : 0;
-            if (count == 0)
+            List<CharacterLibrary.Hiker> hikers = Hikers(Female);
+            if (hikers.Count == 0)
                 return;
-            int style = profile.hairStyle;
-            for (int i = 0; i < count; i++)
-            {
-                style = (style + direction + count) % count;
-                if (HairSuits(style))
-                    break;
-            }
-            profile.hairStyle = style;
+            int index = hikers.FindIndex(hiker => hiker.id == profile.hiker);
+            profile.hiker = hikers[((index < 0 ? 0 : index + direction) % hikers.Count + hikers.Count) % hikers.Count].id;
             Refresh();
-        }
-
-        bool HairSuits(int style)
-        {
-            if (library == null || library.hairStyles == null || style < 0 || style >= library.hairStyles.Length)
-                return false;
-            CharacterLibrary.HairStyle hair = library.hairStyles[style];
-            return profile.female ? hair.female : hair.male;
         }
 
         /// <summary>Shows the profile's choices on the controls and rebuilds the preview.</summary>
         void Refresh()
         {
-            Select(maleButton, !profile.female);
-            Select(femaleButton, profile.female);
-            hairLabel.text = library != null && library.hairStyles != null && profile.hairStyle < library.hairStyles.Length
-                ? library.hairStyles[profile.hairStyle].name : "";
-            beardRow.SetVisible(!profile.female);
-            beardToggle.SetValueWithoutNotify(profile.beard);
-            HighlightSwatch("hair", profile.hairColour);
-            HighlightSwatch("jacket", profile.jacketColour);
-            HighlightSwatch("pants", profile.pantsColour);
+            // A saved hiker who has left the roster becomes the first one.
+            CharacterLibrary.Hiker current = library != null ? library.Find(profile.hiker) : null;
+            if (current != null)
+                profile.hiker = current.id;
+            Select(maleButton, !Female);
+            Select(femaleButton, Female);
+            hikerLabel.text = current != null ? current.label : "";
             HighlightSwatch("pack", profile.packColour);
             foreach ((Button button, Background background) in backgroundButtons)
                 Select(button, background == profile.background);
