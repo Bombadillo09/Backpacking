@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -43,9 +44,21 @@ namespace Backpacking.World
         public int Day => day;
         /// <summary>0 at night, 1 in full daylight, in between at dawn and dusk.</summary>
         public float Daylight { get; private set; }
-        /// <summary>Speeds the clock up (e.g. sleeping or debug fast-forward).</summary>
-        public float TimeMultiplier { get; set; } = 1f;
-        public string ClockText => $"{(int)hour:00}:{(int)(hour % 1f * 60f):00}";
+        /// <summary>Current clock speed-up: the largest of all active requests, or 1.</summary>
+        public float TimeMultiplier { get; private set; } = 1f;
+        /// <summary>Game hours per real second at normal speed.</summary>
+        public float BaseHoursPerSecond => 24f / (realMinutesPerGameDay * 60f);
+        /// <summary>Game hours per real second right now, including any speed-up.</summary>
+        public float HoursPerSecond => BaseHoursPerSecond * TimeMultiplier;
+        public string ClockText => FormatClock(hour);
+
+        readonly Dictionary<object, float> speedRequests = new();
+
+        public static string FormatClock(float hourOfDay)
+        {
+            int totalMinutes = Mathf.FloorToInt(Mathf.Repeat(hourOfDay, 24f) * 60f);
+            return $"{totalMinutes / 60:00}:{totalMinutes % 60:00}";
+        }
 
         public void SetTime(float newHour)
         {
@@ -53,11 +66,32 @@ namespace Backpacking.World
             ApplyLighting();
         }
 
+        /// <summary>Asks for the clock to run faster (sleeping, timed tasks, debug). Cleared with <see cref="ClearSpeed"/>.</summary>
+        public void RequestSpeed(object owner, float multiplier)
+        {
+            speedRequests[owner] = multiplier;
+            RecalculateMultiplier();
+        }
+
+        public void ClearSpeed(object owner)
+        {
+            if (speedRequests.Remove(owner))
+                RecalculateMultiplier();
+        }
+
+        void RecalculateMultiplier()
+        {
+            float multiplier = 1f;
+            foreach (float requested in speedRequests.Values)
+                multiplier = Mathf.Max(multiplier, requested);
+            TimeMultiplier = multiplier;
+        }
+
         void Start() => ApplyLighting();
 
         void Update()
         {
-            hour += Time.deltaTime * TimeMultiplier * 24f / (realMinutesPerGameDay * 60f);
+            hour += Time.deltaTime * HoursPerSecond;
             while (hour >= 24f)
             {
                 hour -= 24f;

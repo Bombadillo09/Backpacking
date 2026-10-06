@@ -21,19 +21,33 @@ namespace Backpacking.UI
         string message;
         float messageHideTime;
 
-        void OnEnable() => NavigationPoint.Arrived += ShowArrival;
-        void OnDisable() => NavigationPoint.Arrived -= ShowArrival;
-
-        void ShowArrival(NavigationPoint point)
+        void OnEnable()
         {
-            message = $"Arrived at {point.DisplayName}";
+            NavigationPoint.Arrived += ShowArrival;
+            Notifications.Posted += ShowMessage;
+        }
+
+        void OnDisable()
+        {
+            NavigationPoint.Arrived -= ShowArrival;
+            Notifications.Posted -= ShowMessage;
+        }
+
+        void ShowArrival(NavigationPoint point) => ShowMessage($"Arrived at {point.DisplayName}");
+
+        void ShowMessage(string text)
+        {
+            message = text;
             messageHideTime = Time.time + 5f;
         }
 
         void Update()
         {
             Keyboard keyboard = Keyboard.current;
-            timeOfDay.TimeMultiplier = keyboard != null && keyboard.tKey.isPressed ? fastForwardMultiplier : 1f;
+            if (keyboard != null && keyboard.tKey.isPressed)
+                timeOfDay.RequestSpeed(this, fastForwardMultiplier);
+            else
+                timeOfDay.ClearSpeed(this);
         }
 
         void OnGUI()
@@ -49,7 +63,7 @@ namespace Backpacking.UI
                 $"{temperature.GetTemperature(position):0.0} °C   Altitude {temperature.GetAltitude(position):0} m\n" +
                 $"Speed {player.HorizontalSpeed:0.0} m/s{state}\n\n" +
                 "WASD move · Shift sprint · C crouch · Space jump\n" +
-                "M map · Q compass\n" +
+                "M map · Q compass · Tab backpack · E interact\n" +
                 "Hold T fast-forward time · Esc release cursor";
 
             DrawShadowedLabel(new Rect(14f, 12f, 700f, 200f), text, style);

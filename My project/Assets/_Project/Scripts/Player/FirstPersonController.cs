@@ -53,10 +53,18 @@ namespace Backpacking.Player
         float verticalVelocity;
         float pitch;
 
+        bool cursorWasNeeded;
+
         public bool IsGrounded => controller.isGrounded;
         public bool IsSprinting { get; private set; }
         public bool IsCrouching { get; private set; }
         public float HorizontalSpeed => horizontalVelocity.magnitude;
+        public Transform CameraPivot => cameraPivot;
+
+        /// <summary>Scales all movement speeds, e.g. when exhausted. Set by other systems.</summary>
+        public float SpeedMultiplier { get; set; } = 1f;
+        /// <summary>Whether sprinting is currently allowed. Set by other systems.</summary>
+        public bool CanSprint { get; set; } = true;
 
         void Awake()
         {
@@ -92,10 +100,12 @@ namespace Backpacking.Player
         void Update()
         {
             HandleCursor();
-            if (Cursor.lockState == CursorLockMode.Locked)
+            bool locked = PlayerControlLock.MovementLocked;
+            if (!locked && Cursor.lockState == CursorLockMode.Locked)
                 Look();
-            UpdateCrouch();
-            Move();
+            if (!locked)
+                UpdateCrouch();
+            Move(locked);
         }
 
         void Look()
@@ -109,14 +119,14 @@ namespace Backpacking.Player
             cameraPivot.localRotation = Quaternion.Euler(pitch, 0f, 0f);
         }
 
-        void Move()
+        void Move(bool locked)
         {
-            Vector2 input = Vector2.ClampMagnitude(moveAction.ReadValue<Vector2>(), 1f);
+            Vector2 input = locked ? Vector2.zero : Vector2.ClampMagnitude(moveAction.ReadValue<Vector2>(), 1f);
             Vector3 wishDirection = transform.right * input.x + transform.forward * input.y;
 
             // Sprinting only makes sense moving forward.
-            IsSprinting = sprintAction.IsPressed() && input.y > 0.1f && !IsCrouching;
-            float speed = IsCrouching ? crouchSpeed : IsSprinting ? sprintSpeed : walkSpeed;
+            IsSprinting = CanSprint && sprintAction.IsPressed() && input.y > 0.1f && !IsCrouching;
+            float speed = (IsCrouching ? crouchSpeed : IsSprinting ? sprintSpeed : walkSpeed) * SpeedMultiplier;
             if (wishDirection.sqrMagnitude > 0.0001f)
                 speed *= UphillSpeedMultiplier(wishDirection.normalized);
 
@@ -129,7 +139,7 @@ namespace Backpacking.Player
                 if (verticalVelocity < 0f)
                     verticalVelocity = -2f - HorizontalSpeed;
 
-                if (jumpAction.WasPressedThisFrame() && !IsCrouching)
+                if (!locked && jumpAction.WasPressedThisFrame() && !IsCrouching)
                     verticalVelocity = Mathf.Sqrt(2f * jumpHeight * -gravity);
             }
             verticalVelocity += gravity * Time.deltaTime;
@@ -194,6 +204,14 @@ namespace Backpacking.Player
 
         void HandleCursor()
         {
+            // Menus free the cursor while open, and we take it back when they close.
+            bool cursorNeeded = PlayerControlLock.CursorNeeded;
+            if (cursorNeeded != cursorWasNeeded)
+                SetCursorLocked(!cursorNeeded);
+            cursorWasNeeded = cursorNeeded;
+            if (cursorNeeded)
+                return;
+
             Keyboard keyboard = Keyboard.current;
             Mouse mouse = Mouse.current;
             if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame)

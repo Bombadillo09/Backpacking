@@ -16,9 +16,10 @@ namespace Backpacking.EditorTools
 {
     /// <summary>
     /// Generates the prototype test scene: procedural terrain, sun and moon, sky, player and HUD.
-    /// Run from the menu: Backpacking > Build Prototype Scene. Safe to re-run; it regenerates everything.
+    /// Run from the menu: Backpacking > Build Prototype Scene. Safe to re-run; it regenerates the scene
+    /// and terrain, but keeps existing camp prefabs and materials.
     /// </summary>
-    public static class PrototypeSceneBuilder
+    public static partial class PrototypeSceneBuilder
     {
         const string Root = "Assets/_Project";
         const string ScenePath = Root + "/Scenes/Prototype.unity";
@@ -49,7 +50,9 @@ namespace Backpacking.EditorTools
 
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-            Terrain terrain = CreateTerrain();
+            CampPrefabs prefabs = GetOrCreateCampPrefabs();
+            Terrain terrain = CreateTerrain(out Lake lake);
+            CreateLake(lake);
             Light sun = CreateDirectionalLight("Sun", Color.white, 1.3f, LightShadows.Soft);
             Light moon = CreateDirectionalLight("Moon", new Color(0.6f, 0.7f, 1f), 0.12f, LightShadows.None);
             SetUpSkyAndFog(sun);
@@ -77,6 +80,9 @@ namespace Backpacking.EditorTools
             SetField(hud, "temperature", temperature);
             SetField(hud, "player", player);
 
+            AddSurvivalSystems(player, timeOfDay, temperature, hud.gameObject, prefabs);
+            ScatterFirewood(terrain, lake, player.transform.position, prefabs.Firewood);
+
             EditorSceneManager.SaveScene(scene, ScenePath);
             AddSceneToBuildSettings(ScenePath);
             Debug.Log($"Built prototype scene at {ScenePath}. Press Play to walk around.");
@@ -84,7 +90,7 @@ namespace Backpacking.EditorTools
 
         // ---------- Terrain ----------
 
-        static Terrain CreateTerrain()
+        static Terrain CreateTerrain(out Lake lake)
         {
             var data = new TerrainData
             {
@@ -93,7 +99,9 @@ namespace Backpacking.EditorTools
                 size = new Vector3(TerrainSize, TerrainHeight, TerrainSize),
                 alphamapResolution = SplatResolution,
             };
-            data.SetHeights(0, 0, GenerateHeights(data.heightmapResolution));
+            float[,] heights = GenerateHeights(data.heightmapResolution);
+            lake = CarveLake(heights);
+            data.SetHeights(0, 0, heights);
 
             TerrainLayer[] layers =
             {
@@ -421,7 +429,7 @@ namespace Backpacking.EditorTools
                 Object.DestroyImmediate(part.GetComponent<Collider>());
         }
 
-        static Material GetOrCreateMaterial(string materialName, Color colour)
+        static Material GetOrCreateMaterial(string materialName, Color colour, float smoothness = 0.15f)
         {
             string path = $"{GeneratedFolder}/{materialName}.mat";
             var material = AssetDatabase.LoadAssetAtPath<Material>(path);
@@ -430,7 +438,7 @@ namespace Backpacking.EditorTools
 
             material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
             material.SetColor("_BaseColor", colour);
-            material.SetFloat("_Smoothness", 0.15f);
+            material.SetFloat("_Smoothness", smoothness);
             AssetDatabase.CreateAsset(material, path);
             return material;
         }
