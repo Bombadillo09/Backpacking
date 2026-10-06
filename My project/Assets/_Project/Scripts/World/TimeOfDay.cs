@@ -68,6 +68,12 @@ namespace Backpacking.World
             ApplyLighting();
         }
 
+        public void SetDayAndTime(int newDay, float newHour)
+        {
+            day = Mathf.Max(1, newDay);
+            SetTime(newHour);
+        }
+
         /// <summary>Asks for the clock to run faster (sleeping, timed tasks, debug). Cleared with <see cref="ClearSpeed"/>.</summary>
         public void RequestSpeed(object owner, float multiplier)
         {

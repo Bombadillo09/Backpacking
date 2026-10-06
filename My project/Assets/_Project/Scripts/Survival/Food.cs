@@ -33,11 +33,14 @@ namespace Backpacking.Survival
         public readonly FoodKind? SmokesInto;
         /// <summary>What a trading post pays for one, in dollars, before its own rate. 0 means they won't buy it.</summary>
         public readonly int Value;
+        /// <summary>Kilograms per piece.</summary>
+        public readonly float Weight;
 
-        public FoodInfo(string name, float satiety = 0f, float hydration = 0f, float spoilHours = 0f,
+        public FoodInfo(string name, float weight, float satiety = 0f, float hydration = 0f, float spoilHours = 0f,
             float sicknessChance = 0f, string notEdibleReason = null, FoodKind? cooksInto = null, FoodKind? smokesInto = null,
             int value = 0)
         {
+            Weight = weight;
             Value = value;
             Name = name;
             Satiety = satiety;
@@ -59,20 +62,21 @@ namespace Backpacking.Survival
     {
         static readonly Dictionary<FoodKind, FoodInfo> table = new()
         {
-            [FoodKind.TrailMix] = new FoodInfo("Trail mix", satiety: 8f, value: 1),
-            [FoodKind.TrailMeal] = new FoodInfo("Dehydrated meal", notEdibleReason: "Cook it with water on a stove or fire", value: 3),
-            [FoodKind.Berries] = new FoodInfo("Wild berries", satiety: 4f, hydration: 2f, spoilHours: 72f, value: 1),
-            [FoodKind.RawFish] = new FoodInfo("Raw trout", satiety: 6f, spoilHours: 12f, sicknessChance: 0.5f,
+            // Smoking dries food out, so smoked fish and jerky weigh far less than fresh.
+            [FoodKind.TrailMix] = new FoodInfo("Trail mix", 0.1f, satiety: 8f, value: 1),
+            [FoodKind.TrailMeal] = new FoodInfo("Dehydrated meal", 0.15f, notEdibleReason: "Cook it with water on a stove or fire", value: 3),
+            [FoodKind.Berries] = new FoodInfo("Wild berries", 0.03f, satiety: 4f, hydration: 2f, spoilHours: 72f, value: 1),
+            [FoodKind.RawFish] = new FoodInfo("Raw trout", 0.35f, satiety: 6f, spoilHours: 12f, sicknessChance: 0.5f,
                 cooksInto: FoodKind.CookedFish, smokesInto: FoodKind.SmokedFish, value: 2),
-            [FoodKind.CookedFish] = new FoodInfo("Cooked trout", satiety: 18f, hydration: 2f, spoilHours: 24f,
+            [FoodKind.CookedFish] = new FoodInfo("Cooked trout", 0.3f, satiety: 18f, hydration: 2f, spoilHours: 24f,
                 smokesInto: FoodKind.SmokedFish, value: 3),
-            [FoodKind.SmokedFish] = new FoodInfo("Smoked trout", satiety: 15f, spoilHours: 168f, value: 6),
-            [FoodKind.RabbitCarcass] = new FoodInfo("Rabbit (uncleaned)", spoilHours: 24f, notEdibleReason: "Clean it first", value: 4),
-            [FoodKind.RawMeat] = new FoodInfo("Raw rabbit meat", satiety: 8f, spoilHours: 12f, sicknessChance: 0.6f,
+            [FoodKind.SmokedFish] = new FoodInfo("Smoked trout", 0.12f, satiety: 15f, spoilHours: 168f, value: 6),
+            [FoodKind.RabbitCarcass] = new FoodInfo("Rabbit (uncleaned)", 1.1f, spoilHours: 24f, notEdibleReason: "Clean it first", value: 4),
+            [FoodKind.RawMeat] = new FoodInfo("Raw rabbit meat", 0.4f, satiety: 8f, spoilHours: 12f, sicknessChance: 0.6f,
                 cooksInto: FoodKind.CookedMeat, smokesInto: FoodKind.Jerky, value: 2),
-            [FoodKind.CookedMeat] = new FoodInfo("Cooked rabbit", satiety: 25f, hydration: 2f, spoilHours: 24f,
+            [FoodKind.CookedMeat] = new FoodInfo("Cooked rabbit", 0.35f, satiety: 25f, hydration: 2f, spoilHours: 24f,
                 smokesInto: FoodKind.Jerky, value: 4),
-            [FoodKind.Jerky] = new FoodInfo("Rabbit jerky", satiety: 20f, spoilHours: 240f, value: 8),
+            [FoodKind.Jerky] = new FoodInfo("Rabbit jerky", 0.12f, satiety: 20f, spoilHours: 240f, value: 8),
         };
 
         public static FoodInfo Get(FoodKind kind) => table[kind];
@@ -86,6 +90,8 @@ namespace Backpacking.Survival
     {
         public FoodKind kind;
         public float hoursLeft;
+
+        public FoodItem() { }
 
         public FoodItem(FoodKind kind)
         {

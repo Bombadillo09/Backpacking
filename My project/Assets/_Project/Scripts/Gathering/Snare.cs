@@ -26,6 +26,16 @@ namespace Backpacking.Gathering
 
         public string DisplayName => "Snare";
 
+        public bool HasCatch
+        {
+            get => caught;
+            set
+            {
+                caught = value;
+                caughtVisual.SetActive(value);
+            }
+        }
+
         void Awake()
         {
             timeOfDay = FindAnyObjectByType<TimeOfDay>();

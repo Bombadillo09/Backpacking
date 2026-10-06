@@ -365,7 +365,7 @@ namespace Backpacking.EditorTools
         // ---------- Navigation points ----------
 
         /// <summary>A stone cairn with a tall orange flag, visible from a distance.</summary>
-        static void CreateNavigationPoint(string pointName, NavigationPointKind kind, Vector3 position, Transform parent,
+        static GameObject CreateNavigationPoint(string pointName, NavigationPointKind kind, Vector3 position, Transform parent,
             Material stone, Material flag, bool visited)
         {
             var root = new GameObject(pointName);
@@ -388,6 +388,7 @@ namespace Backpacking.EditorTools
 
             CreatePart(PrimitiveType.Cylinder, root.transform, new Vector3(0f, 3.5f, 0f), new Vector3(0.06f, 3.5f, 0.06f), stone, keepCollider: false);
             CreatePart(PrimitiveType.Cube, root.transform, new Vector3(0.6f, 6.4f, 0f), new Vector3(1.2f, 0.75f, 0.03f), flag, keepCollider: false);
+            return root;
         }
 
         static void CreatePart(PrimitiveType type, Transform parent, Vector3 localPosition, Vector3 scale, Material material, bool keepCollider)

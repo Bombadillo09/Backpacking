@@ -7,6 +7,7 @@ namespace Backpacking.UI
     public class VitalsHud : MonoBehaviour
     {
         [SerializeField] Vitals vitals;
+        [SerializeField] Backpack backpack;
 
         static readonly Color Low = new(0.9f, 0.25f, 0.2f);
         GUIStyle labelStyle;
@@ -17,7 +18,7 @@ namespace Backpacking.UI
 
             const float width = 220f, barHeight = 10f, rowHeight = 30f;
             float x = 16f;
-            float y = Screen.height - 16f - rowHeight * 4f - 22f;
+            float y = Screen.height - 16f - rowHeight * 4f - 44f;
 
             DrawBar(x, ref y, width, barHeight, rowHeight, "Food", vitals.Satiety, new Color(0.9f, 0.65f, 0.25f));
             DrawBar(x, ref y, width, barHeight, rowHeight, "Water", vitals.Hydration, new Color(0.3f, 0.6f, 0.95f));
@@ -28,6 +29,10 @@ namespace Backpacking.UI
             if (vitals.IsSick)
                 status += "  ·  sick";
             DrawShadowed(new Rect(x, y, 500f, 22f), status);
+
+            float weight = backpack.TotalWeight;
+            string load = backpack.IsOverloaded ? "  OVERLOADED" : weight > backpack.ComfortableLoad ? "  heavy" : "";
+            DrawShadowed(new Rect(x, y + 22f, 500f, 22f), $"Pack {weight:0.0} / {backpack.ComfortableLoad:0} kg{load}");
         }
 
         void DrawBar(float x, ref float y, float width, float barHeight, float rowHeight, string label, float value, Color colour)

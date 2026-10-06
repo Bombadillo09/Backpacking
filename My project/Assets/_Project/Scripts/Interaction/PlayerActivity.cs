@@ -35,8 +35,13 @@ namespace Backpacking.Interaction
         bool sleeping;
         GUIStyle labelStyle;
 
+        bool sleepingInTent;
+
         public bool IsBusy => label != null;
         public bool IsSleeping => sleeping;
+
+        /// <summary>Raised on waking up, whether rested or woken by the cold. The argument says if it was in a tent.</summary>
+        public event Action<bool> WokeUp;
 
         /// <summary>Starts a task lasting <paramref name="gameMinutes"/> of game time. Ignored if already busy.</summary>
         public bool Begin(string taskLabel, float gameMinutes, Action completed)
@@ -68,6 +73,7 @@ namespace Backpacking.Interaction
             durationHours = night ? Mathf.Repeat(wakeHour - hour, 24f) : napHours;
             vitals.IsSleeping = true;
             vitals.IsSheltered = inTent;
+            sleepingInTent = inTent;
             timeOfDay.RequestSpeed(this, sleepHoursPerSecond / timeOfDay.BaseHoursPerSecond);
             return true;
         }
@@ -83,6 +89,7 @@ namespace Backpacking.Interaction
             {
                 Finish();
                 Notifications.Post("You wake up shivering. It's too cold to sleep. Warm up or add layers.");
+                WokeUp?.Invoke(sleepingInTent);
                 return;
             }
 
@@ -93,7 +100,10 @@ namespace Backpacking.Interaction
                 Finish();
                 completed?.Invoke();
                 if (wasSleeping)
+                {
                     Notifications.Post($"You wake up. It's {timeOfDay.ClockText}.");
+                    WokeUp?.Invoke(sleepingInTent);
+                }
             }
         }
 

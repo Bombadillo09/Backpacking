@@ -3,6 +3,7 @@ using Backpacking.Camp;
 using Backpacking.Gathering;
 using Backpacking.Interaction;
 using Backpacking.Player;
+using Backpacking.Saving;
 using Backpacking.Survival;
 using Backpacking.UI;
 using Backpacking.World;
@@ -121,6 +122,7 @@ namespace Backpacking.EditorTools
                 position.y = terrain.SampleHeight(position) + terrain.transform.position.y;
                 var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent);
                 instance.transform.SetPositionAndRotation(position, Quaternion.Euler(0f, (float)random.NextDouble() * 360f, 0f));
+                AddSaveId(instance, $"{groupName}-{placed}");
                 placed++;
             }
         }
@@ -206,8 +208,18 @@ namespace Backpacking.EditorTools
             SetField(shop, "backpack", backpack);
             SetField(interactor, "shop", shop);
 
+            var saves = new GameObject("Save System").AddComponent<SaveSystem>();
+            SetField(saves, "timeOfDay", timeOfDay);
+            SetField(saves, "player", player);
+            SetField(saves, "backpack", backpack);
+            SetField(saves, "vitals", vitals);
+            SetField(saves, "placer", placer);
+            SetField(saves, "activity", activity);
+            SetField(interactor, "saves", saves);
+
             var vitalsHud = hud.AddComponent<VitalsHud>();
             SetField(vitalsHud, "vitals", vitals);
+            SetField(vitalsHud, "backpack", backpack);
             var backpackView = hud.AddComponent<BackpackView>();
             SetField(backpackView, "backpack", backpack);
             SetField(backpackView, "vitals", vitals);
@@ -463,6 +475,13 @@ namespace Backpacking.EditorTools
             AddVisual(PrimitiveType.Cylinder, root, new Vector3(0f, 0.04f, 0f), Quaternion.Euler(0f, 0f, 90f), new Vector3(0.05f, 0.34f, 0.05f), wood);
             AddVisual(PrimitiveType.Cylinder, root, new Vector3(0.05f, 0.09f, 0.05f), Quaternion.Euler(0f, 25f, 90f), new Vector3(0.04f, 0.28f, 0.04f), wood);
             return root;
+        }
+
+        /// <summary>Gives a scene object a stable name for save files.</summary>
+        static void AddSaveId(GameObject target, string id)
+        {
+            var saveId = target.AddComponent<SaveId>();
+            SetString(saveId, "id", id);
         }
 
         /// <summary>A primitive with no collider; the root object's collider covers the whole piece.</summary>

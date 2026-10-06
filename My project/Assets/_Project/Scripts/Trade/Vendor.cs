@@ -43,6 +43,16 @@ namespace Backpacking.Trade
         public void GetOptions(Interactor interactor, List<InteractionOption> options)
         {
             options.Add(new InteractionOption("Trade", () => interactor.Shop.Open(this)));
+            options.Add(new InteractionOption("Rest a while and save the game", () => interactor.Saves.Save()));
+        }
+
+        /// <summary>Stock left of each entry, in stock-list order. Saved and restored.</summary>
+        public int[] CaptureStock() => stock.ConvertAll(entry => entry.quantity).ToArray();
+
+        public void RestoreStock(int[] quantities)
+        {
+            for (int i = 0; i < stock.Count && i < quantities.Length; i++)
+                stock[i].quantity = quantities[i];
         }
     }
 }

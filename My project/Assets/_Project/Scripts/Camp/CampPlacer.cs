@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Backpacking.Interaction;
 using Backpacking.Player;
 using Backpacking.Survival;
@@ -43,6 +44,7 @@ namespace Backpacking.Camp
         static readonly Color InvalidColour = new(1f, 0.2f, 0.15f, 0.45f);
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
+        readonly List<(CampItem kind, GameObject instance)> placed = new();
         InputAction interactAction;
         GameObject preview;
         CampItem placing;
@@ -51,6 +53,24 @@ namespace Backpacking.Camp
         GUIStyle hintStyle;
 
         public bool IsPlacing => preview != null;
+
+        /// <summary>Gear currently set up in the world (packed-up gear drops out of the list).</summary>
+        public IEnumerable<(CampItem kind, GameObject instance)> PlacedItems
+        {
+            get
+            {
+                placed.RemoveAll(entry => entry.instance == null);
+                return placed;
+            }
+        }
+
+        /// <summary>Creates set-up gear in the world, e.g. when placing it or loading a save.</summary>
+        public GameObject Spawn(CampItem item, Vector3 position, Quaternion rotation)
+        {
+            GameObject instance = Instantiate(PrefabFor(item), position, rotation);
+            placed.Add((item, instance));
+            return instance;
+        }
 
         void Awake()
         {
@@ -198,21 +218,21 @@ namespace Backpacking.Camp
             {
                 case CampItem.Tent:
                     backpack.HasTent = false;
-                    activity.Begin("Pitching tent", pitchMinutes, () => Instantiate(tentPrefab, position, rotation));
+                    activity.Begin("Pitching tent", pitchMinutes, () => Spawn(item, position, rotation));
                     break;
                 case CampItem.FireRing:
                     backpack.TryUseFirewood(fireRingFirewood);
                     activity.Begin("Building a fire ring", fireRingMinutes, () =>
-                        Instantiate(fireRingPrefab, position, rotation).GetComponent<Campfire>().Build(fireRingFirewood));
+                        Spawn(item, position, rotation).GetComponent<Campfire>().Build(fireRingFirewood));
                     break;
                 case CampItem.Stove:
                     backpack.HasStove = false;
-                    Instantiate(stovePrefab, position, rotation);
+                    Spawn(item, position, rotation);
                     Notifications.Post("Stove set up.");
                     break;
                 case CampItem.Snare:
                     backpack.TryUseSnare();
-                    Instantiate(snarePrefab, position, rotation);
+                    Spawn(item, position, rotation);
                     Notifications.Post("Snare set. Animals won't come near while you're close, so leave it be for a while.");
                     break;
             }

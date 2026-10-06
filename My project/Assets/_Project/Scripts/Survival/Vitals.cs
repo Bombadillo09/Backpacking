@@ -5,6 +5,12 @@ using UnityEngine;
 
 namespace Backpacking.Survival
 {
+    [System.Serializable]
+    public class VitalsState
+    {
+        public float satiety, hydration, warmth, energy, sickHours;
+    }
+
     /// <summary>
     /// Food, water, warmth and energy, each 0–100. They change with game time (so they keep pace when
     /// time is sped up), drain faster with exertion, and slow the player down when low.
@@ -75,6 +81,24 @@ namespace Backpacking.Survival
         public void Drink(float amount) => hydration = Mathf.Min(Max, hydration + amount);
         public void MakeSick(float hours) => sickHours = Mathf.Max(sickHours, hours);
 
+        public VitalsState CaptureState() => new()
+        {
+            satiety = satiety,
+            hydration = hydration,
+            warmth = warmth,
+            energy = energy,
+            sickHours = sickHours,
+        };
+
+        public void RestoreState(VitalsState state)
+        {
+            satiety = state.satiety;
+            hydration = state.hydration;
+            warmth = state.warmth;
+            energy = state.energy;
+            sickHours = state.sickHours;
+        }
+
         void Update()
         {
             float hours = Time.deltaTime * timeOfDay.HoursPerSecond;
@@ -84,6 +108,9 @@ namespace Backpacking.Survival
             bool moving = !IsSleeping && player.HorizontalSpeed > walkingSpeedThreshold;
             bool sprinting = moving && player.IsSprinting;
             float exertion = sprinting ? sprintingDrainMultiplier : moving ? walkingDrainMultiplier : 1f;
+            // A heavy pack makes every step cost more.
+            if (moving)
+                exertion *= backpack.LoadExertionMultiplier;
             float sickness = IsSick ? 2f : 1f;
 
             satiety = Mathf.Max(0f, satiety - satietyDrain * exertion * Mathf.Sqrt(sickness) * hours);
@@ -124,8 +151,9 @@ namespace Backpacking.Survival
         void ApplyEffects()
         {
             float lowest = Mathf.Min(Mathf.Min(satiety, hydration), Mathf.Min(warmth, energy));
-            player.SpeedMultiplier = lowest < criticalThreshold ? 0.6f : lowest < tiredThreshold ? 0.85f : 1f;
-            player.CanSprint = energy > criticalThreshold && hydration > criticalThreshold;
+            float condition = lowest < criticalThreshold ? 0.6f : lowest < tiredThreshold ? 0.85f : 1f;
+            player.SpeedMultiplier = condition * backpack.LoadSpeedMultiplier;
+            player.CanSprint = energy > criticalThreshold && hydration > criticalThreshold && !backpack.IsOverloaded;
         }
 
         /// <summary>Posts a message when a value drops below a threshold, then rearms once it recovers.</summary>

@@ -80,6 +80,7 @@ namespace Backpacking.UI
             string pelts = backpack.Pelts > 0 ? $"    Rabbit pelts: {backpack.Pelts}" : "";
             GUILayout.Label($"Money: ${backpack.Money}{pelts}", new GUIStyle(headingStyle) { fontSize = 20 });
             GUILayout.EndHorizontal();
+            GUILayout.Label(LoadDescription(), textStyle);
             GUILayout.Space(6f);
             GUILayout.BeginHorizontal();
 
@@ -116,6 +117,8 @@ namespace Backpacking.UI
                 backpack.SafeWater <= 0f ? "No safe water" : null);
             ActionButton("Drink untreated", backpack.DrinkUntreatedWater,
                 backpack.UntreatedWater <= 0f ? "No untreated water" : null);
+            ActionButton("Pour out untreated", backpack.PourOutUntreatedWater,
+                backpack.UntreatedWater <= 0f ? "" : null);
             GUILayout.EndHorizontal();
             GUILayout.Label(backpack.HasWaterFilter
                 ? "Your filter makes lake and stream water safe as you fill up."
@@ -149,6 +152,8 @@ namespace Backpacking.UI
                     }, null);
                 else
                     ActionButton(info.SicknessChance > 0f ? "Eat (risky)" : "Eat", () => backpack.Eat(kind), info.NotEdibleReason);
+                if (GUILayout.Button("Drop", GUILayout.Width(55f), GUILayout.Height(28f)))
+                    backpack.TryTakeFood(kind);
                 GUILayout.EndHorizontal();
             }
             if (!any)
@@ -160,7 +165,17 @@ namespace Backpacking.UI
         {
             string keeps = !info.Spoils ? "keeps" : $"next spoils in {FormatHours(backpack.SoonestSpoilHours(kind))}";
             string prep = info.SmokesInto != null ? info.CooksInto != null ? " · cook or smoke" : " · can smoke" : "";
-            return info.Satiety > 0f ? $"+{info.Satiety:0} food · {keeps}{prep}" : $"{keeps}{prep}";
+            string weight = $"{info.Weight:0.##} kg each";
+            return info.Satiety > 0f ? $"+{info.Satiety:0} food · {weight} · {keeps}{prep}" : $"{weight} · {keeps}{prep}";
+        }
+
+        string LoadDescription()
+        {
+            float weight = backpack.TotalWeight;
+            string feel = backpack.IsOverloaded ? "Overloaded: very slow, no sprinting. Drop something."
+                : weight > backpack.ComfortableLoad ? "Heavy: slower, and tiring."
+                : "Comfortable.";
+            return $"Pack weight: {weight:0.0} kg  (comfortable up to {backpack.ComfortableLoad:0} kg, max {backpack.MaxLoad:0} kg).  {feel}";
         }
 
         static string FormatHours(float hours) => hours >= 48f ? $"{hours / 24f:0} days" : $"{Mathf.CeilToInt(hours)} h";
@@ -181,7 +196,13 @@ namespace Backpacking.UI
         void DrawFuel()
         {
             GUILayout.Label("Fire & Fuel", headingStyle);
+            GUILayout.BeginHorizontal();
             GUILayout.Label($"Stove gas: {backpack.GasGrams:0} g    Matches: {backpack.Matches}    Firewood: {backpack.Firewood}", textStyle);
+            GUI.enabled = backpack.Firewood > 0;
+            if (GUILayout.Button("Drop wood", GUILayout.Width(90f)))
+                backpack.TryUseFirewood(1);
+            GUI.enabled = true;
+            GUILayout.EndHorizontal();
         }
 
         void DrawClothing()

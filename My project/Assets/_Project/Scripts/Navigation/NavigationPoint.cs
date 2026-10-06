@@ -35,6 +35,9 @@ namespace Backpacking.Navigation
         public NavigationPointKind Kind => kind;
         public bool Visited => visited;
 
+        /// <summary>Restores visited state from a save, without announcing an arrival.</summary>
+        public void SetVisited(bool value) => visited = value;
+
         // Statics survive entering Play Mode when domain reload is turned off, so clear them explicitly.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()

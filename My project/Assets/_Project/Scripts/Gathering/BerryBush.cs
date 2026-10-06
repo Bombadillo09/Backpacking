@@ -19,6 +19,13 @@ namespace Backpacking.Gathering
         float pickedAtHour = float.NegativeInfinity;
 
         public string DisplayName => "Berry bush";
+
+        /// <summary>Game hour (see <see cref="TimeOfDay.TotalHours"/>) it was last picked. Saved and restored.</summary>
+        public float PickedAtHour
+        {
+            get => pickedAtHour;
+            set => pickedAtHour = value;
+        }
         bool HasBerries => timeOfDay.TotalHours - pickedAtHour >= regrowHours;
 
         void Awake() => timeOfDay = FindAnyObjectByType<TimeOfDay>();

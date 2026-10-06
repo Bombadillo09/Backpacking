@@ -13,18 +13,42 @@ namespace Backpacking.Survival
         public string name;
         [Tooltip("°C of warmth this layer adds when worn.")]
         public float insulation;
+        [Tooltip("Kilograms.")]
+        public float weight;
         public bool worn;
 
-        public Garment(string name, float insulation, bool worn)
+        public Garment() { }
+
+        public Garment(string name, float insulation, float weight, bool worn)
         {
             this.name = name;
             this.insulation = insulation;
+            this.weight = weight;
             this.worn = worn;
         }
     }
 
+    /// <summary>Everything in the backpack, in a form that can be written to a save file.</summary>
+    [Serializable]
+    public class BackpackState
+    {
+        public int money, pelts;
+        public string tentName;
+        public float tentShelter, tentWeight;
+        public bool hasTent, hasStove;
+        public float gasGrams;
+        public int matches, firewood;
+        public bool hasFishingKit, hasGoodRod, hasWaterFilter;
+        public int snares;
+        public float waterCapacity, safeWater, untreatedWater;
+        public string sleepingBagName;
+        public float sleepingBagComfort, sleepingBagWeight;
+        public List<Garment> clothing = new();
+        public List<FoodItem> food = new();
+    }
+
     /// <summary>
-    /// Everything the player carries. The inspector values are the starting kit.
+    /// Everything the player carries, and how heavy it is. The inspector values are the starting kit.
     /// This is a fixed set of supplies plus a food list for the prototype; a general item system comes later.
     /// </summary>
     public class Backpack : MonoBehaviour
@@ -41,6 +65,7 @@ namespace Backpacking.Survival
         [SerializeField] string tentName = "2-person backpacking tent";
         [Tooltip("°C the tent adds when sleeping in it.")]
         [SerializeField] float tentShelter = 5f;
+        [SerializeField] float tentWeight = 1.8f;
         [SerializeField] bool hasTent = true;
         [SerializeField] bool hasStove = true;
         [SerializeField, Min(0f)] float gasGrams = 230f;
@@ -73,14 +98,15 @@ namespace Backpacking.Survival
         [SerializeField] string sleepingBagName = "3-season down bag";
         [Tooltip("Lowest air temperature (°C) the bag keeps you warm at.")]
         [SerializeField] float sleepingBagComfort = -1f;
+        [SerializeField] float sleepingBagWeight = 1f;
 
         [Header("Clothing")]
         [SerializeField] List<Garment> clothing = new()
         {
-            new Garment("Merino base layer", 3f, true),
-            new Garment("Fleece", 6f, false),
-            new Garment("Rain shell", 2f, false),
-            new Garment("Down jacket", 10f, false),
+            new Garment("Merino base layer", 3f, 0.2f, true),
+            new Garment("Fleece", 6f, 0.45f, false),
+            new Garment("Rain shell", 2f, 0.3f, false),
+            new Garment("Down jacket", 10f, 0.35f, false),
         };
 
         [Header("Drinking")]
@@ -91,7 +117,28 @@ namespace Backpacking.Survival
         [SerializeField, Range(0f, 1f)] float untreatedSicknessChance = 0.15f;
         [SerializeField] float sicknessHours = 12f;
 
-        readonly List<FoodItem> food = new();
+        [Header("Weight (kg)")]
+        [Tooltip("The pack itself, plus small things like a knife and first-aid kit.")]
+        [SerializeField] float packWeight = 1.3f;
+        [SerializeField] float stoveWeight = 0.35f;
+        [Tooltip("Empty weight of each 230 g gas canister.")]
+        [SerializeField] float canisterWeight = 0.15f;
+        [SerializeField] float firewoodWeight = 0.8f;
+        [SerializeField] float fishingKitWeight = 0.1f;
+        [SerializeField] float fishingRodWeight = 0.4f;
+        [SerializeField] float snareWeight = 0.05f;
+        [SerializeField] float filterWeight = 0.1f;
+        [SerializeField] float peltWeight = 0.3f;
+        [Tooltip("Up to this weight you move freely.")]
+        [SerializeField] float comfortableLoad = 15f;
+        [Tooltip("Above this you're overloaded: very slow and unable to sprint.")]
+        [SerializeField] float maxLoad = 25f;
+        [SerializeField, Range(0.1f, 1f)] float speedAtMaxLoad = 0.65f;
+        [SerializeField, Range(0.1f, 1f)] float overloadedSpeed = 0.45f;
+        [Tooltip("Extra food, water and energy used while walking at max load (0.6 = 60% more).")]
+        [SerializeField] float exertionAtMaxLoad = 0.6f;
+
+        List<FoodItem> food = new();
         readonly List<string> spoiledThisFrame = new();
 
         public int Money => money;
@@ -116,6 +163,8 @@ namespace Backpacking.Survival
         public float SleepingBagComfort => sleepingBagComfort;
         public IReadOnlyList<Garment> Clothing => clothing;
         public float SipLitres => sipLitres;
+        public float ComfortableLoad => comfortableLoad;
+        public float MaxLoad => maxLoad;
 
         public float ClothingInsulation
         {
@@ -137,6 +186,51 @@ namespace Backpacking.Survival
 
         void Update() => UpdateSpoilage();
 
+        // ---------- Weight ----------
+
+        /// <summary>Total kilograms carried, including worn clothing.</summary>
+        public float TotalWeight
+        {
+            get
+            {
+                float weight = packWeight + sleepingBagWeight + TotalWater;
+                if (hasTent)
+                    weight += tentWeight;
+                if (hasStove)
+                    weight += stoveWeight;
+                if (gasGrams > 0f)
+                    weight += gasGrams / 1000f + Mathf.Ceil(gasGrams / 230f) * canisterWeight;
+                weight += matches * 0.002f + firewood * firewoodWeight + snares * snareWeight + pelts * peltWeight;
+                if (hasFishingKit)
+                    weight += hasGoodRod ? fishingRodWeight : fishingKitWeight;
+                if (hasWaterFilter)
+                    weight += filterWeight;
+                foreach (Garment garment in clothing)
+                    weight += garment.weight;
+                foreach (FoodItem item in food)
+                    weight += item.Info.Weight;
+                return weight;
+            }
+        }
+
+        public bool IsOverloaded => TotalWeight > maxLoad;
+
+        /// <summary>How much the load slows walking: 1 when comfortable, lower when heavy.</summary>
+        public float LoadSpeedMultiplier
+        {
+            get
+            {
+                float weight = TotalWeight;
+                if (weight > maxLoad)
+                    return overloadedSpeed;
+                return Mathf.Lerp(1f, speedAtMaxLoad, Mathf.InverseLerp(comfortableLoad, maxLoad, weight));
+            }
+        }
+
+        /// <summary>Extra effort of walking with this load: 1 when comfortable, more when heavy.</summary>
+        public float LoadExertionMultiplier =>
+            1f + exertionAtMaxLoad * Mathf.Clamp01((TotalWeight - comfortableLoad) / (maxLoad - comfortableLoad)) * (IsOverloaded ? 1.5f : 1f);
+
         // ---------- Money ----------
 
         public void AddMoney(int amount) => money += amount;
@@ -150,18 +244,21 @@ namespace Backpacking.Survival
         public bool HasGarment(string garmentName) => clothing.Exists(garment => garment.name == garmentName);
 
         /// <summary>Adds a new clothing layer, worn straight away.</summary>
-        public void AddGarment(string garmentName, float insulation) => clothing.Add(new Garment(garmentName, insulation, true));
+        public void AddGarment(string garmentName, float insulation, float weight) =>
+            clothing.Add(new Garment(garmentName, insulation, weight, true));
 
-        public void SetSleepingBag(string bagName, float comfort)
+        public void SetSleepingBag(string bagName, float comfort, float weight)
         {
             sleepingBagName = bagName;
             sleepingBagComfort = comfort;
+            sleepingBagWeight = weight;
         }
 
-        public void SetTent(string newTentName, float shelter)
+        public void SetTent(string newTentName, float shelter, float weight)
         {
             tentName = newTentName;
             tentShelter = shelter;
+            tentWeight = weight;
         }
 
         public void SetWaterCapacity(float litres) => waterCapacity = Mathf.Max(waterCapacity, litres);
@@ -346,6 +443,8 @@ namespace Backpacking.Survival
             return true;
         }
 
+        public void PourOutUntreatedWater() => untreatedWater = 0f;
+
         public void DrinkSafeWater()
         {
             float litres = Mathf.Min(sipLitres, safeWater);
@@ -381,6 +480,60 @@ namespace Backpacking.Survival
                 vitals.MakeSick(sicknessHours);
                 Notifications.Post("Your stomach doesn't feel right...");
             }
+        }
+
+        // ---------- Saving ----------
+
+        public BackpackState CaptureState() => new()
+        {
+            money = money,
+            pelts = pelts,
+            tentName = tentName,
+            tentShelter = tentShelter,
+            tentWeight = tentWeight,
+            hasTent = hasTent,
+            hasStove = hasStove,
+            gasGrams = gasGrams,
+            matches = matches,
+            firewood = firewood,
+            hasFishingKit = hasFishingKit,
+            hasGoodRod = hasGoodRod,
+            hasWaterFilter = hasWaterFilter,
+            snares = snares,
+            waterCapacity = waterCapacity,
+            safeWater = safeWater,
+            untreatedWater = untreatedWater,
+            sleepingBagName = sleepingBagName,
+            sleepingBagComfort = sleepingBagComfort,
+            sleepingBagWeight = sleepingBagWeight,
+            clothing = new List<Garment>(clothing),
+            food = new List<FoodItem>(food),
+        };
+
+        public void RestoreState(BackpackState state)
+        {
+            money = state.money;
+            pelts = state.pelts;
+            tentName = state.tentName;
+            tentShelter = state.tentShelter;
+            tentWeight = state.tentWeight;
+            hasTent = state.hasTent;
+            hasStove = state.hasStove;
+            gasGrams = state.gasGrams;
+            matches = state.matches;
+            firewood = state.firewood;
+            hasFishingKit = state.hasFishingKit;
+            hasGoodRod = state.hasGoodRod;
+            hasWaterFilter = state.hasWaterFilter;
+            snares = state.snares;
+            waterCapacity = state.waterCapacity;
+            safeWater = state.safeWater;
+            untreatedWater = state.untreatedWater;
+            sleepingBagName = state.sleepingBagName;
+            sleepingBagComfort = state.sleepingBagComfort;
+            sleepingBagWeight = state.sleepingBagWeight;
+            clothing = new List<Garment>(state.clothing);
+            food = new List<FoodItem>(state.food);
         }
 
         static bool TrySpend(ref int stock, int amount)

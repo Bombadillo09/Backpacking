@@ -64,7 +64,7 @@ namespace Backpacking.UI
                 $"Speed {player.HorizontalSpeed:0.0} m/s{state}\n\n" +
                 "WASD move · Shift sprint · C crouch · Space jump\n" +
                 "M map · Q compass · Tab backpack · E interact\n" +
-                "Hold T fast-forward time · Esc release cursor";
+                "Hold T fast-forward time · F5 save · F9 load · Esc release cursor";
 
             DrawShadowedLabel(new Rect(14f, 12f, 700f, 200f), text, style);
 

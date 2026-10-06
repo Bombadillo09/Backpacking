@@ -192,7 +192,8 @@ namespace Backpacking.EditorTools
             {
                 RouteStop stop = layout.Stops[i];
                 Vector3 position = StopWorldPosition(stop, terrain);
-                CreateNavigationPoint(stop.Name, stop.Kind, position, parent, stone, flag, visited: i == 0);
+                GameObject point = CreateNavigationPoint(stop.Name, stop.Kind, position, parent, stone, flag, visited: i == 0);
+                AddSaveId(point, $"point-{stop.Name}");
                 if (stop.Vendor != null)
                     CreateTradingPost(stop, position, terrain, parent, tradingPostPrefab);
             }
@@ -213,6 +214,7 @@ namespace Backpacking.EditorTools
             toCairn.y = 0f;
             post.transform.SetPositionAndRotation(position, Quaternion.LookRotation(toCairn));
 
+            AddSaveId(post, $"vendor-{stop.Name}");
             var vendor = post.GetComponent<Vendor>();
             SetString(vendor, "vendorName", stop.Name);
             SetFloat(vendor, "priceMultiplier", stop.Vendor.PriceMultiplier);

@@ -32,6 +32,14 @@ namespace Backpacking.Camp
         float baseLightIntensity;
 
         public bool IsBurning => burning;
+        public float FuelHours => fuelHours;
+
+        /// <summary>Restores a saved fire.</summary>
+        public void Restore(float savedFuelHours, bool savedBurning)
+        {
+            fuelHours = Mathf.Clamp(savedFuelHours, 0f, maxFuelHours);
+            SetBurning(savedBurning && fuelHours > 0f);
+        }
         public string DisplayName => burning ? "Campfire" : "Fire ring";
 
         /// <summary>Called when the fire ring is built, with the firewood used to build it.</summary>
