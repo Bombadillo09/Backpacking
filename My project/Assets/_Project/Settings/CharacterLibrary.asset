@@ -1,0 +1,51 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 45d05977e66a4c040bb9c95ec0c19a5a, type: 3}
+  m_Name: CharacterLibrary
+  m_EditorClassIdentifier: Assembly-CSharp::Backpacking.Character.CharacterLibrary
+  maleBody: {fileID: 919132149155446097, guid: 911d47673a2fa7b4c80a3b407bafb4f3, type: 3}
+  femaleBody: {fileID: 919132149155446097, guid: 0cd85d53da3783d49b5198970ffb6b3e, type: 3}
+  hairStyles:
+  - name: Shaved
+    model: {fileID: 0}
+    male: 1
+    female: 1
+  - name: Short
+    model: {fileID: 919132149155446097, guid: ca5a0ea5f802439498036ef7917bd0e9, type: 3}
+    male: 1
+    female: 1
+  - name: Buzz cut
+    model: {fileID: 919132149155446097, guid: 325c74b0d39e738409b85bf2baad9940, type: 3}
+    male: 1
+    female: 0
+  - name: Buzz cut
+    model: {fileID: 919132149155446097, guid: dbf83711217fbf54d9cea9b151f603ae, type: 3}
+    male: 0
+    female: 1
+  - name: Long
+    model: {fileID: 919132149155446097, guid: 7078292e170b68d4b94e0e34915068e5, type: 3}
+    male: 1
+    female: 1
+  - name: Buns
+    model: {fileID: 919132149155446097, guid: 0959053d6083ad94db834355e36a6d63, type: 3}
+    male: 1
+    female: 1
+  beard: {fileID: 919132149155446097, guid: c8ebece86f8486649945e5faab70d7b2, type: 3}
+  maleSkin: {fileID: 2100000, guid: 7d3b46bd279c557438356dfbd02b70bf, type: 2}
+  femaleSkin: {fileID: 2100000, guid: d0b24be794d312140a870a0c4217671e, type: 2}
+  hairShort: {fileID: 2100000, guid: 04bdef64aff67e94292fda078cfcae27, type: 2}
+  hairLong: {fileID: 2100000, guid: 953e06be194a7434fa10b0830db28b03, type: 2}
+  eyes: {fileID: 2100000, guid: be54db97df51c3c4497efb2e6d25b084, type: 2}
+  clothing: {fileID: 2100000, guid: 01adebbeb5d0fab4fa0014072070e3d5, type: 2}
+  boots: {fileID: 2100000, guid: 5b09906af040ac1409b62a0fb1bb7930, type: 2}
+  pack: {fileID: 2100000, guid: 0cc72bf8a0e2691498b4ff18359d70e0, type: 2}
+  animator: {fileID: 9100000, guid: a2f4e00ccaeb0784785db7c172b91637, type: 2}
