@@ -16,11 +16,12 @@ namespace Backpacking.EditorTools
     {
         const string BiomeArtPath = Root + "/Settings/BiomeArt.asset";
         const string NatureFolder = GeneratedFolder + "/Nature";
-        const float TreeGridSpacing = 11f;
+        const float TreeGridSpacing = 5f;
         const int DetailResolution = 1024;
 
         // Layer order in the terrain's splatmap.
-        const int GrassLayer = 0, DirtLayer = 1, RockLayer = 2, SnowLayer = 3, ForestFloorLayer = 4, AlpineLayer = 5;
+        const int GrassLayer = 0, DirtLayer = 1, RockLayer = 2, SnowLayer = 3, ForestFloorLayer = 4, AlpineLayer = 5,
+            LeafLitterLayer = 6, NeedleLitterLayer = 7, LayerCount = 8;
 
         /// <summary>How much of each biome a spot is, all 0–1.</summary>
         struct Biome
@@ -63,7 +64,10 @@ namespace Backpacking.EditorTools
         /// <summary>Ground textures, trees and grass for the whole terrain.</summary>
         static void DressTerrain(TerrainData data, RouteLayout route, BiomeArtSettings art)
         {
-            data.terrainLayers = new[] { art.grass, art.dirt, art.rock, art.snow, art.forestFloor, art.alpineMeadow };
+            data.terrainLayers = new[]
+            {
+                art.grass, art.dirt, art.rock, art.snow, art.forestFloor, art.alpineMeadow, art.leafLitter, art.needleLitter,
+            };
             EditorUtility.DisplayProgressBar("Building prototype scene", "Painting ground...", 0.4f);
             data.SetAlphamaps(0, 0, GenerateBiomeSplatmap(data));
             EditorUtility.DisplayProgressBar("Building prototype scene", "Planting trees...", 0.6f);
@@ -75,8 +79,8 @@ namespace Backpacking.EditorTools
         static float[,,] GenerateBiomeSplatmap(TerrainData data)
         {
             int res = data.alphamapResolution;
-            var splat = new float[res, res, 6];
-            var weights = new float[6];
+            var splat = new float[res, res, LayerCount];
+            var weights = new float[LayerCount];
 
             for (int z = 0; z < res; z++)
             for (int x = 0; x < res; x++)
@@ -90,20 +94,26 @@ namespace Backpacking.EditorTools
                 float rock = Mathf.InverseLerp(28f, 40f, steepness);
                 float snow = Mathf.InverseLerp(0.6f, 0.7f, height01) * (1f - rock);
                 float alpine = biome.Alpine * (1f - snow) * (1f - rock);
-                float forestFloor = biome.Forest * (1f - rock) * (1f - alpine);
+                float forestGround = biome.Forest * (1f - rock) * (1f - alpine);
                 float dirt = Mathf.InverseLerp(0.6f, 0.8f, patchNoise) * biome.Meadow * (1f - rock) * 0.8f;
 
-                weights[GrassLayer] = Mathf.Max(0f, 1f - rock - snow - alpine - forestFloor - dirt);
+                // Litter drifts into patches about 15 m across: needles under conifers, leaves under broadleaf.
+                float litterNoise = Mathf.PerlinNoise(u * 330f + 91f, v * 330f + 57f);
+                float litter = forestGround * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.3f, 0.65f, litterNoise));
+
+                weights[GrassLayer] = Mathf.Max(0f, 1f - rock - snow - alpine - forestGround - dirt);
                 weights[DirtLayer] = dirt;
                 weights[RockLayer] = rock;
                 weights[SnowLayer] = snow;
-                weights[ForestFloorLayer] = forestFloor;
+                weights[ForestFloorLayer] = forestGround - litter;
                 weights[AlpineLayer] = alpine;
+                weights[LeafLitterLayer] = litter * (1f - biome.ConiferShare);
+                weights[NeedleLitterLayer] = litter * biome.ConiferShare;
 
                 float total = 0f;
                 foreach (float weight in weights)
                     total += weight;
-                for (int layer = 0; layer < 6; layer++)
+                for (int layer = 0; layer < LayerCount; layer++)
                     splat[z, x, layer] = weights[layer] / total;
             }
             return splat;
@@ -120,6 +130,8 @@ namespace Backpacking.EditorTools
             var random = new System.Random(Seed + 3);
             var trees = new List<TreeInstance>();
             int cells = Mathf.FloorToInt(TerrainSize / TreeGridSpacing);
+            float cellArea = TreeGridSpacing * TreeGridSpacing;
+            float half = TerrainSize / 2f;
             for (int cz = 0; cz < cells; cz++)
             for (int cx = 0; cx < cells; cx++)
             {
@@ -127,7 +139,17 @@ namespace Backpacking.EditorTools
                 float u = (cx + (float)random.NextDouble()) / cells;
                 float v = (cz + (float)random.NextDouble()) / cells;
                 Biome biome = SampleBiome(data, u, v);
-                if (random.NextDouble() > biome.Forest * 0.55f * art.treeDensity)
+                if (biome.Forest < 0.03f)
+                    continue;
+
+                // Dense where you walk, thinner far away to keep the tree count manageable.
+                float routeDistance = DistanceToRoute(new Vector2(u * TerrainSize - half, v * TerrainSize - half), route);
+                float nearRoute = 1f - Mathf.InverseLerp(art.denseForestWidth * 0.6f, art.denseForestWidth, routeDistance);
+                float perHundred = Mathf.Lerp(art.remoteForestDensity, art.forestDensity, nearRoute);
+                // Real forests grow in clumps with small gaps between, roughly 30 m across.
+                float clumping = Mathf.Lerp(0.3f, 1.7f, Mathf.PerlinNoise(u * 170f + 51f, v * 170f + 13f));
+                float chance = Mathf.Pow(biome.Forest, 1.3f) * perHundred * cellArea / 100f * clumping * art.treeDensity;
+                if (random.NextDouble() > chance)
                     continue;
                 if (InClearing(u, v, route, data))
                     continue;
@@ -135,7 +157,7 @@ namespace Backpacking.EditorTools
                 int[] pool = random.NextDouble() < biome.Valley ? valley
                     : random.NextDouble() < biome.ConiferShare ? conifers
                     : lowland;
-                float size = 0.75f + (float)random.NextDouble() * 0.6f;
+                float size = RandomTreeAge(random) * art.treeScale;
                 trees.Add(new TreeInstance
                 {
                     prototypeIndex = pool[random.Next(pool.Length)],
@@ -148,6 +170,35 @@ namespace Backpacking.EditorTools
                 });
             }
             data.SetTreeInstances(trees.ToArray(), snapToHeightmap: true);
+            Debug.Log($"Planted {trees.Count:N0} trees.");
+        }
+
+        /// <summary>Size multiplier for a tree: mostly mature, with some saplings and a few old giants.</summary>
+        static float RandomTreeAge(System.Random random)
+        {
+            double roll = random.NextDouble();
+            float t = (float)random.NextDouble();
+            if (roll < 0.15)
+                return Mathf.Lerp(0.3f, 0.55f, t);
+            if (roll < 0.88)
+                return Mathf.Lerp(0.8f, 1.15f, t);
+            return Mathf.Lerp(1.2f, 1.5f, t);
+        }
+
+        /// <summary>Distance in metres from a world position (x, z) to the nearest leg of the route.</summary>
+        static float DistanceToRoute(Vector2 world, RouteLayout route)
+        {
+            float half = TerrainSize / 2f;
+            float nearest = float.MaxValue;
+            for (int i = 0; i < route.Stops.Count - 1; i++)
+            {
+                Vector2 a = new Vector2(route.Stops[i].U, route.Stops[i].V) * TerrainSize - new Vector2(half, half);
+                Vector2 b = new Vector2(route.Stops[i + 1].U, route.Stops[i + 1].V) * TerrainSize - new Vector2(half, half);
+                Vector2 ab = b - a;
+                float t = Mathf.Clamp01(Vector2.Dot(world - a, ab) / ab.sqrMagnitude);
+                nearest = Mathf.Min(nearest, Vector2.Distance(world, a + ab * t));
+            }
+            return nearest;
         }
 
         static int[] AddTreePrototypes(List<TreePrototype> prototypes, GameObject[] prefabs)
@@ -180,12 +231,16 @@ namespace Backpacking.EditorTools
             return false;
         }
 
+        /// <summary>Grass everywhere it grows, plus optional ground plants for forest floors and meadows.</summary>
         static void GrowGrass(TerrainData data, RouteLayout route, BiomeArtSettings art)
         {
             data.SetDetailResolution(DetailResolution, 32);
-            data.detailPrototypes = new[]
+            // Densities below are plants per detail cell.
+            data.SetDetailScatterMode(DetailScatterMode.InstanceCountMode);
+
+            var prototypes = new List<DetailPrototype>
             {
-                new DetailPrototype
+                new()
                 {
                     prototypeTexture = art.grassTexture,
                     renderMode = DetailRenderMode.Grass,
@@ -198,8 +253,25 @@ namespace Backpacking.EditorTools
                     noiseSpread = 0.4f,
                 },
             };
+            var plantLayers = new List<(int layer, PlantGroup group)>();
+            AddPlantPrototypes(prototypes, plantLayers, art.forestFloorPlants, PlantGroup.ForestFloor, 0.7f, 1.3f);
+            AddPlantPrototypes(prototypes, plantLayers, art.meadowPlants, PlantGroup.Meadow, 0.7f, 1.3f);
+            AddPlantPrototypes(prototypes, plantLayers, art.understoryShrubs, PlantGroup.Understory, 0.7f, 1.3f);
+            // Shrink full-size logs and rocks down to branches, sticks and stones.
+            AddPlantPrototypes(prototypes, plantLayers, art.forestDebris, PlantGroup.Debris, 0.2f, 0.5f);
+            AddPlantPrototypes(prototypes, plantLayers, art.forestStones, PlantGroup.Stones, 0.08f, 0.25f);
+            data.detailPrototypes = prototypes.ToArray();
 
-            var density = new int[DetailResolution, DetailResolution];
+            var grass = new int[DetailResolution, DetailResolution];
+            var plants = new int[plantLayers.Count][,];
+            for (int i = 0; i < plants.Length; i++)
+                plants[i] = new int[DetailResolution, DetailResolution];
+            var random = new System.Random(Seed + 4);
+            // Each kind gets an even share of its group, so they mix rather than stack up.
+            var kindsPerGroup = new Dictionary<PlantGroup, int>();
+            foreach ((int _, PlantGroup group) in plantLayers)
+                kindsPerGroup[group] = kindsPerGroup.TryGetValue(group, out int kinds) ? kinds + 1 : 1;
+
             for (int z = 0; z < DetailResolution; z++)
             for (int x = 0; x < DetailResolution; x++)
             {
@@ -208,14 +280,74 @@ namespace Backpacking.EditorTools
                 float height01 = data.GetInterpolatedHeight(u, v) / data.size.y;
                 Biome biome = SampleBiome(u, v, height01, steepness);
                 float bare = Mathf.Max(Mathf.InverseLerp(28f, 40f, steepness), Mathf.InverseLerp(0.6f, 0.7f, height01));
-                float amount = (biome.Meadow * 7f + biome.Forest * 1.5f + biome.Alpine * 3f) * (1f - bare) * art.grassDensity;
-                if (amount > 0.5f && InLake(u, v, route))
-                    amount = 0f;
-                density[z, x] = Mathf.Clamp(Mathf.RoundToInt(amount), 0, 16);
+                if (InLake(u, v, route))
+                    bare = 1f;
+                float growth = 1f - bare;
+
+                float grassAmount = (biome.Meadow * 7f + biome.Forest * 1.5f + biome.Alpine * 3f) * growth * art.grassDensity;
+                grass[z, x] = Mathf.Clamp(Mathf.RoundToInt(grassAmount), 0, 16);
+
+                for (int i = 0; i < plantLayers.Count; i++)
+                {
+                    PlantGroup group = plantLayers[i].group;
+                    float share = 1f / kindsPerGroup[group];
+                    // Plants per detail cell (about 24 m²) where the biome is at its fullest.
+                    float where = group switch
+                    {
+                        PlantGroup.ForestFloor => biome.Forest * 3.2f,
+                        PlantGroup.Meadow => (biome.Meadow * (1f - biome.Alpine) + biome.Forest * 0.3f) * 1.6f,
+                        PlantGroup.Understory => biome.Forest * biome.Forest * 1.2f,
+                        PlantGroup.Debris => biome.Forest * 4f,
+                        // Stones under trees, and more of them on rocky ground and above the treeline.
+                        _ => (biome.Forest * 2f + biome.Alpine * 2.5f) * (1f + Mathf.InverseLerp(15f, 30f, steepness)),
+                    };
+                    float amount = where * growth * share * art.plantDensity;
+                    // Fractional amounts become an occasional plant rather than none.
+                    int count = (int)amount + (random.NextDouble() < amount % 1f ? 1 : 0);
+                    plants[i][z, x] = Mathf.Clamp(count, 0, 16);
+                }
             }
-            data.SetDetailLayer(0, 0, 0, density);
+
+            data.SetDetailLayer(0, 0, 0, grass);
+            for (int i = 0; i < plantLayers.Count; i++)
+                data.SetDetailLayer(0, 0, plantLayers[i].layer, plants[i]);
         }
 
+        enum PlantGroup
+        {
+            ForestFloor,
+            Meadow,
+            Understory,
+            Debris,
+            Stones,
+        }
+
+        static void AddPlantPrototypes(List<DetailPrototype> prototypes, List<(int layer, PlantGroup group)> layers, GameObject[] prefabs,
+            PlantGroup group, float minScale, float maxScale)
+        {
+            if (prefabs == null)
+                return;
+            foreach (GameObject prefab in prefabs)
+            {
+                if (prefab == null || prefab.GetComponent<MeshFilter>() == null)
+                    continue;
+                layers.Add((prototypes.Count, group));
+                prototypes.Add(new DetailPrototype
+                {
+                    prototype = prefab,
+                    usePrototypeMesh = true,
+                    useInstancing = true,
+                    renderMode = DetailRenderMode.VertexLit,
+                    minWidth = minScale,
+                    maxWidth = maxScale,
+                    minHeight = minScale,
+                    maxHeight = maxScale,
+                    noiseSpread = 0.3f,
+                    healthyColor = Color.white,
+                    dryColor = new Color(0.85f, 0.82f, 0.7f),
+                });
+            }
+        }
         static bool InLake(float u, float v, RouteLayout route)
         {
             float half = TerrainSize / 2f;
@@ -269,6 +401,10 @@ namespace Backpacking.EditorTools
                 art.forestFloor = CreateTerrainLayer("ForestFloor", new Color(0.2f, 0.17f, 0.11f), 0.25f, 4f);
             if (art.alpineMeadow == null)
                 art.alpineMeadow = CreateTerrainLayer("AlpineMeadow", new Color(0.4f, 0.4f, 0.22f), 0.2f, 7f);
+            if (art.leafLitter == null)
+                art.leafLitter = CreateTerrainLayer("LeafLitter", new Color(0.33f, 0.22f, 0.12f), 0.3f, 3f);
+            if (art.needleLitter == null)
+                art.needleLitter = CreateTerrainLayer("NeedleLitter", new Color(0.3f, 0.2f, 0.13f), 0.2f, 3f);
             if (art.grassTexture == null)
                 art.grassTexture = GetOrCreateGrassTexture();
 
@@ -468,6 +604,138 @@ namespace Backpacking.EditorTools
             importer.mipmapEnabled = true;
             importer.SaveAndReimport();
             return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+        }
+
+        // ---------- Boulders and firewood models ----------
+
+        const int BoulderCount = 500;
+
+        /// <summary>Boulders along the route, mostly on rocky slopes and above the treeline.</summary>
+        static void ScatterBoulders(Terrain terrain, RouteLayout route, BiomeArtSettings art)
+        {
+            if (IsEmpty(art.boulders) || art.boulderDensity <= 0f)
+                return;
+
+            var random = new System.Random(Seed + 5);
+            var parent = new GameObject("Boulders").transform;
+            TerrainData data = terrain.terrainData;
+            float half = TerrainSize / 2f;
+            int target = Mathf.RoundToInt(BoulderCount * art.boulderDensity);
+
+            int placed = 0, attempts = 0;
+            while (placed < target && attempts++ < target * 30)
+            {
+                Vector3 position = RandomPointNearRoute(route, random);
+                float u = (position.x + half) / TerrainSize, v = (position.z + half) / TerrainSize;
+                if (u is < 0.01f or > 0.99f || v is < 0.01f or > 0.99f)
+                    continue;
+                float steepness = data.GetSteepness(u, v);
+                float height01 = data.GetInterpolatedHeight(u, v) / data.size.y;
+                Biome biome = SampleBiome(u, v, height01, steepness);
+                float rocky = Mathf.Max(biome.Alpine, Mathf.InverseLerp(15f, 35f, steepness));
+                if (steepness > 45f || random.NextDouble() > 0.08f + 0.92f * rocky)
+                    continue;
+                if (TooCloseToFeature(position, route, terrain))
+                    continue;
+
+                float scale = Mathf.Lerp(0.6f, 2.8f, Mathf.Pow((float)random.NextDouble(), 2f));
+                // Sink each boulder a little so it sits in the ground rather than on it.
+                position.y = terrain.SampleHeight(position) + terrain.transform.position.y - 0.15f * scale;
+                var boulder = (GameObject)PrefabUtility.InstantiatePrefab(art.boulders[random.Next(art.boulders.Length)], parent);
+                boulder.transform.SetPositionAndRotation(position,
+                    Quaternion.Euler((float)random.NextDouble() * 20f - 10f, (float)random.NextDouble() * 360f, (float)random.NextDouble() * 20f - 10f));
+                boulder.transform.localScale = Vector3.one * scale;
+                placed++;
+            }
+        }
+
+        const int FallenLogCount = 2500;
+
+        /// <summary>Fallen trunks lying on the forest floor along the route, settled onto the slope.</summary>
+        static void ScatterFallenLogs(Terrain terrain, RouteLayout route, BiomeArtSettings art)
+        {
+            GameObject[] logs = IsEmpty(art.fallenLogs) ? art.firewoodModels : art.fallenLogs;
+            if (IsEmpty(logs))
+                return;
+
+            var random = new System.Random(Seed + 7);
+            var parent = new GameObject("Fallen Logs").transform;
+            TerrainData data = terrain.terrainData;
+            float half = TerrainSize / 2f;
+            int target = Mathf.RoundToInt(FallenLogCount * art.treeDensity);
+
+            int placed = 0, attempts = 0;
+            while (placed < target && attempts++ < target * 30)
+            {
+                Vector3 position = RandomPointNearRoute(route, random);
+                float u = (position.x + half) / TerrainSize, v = (position.z + half) / TerrainSize;
+                if (u is < 0.01f or > 0.99f || v is < 0.01f or > 0.99f)
+                    continue;
+                Biome biome = SampleBiome(data, u, v);
+                if (random.NextDouble() > biome.Forest * biome.Forest || data.GetSteepness(u, v) > 30f)
+                    continue;
+                if (TooCloseToFeature(position, route, terrain))
+                    continue;
+
+                position.y = terrain.SampleHeight(position) + terrain.transform.position.y - 0.05f;
+                Vector3 ground = data.GetInterpolatedNormal(u, v);
+                Quaternion lying = Quaternion.FromToRotation(Vector3.up, ground) * Quaternion.Euler(0f, (float)random.NextDouble() * 360f, 0f);
+                var log = (GameObject)PrefabUtility.InstantiatePrefab(logs[random.Next(logs.Length)], parent);
+                log.transform.SetPositionAndRotation(position, lying);
+                log.transform.localScale = Vector3.one * Mathf.Lerp(0.6f, 1.6f, (float)random.NextDouble());
+                placed++;
+            }
+        }
+
+        /// <summary>Swaps each firewood pickup's placeholder sticks for a real wood model, resized to branch size.</summary>
+        static void DressFirewood(Transform firewoodGroup, BiomeArtSettings art)
+        {
+            if (IsEmpty(art.firewoodModels))
+                return;
+
+            const float targetLength = 0.9f;
+            var random = new System.Random(Seed + 6);
+            foreach (Transform pickup in firewoodGroup)
+            {
+                foreach (Transform child in pickup)
+                    child.gameObject.SetActive(false);
+
+                GameObject source = art.firewoodModels[random.Next(art.firewoodModels.Length)];
+                var model = (GameObject)PrefabUtility.InstantiatePrefab(source, pickup);
+                model.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+                model.transform.localScale = Vector3.one;
+                foreach (Collider collider in model.GetComponentsInChildren<Collider>())
+                    Object.DestroyImmediate(collider);
+
+                Bounds bounds = RendererBounds(model);
+                float longest = Mathf.Max(bounds.size.x, bounds.size.z, 0.01f);
+                float scale = targetLength / longest;
+                model.transform.localScale = Vector3.one * scale;
+                bounds = RendererBounds(model);
+                // Rest it on the ground, then fit the pickup's collider around it.
+                model.transform.position += Vector3.up * (pickup.position.y - bounds.min.y);
+                bounds = RendererBounds(model);
+
+                var box = pickup.GetComponent<BoxCollider>();
+                if (box != null)
+                {
+                    box.center = pickup.InverseTransformPoint(bounds.center);
+                    // The pickup may be rotated; size the box in its own axes.
+                    Vector3 localSize = Quaternion.Inverse(pickup.rotation) * bounds.size;
+                    box.size = new Vector3(Mathf.Abs(localSize.x), Mathf.Max(Mathf.Abs(localSize.y), 0.15f), Mathf.Abs(localSize.z));
+                }
+            }
+        }
+
+        static Bounds RendererBounds(GameObject root)
+        {
+            Renderer[] renderers = root.GetComponentsInChildren<Renderer>();
+            if (renderers.Length == 0)
+                return new Bounds(root.transform.position, Vector3.zero);
+            Bounds bounds = renderers[0].bounds;
+            foreach (Renderer meshRenderer in renderers)
+                bounds.Encapsulate(meshRenderer.bounds);
+            return bounds;
         }
 
         // ---------- Rain ----------

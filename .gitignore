@@ -60,3 +60,9 @@ ExportedObj/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Asset Store packs: their licenses forbid redistribution, and this repo is public.
+# Without them the scene builder falls back to placeholder art.
+# (Kept last so it overrides the *.meta exception above.)
+/My project/Assets/Polyeler/
+/My project/Assets/Polyeler.meta

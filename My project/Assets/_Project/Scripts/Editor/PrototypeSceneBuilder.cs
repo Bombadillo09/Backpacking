@@ -98,7 +98,9 @@ namespace Backpacking.EditorTools
             SetField(hud, "weather", weather);
 
             AddSurvivalSystems(player, timeOfDay, temperature, weather, hud.gameObject, prefabs);
-            ScatterGatherables(terrain, route, player.transform.position, prefabs);
+            ScatterGatherables(terrain, route, player.transform.position, prefabs, art);
+            ScatterBoulders(terrain, route, art);
+            ScatterFallenLogs(terrain, route, art);
 
             EditorSceneManager.SaveScene(scene, ScenePath);
             AddSceneToBuildSettings(ScenePath);

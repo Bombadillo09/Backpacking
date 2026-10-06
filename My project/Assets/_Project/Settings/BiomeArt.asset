@@ -13,21 +13,67 @@ MonoBehaviour:
   m_Name: BiomeArt
   m_EditorClassIdentifier: Assembly-CSharp-Editor::Backpacking.EditorTools.BiomeArtSettings
   lowlandTrees:
-  - {fileID: 1498394229743683835, guid: 2fcd3f8d149da7648b93213f8379b9c4, type: 3}
+  - {fileID: 3634178841632055651, guid: eec77f4393826324db66fbd4ab69e9ea, type: 3}
+  - {fileID: 4302482056486984629, guid: 3a18e3ab786585b45ac90fd7e7fc114e, type: 3}
   conifers:
-  - {fileID: 1061909527542110524, guid: e877475bd075b5d4d8dab1135824fc32, type: 3}
+  - {fileID: 7461117221896677375, guid: 31c374a08d7bc4c429606c9ced73feac, type: 3}
+  - {fileID: 1058192677823724655, guid: 0a347e23b6f9ee546b29b7b80090145a, type: 3}
+  - {fileID: 5076420986814630863, guid: a47abf8ac640f1846a25da982e257a7d, type: 3}
   valleyTrees:
-  - {fileID: 5326114636524513141, guid: 8699184be9ab82249a59ca703bbd32f9, type: 3}
-  grass: {fileID: 8574412962073106934, guid: 294e7c094e2f0064184b97806b775c74, type: 2}
-  dirt: {fileID: 8574412962073106934, guid: fc6c3406047234c4785687f3f859f704, type: 2}
-  rock: {fileID: 8574412962073106934, guid: aab782901ffa7734096f6cc076612317, type: 2}
-  snow: {fileID: 8574412962073106934, guid: 72bf2fefc0fbee24287df231d9e2a2ea, type: 2}
-  forestFloor: {fileID: 8574412962073106934, guid: ebf58b4a84c008247b49337cb0a0509a, type: 2}
-  alpineMeadow: {fileID: 8574412962073106934, guid: ca0d8a4c315478444a2f3e540aea0f95, type: 2}
+  - {fileID: 4047929463303734772, guid: ecf59170528586948beb5fcb0d1b9a22, type: 3}
+  - {fileID: 4302482056486984629, guid: 3a18e3ab786585b45ac90fd7e7fc114e, type: 3}
+  grass: {fileID: 8574412962073106934, guid: 6b3c61faba1b456419e7e13d10324aa6, type: 2}
+  dirt: {fileID: 8574412962073106934, guid: 4a2ddf927b016b344ab8458ac3d0b0e9, type: 2}
+  rock: {fileID: 8574412962073106934, guid: 175633dad6ea6cf4c8e10bc03d9fd94a, type: 2}
+  snow: {fileID: 8574412962073106934, guid: 2221c9be19bd29d4b98bb6393eb066c4, type: 2}
+  forestFloor: {fileID: 8574412962073106934, guid: 71773ebf264256a409899c682a073132, type: 2}
+  alpineMeadow: {fileID: 8574412962073106934, guid: a6f12d3c56c677946a56f0926e8290b5, type: 2}
+  leafLitter: {fileID: 8574412962073106934, guid: 871ac9f95dc8d1148a76cac0647cff4a, type: 2}
+  needleLitter: {fileID: 8574412962073106934, guid: ee404bfe35796ae4cbbf927fb074bb73, type: 2}
   grassTexture: {fileID: 2800000, guid: 8e7d3275c98a67c488c8179760a8c73a, type: 3}
   grassHealthy: {r: 0.45, g: 0.6, b: 0.3, a: 1}
   grassDry: {r: 0.65, g: 0.6, b: 0.35, a: 1}
+  forestFloorPlants:
+  - {fileID: 397059435589770102, guid: 76ee08f7967fd544697fa11525ca8d8f, type: 3}
+  meadowPlants:
+  - {fileID: 8719227644399826093, guid: 7112dc96e0601294995617473b0550fe, type: 3}
+  - {fileID: 5938184429941139080, guid: 5a36c869cc1d1e9458c468c2bb91ab78, type: 3}
+  understoryShrubs:
+  - {fileID: 8296291537626840966, guid: 7fa0a1f7d05e1e14f8c8d0d605762e7a, type: 3}
+  - {fileID: 5480363470088664536, guid: 9c5446dedb4711c4388a9e7fd47f8649, type: 3}
+  forestDebris:
+  - {fileID: 1033497027569892601, guid: b19123b579f004c4baada945c62ae3d3, type: 3}
+  - {fileID: 5061949735643706710, guid: ece2afdc21ed64148b58130c094dbccc, type: 3}
+  - {fileID: 619362529643168424, guid: 8d01d9f00cfe88044b41b4db11621d42, type: 3}
+  - {fileID: 7481349849202265483, guid: ac37e56d01f55c440b17d09471d2ee1f, type: 3}
+  - {fileID: 2096494690629873798, guid: dcfeb108aede328449e1db8a04855be4, type: 3}
+  forestStones:
+  - {fileID: 6582977522185003504, guid: 99bfdc6daf02a3a46b66d05403684b98, type: 3}
+  - {fileID: 6638263887076454843, guid: e6afcc383a2c609478114f182ae1f639, type: 3}
+  boulders:
+  - {fileID: 6589589321197375081, guid: 602ccec130b251d4c9c5fff1115837d1, type: 3}
+  - {fileID: 8939889959042086964, guid: b74accf04fe71a443a5f6e8283d93481, type: 3}
+  - {fileID: 5234649097835570323, guid: 516c00ef9c73820409f0e6510b228714, type: 3}
+  - {fileID: 7099630695411934034, guid: 0c6d4a54254ea9e4d862c429a8136f19, type: 3}
+  firewoodModels:
+  - {fileID: 5490056782050477129, guid: 9873ac78cbbac3849a4f495b106f7916, type: 3}
+  - {fileID: 4033381136665967543, guid: fdb2b04251fbf664a839057e45033801, type: 3}
+  - {fileID: 5375746388397249437, guid: 411f6aec73926a749b6bd9a5221acb53, type: 3}
+  - {fileID: 5775952914929765797, guid: d7de7b50155dde14684096c11820a8d7, type: 3}
+  - {fileID: 8085966203867175263, guid: 51737edd788341740876984e327c4ed5, type: 3}
+  fallenLogs:
+  - {fileID: 5490056782050477129, guid: 9873ac78cbbac3849a4f495b106f7916, type: 3}
+  - {fileID: 4033381136665967543, guid: fdb2b04251fbf664a839057e45033801, type: 3}
+  - {fileID: 5375746388397249437, guid: 411f6aec73926a749b6bd9a5221acb53, type: 3}
+  - {fileID: 5775952914929765797, guid: d7de7b50155dde14684096c11820a8d7, type: 3}
+  - {fileID: 8085966203867175263, guid: 51737edd788341740876984e327c4ed5, type: 3}
+  forestDensity: 2.2
+  remoteForestDensity: 0.5
+  denseForestWidth: 450
+  treeScale: 1.7
   treeDensity: 1
   grassDensity: 1
+  plantDensity: 1
+  boulderDensity: 1
   treeDrawDistance: 700
   grassDrawDistance: 90

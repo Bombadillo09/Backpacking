@@ -96,7 +96,7 @@ namespace Backpacking.EditorTools
         /// Scatters prefab instances over gentle, lower ground along the route, away from lakes and the
         /// trading posts. The first <paramref name="nearSpawn"/> land close to the start so they're easy to find early on.
         /// </summary>
-        static void Scatter(string groupName, GameObject prefab, int count, int nearSpawn, float nearRadius,
+        static Transform Scatter(string groupName, GameObject prefab, int count, int nearSpawn, float nearRadius,
             float maxSteepness, float maxHeight01, int seed, Terrain terrain, RouteLayout route, Vector3 spawn,
             System.Func<Biome, float> likelihood)
         {
@@ -129,6 +129,7 @@ namespace Backpacking.EditorTools
                 AddSaveId(instance, $"{groupName}-{placed}");
                 placed++;
             }
+            return parent;
         }
 
         static bool TooCloseToFeature(Vector3 position, RouteLayout route, Terrain terrain)
@@ -150,12 +151,13 @@ namespace Backpacking.EditorTools
             return false;
         }
 
-        static void ScatterGatherables(Terrain terrain, RouteLayout route, Vector3 spawn, CampPrefabs prefabs)
+        static void ScatterGatherables(Terrain terrain, RouteLayout route, Vector3 spawn, CampPrefabs prefabs, BiomeArtSettings art)
         {
             // Fallen wood is mostly in the forest. Berries like sunny meadows and forest edges.
-            Scatter("Firewood", prefabs.Firewood, FirewoodCount, nearSpawn: 15, nearRadius: 40f,
+            Transform firewood = Scatter("Firewood", prefabs.Firewood, FirewoodCount, nearSpawn: 15, nearRadius: 40f,
                 maxSteepness: 25f, maxHeight01: 0.55f, Seed + 1, terrain, route, spawn,
                 biome => 0.15f + 0.85f * biome.Forest);
+            DressFirewood(firewood, art);
             Scatter("Berry Bushes", prefabs.BerryBush, BerryBushCount, nearSpawn: 4, nearRadius: 50f,
                 maxSteepness: 20f, maxHeight01: 0.45f, Seed + 2, terrain, route, spawn,
                 biome => 0.2f + 0.8f * Mathf.Clamp01(1f - Mathf.Abs(biome.Forest - 0.35f) * 2.5f));
