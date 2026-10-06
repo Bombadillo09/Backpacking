@@ -47,6 +47,8 @@ namespace Backpacking.Interaction
         public ShopView Shop => shop;
         public SaveSystem Saves => saves;
         public bool MenuOpen => menuTarget != null;
+        /// <summary>Where the interaction ray last hit, e.g. the patch of ground being looked at.</summary>
+        public Vector3 AimPoint { get; private set; }
 
         FirstPersonController player;
 
@@ -87,7 +89,14 @@ namespace Backpacking.Interaction
             Vector3 origin = player != null ? player.AimOrigin : viewPoint.position;
             if (!Physics.Raycast(origin, viewPoint.forward, out RaycastHit hit, reach, ~0, QueryTriggerInteraction.Collide))
                 return null;
-            return hit.collider.GetComponentInParent<IInteractable>();
+            AimPoint = hit.point;
+            var found = hit.collider.GetComponentInParent<IInteractable>();
+            if (found == null)
+                return null;
+            // Something with nothing to do right now (bare ground, say) isn't a target.
+            options.Clear();
+            found.GetOptions(this, options);
+            return options.Count > 0 ? found : null;
         }
 
         void OpenMenu(IInteractable menuFor)

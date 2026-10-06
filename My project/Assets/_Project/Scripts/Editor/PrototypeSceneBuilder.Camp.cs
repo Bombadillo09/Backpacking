@@ -214,6 +214,7 @@ namespace Backpacking.EditorTools
             var clearing = go.AddComponent<GroundClearing>();
             SetIntArray(clearing, "brushLayers", brushDetailLayers);
             SetFloatArray(clearing, "brushWeights", brushDetailWeights);
+            SetIntArray(clearing, "deadfallLayers", deadfallDetailLayers);
             var undergrowth = go.AddComponent<Undergrowth>();
             SetField(undergrowth, "inputActions", inputActions);
             SetField(undergrowth, "player", player);

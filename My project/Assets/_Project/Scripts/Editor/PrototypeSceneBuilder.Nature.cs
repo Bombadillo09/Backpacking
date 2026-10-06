@@ -244,6 +244,8 @@ namespace Backpacking.EditorTools
         /// <summary>Detail layers that count as brush, for <see cref="Camp.GroundClearing"/>. Set by <see cref="GrowGrass"/>.</summary>
         static int[] brushDetailLayers = System.Array.Empty<int>();
         static float[] brushDetailWeights = System.Array.Empty<float>();
+        /// <summary>Detail layers of fallen sticks and branches, which can be gathered for firewood.</summary>
+        static int[] deadfallDetailLayers = System.Array.Empty<int>();
 
         /// <summary>Grass everywhere it grows, plus optional ground plants for forest floors and meadows.</summary>
         static void GrowGrass(TerrainData data, RouteLayout route, BiomeArtSettings art)
@@ -277,6 +279,7 @@ namespace Backpacking.EditorTools
             List<(int layer, PlantGroup group)> brush = plantLayers
                 .FindAll(entry => entry.group is PlantGroup.ForestFloor or PlantGroup.Understory or PlantGroup.Debris);
             brushDetailLayers = brush.ConvertAll(entry => entry.layer).ToArray();
+            deadfallDetailLayers = plantLayers.FindAll(entry => entry.group == PlantGroup.Debris).ConvertAll(entry => entry.layer).ToArray();
             // Shrubs hold you up most, deadfall less, leaf litter hardly at all.
             brushDetailWeights = brush.ConvertAll(entry => entry.group switch
             {

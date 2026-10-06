@@ -18,6 +18,8 @@ namespace Backpacking.Camp
     {
         [Tooltip("Terrain detail layers that count as brush (shrubs, deadfall, forest-floor plants). Set by the scene builder.")]
         [SerializeField] int[] brushLayers;
+        [Tooltip("Terrain detail layers of fallen sticks and branches, which can be gathered for firewood. Set by the scene builder.")]
+        [SerializeField] int[] deadfallLayers;
         [Tooltip("How much each brush layer thickens the going, in the same order (shrubs count more than leaf litter).")]
         [SerializeField] float[] brushWeights;
         [Tooltip("Weighted plants in a cell that make it as thick as it gets.")]
@@ -52,7 +54,38 @@ namespace Backpacking.Camp
             originalTrees = terrain.terrainData.treeInstances;
             // detailPrototypes copies the array on every read, so count once.
             detailLayerCount = terrain.terrainData.detailPrototypes.Length;
+            // The sticks are part of the terrain, so the terrain is what you look at to gather them.
+            terrain.gameObject.AddComponent<TerrainDeadfall>().Clearing = this;
         }
+
+        /// <summary>How many fallen sticks lie within reach of a point on the ground.</summary>
+        public int DeadfallNear(Vector3 position, float within = GatherReach)
+        {
+            if (terrain == null || deadfallLayers == null)
+                return 0;
+            TerrainData data = terrain.terrainData;
+            int sticks = 0;
+            foreach ((int x, int z) in CellsWithin(position, within))
+                foreach (int layer in deadfallLayers)
+                    if (layer < detailLayerCount)
+                        sticks += data.GetDetailLayer(x, z, 1, 1, layer)[0, 0];
+            return sticks;
+        }
+
+        /// <summary>Picks up the fallen sticks around a point. Returns how many there were. Saved like a machete cut.</summary>
+        public int GatherDeadfall(Vector3 position, float within = GatherReach)
+        {
+            if (terrain == null || deadfallLayers == null)
+                return 0;
+            int gathered = RemovePlants(position, within, deadfallLayers);
+            if (gathered > 0)
+                // A negative radius marks a spot where only the sticks were taken.
+                cleared.Add(new Vector4(position.x, position.y, position.z, -within));
+            return gathered;
+        }
+
+        /// <summary>How far round the spot you look at your hands gather sticks, in metres.</summary>
+        public const float GatherReach = 0.9f;
 
         void OnDestroy() => RestoreTerrain();
         void OnApplicationQuit() => RestoreTerrain();
@@ -110,6 +143,12 @@ namespace Backpacking.Camp
         public void Restore(Vector4 spot)
         {
             var position = new Vector3(spot.x, spot.y, spot.z);
+            if (spot.w < 0f)
+            {
+                RemovePlants(position, -spot.w, deadfallLayers);
+                cleared.Add(spot);
+                return;
+            }
             // Older saves stored campsites without a radius.
             float spotRadius = spot.w > 0f ? spot.w : radius;
             if (spotRadius >= radius)
@@ -217,14 +256,23 @@ namespace Backpacking.Camp
             return doomed.Count;
         }
 
-        int RemovePlants(Vector3 position, float within)
+        /// <summary>Removes the plants of the given layers (all of them if null) around a point. Returns how many.</summary>
+        int RemovePlants(Vector3 position, float within, int[] layers = null)
         {
+            if (layers == null)
+            {
+                layers = new int[detailLayerCount];
+                for (int i = 0; i < layers.Length; i++)
+                    layers[i] = i;
+            }
             TerrainData data = terrain.terrainData;
             int removed = 0;
             foreach ((int x, int z) in CellsWithin(position, within))
             {
-                for (int layer = 0; layer < detailLayerCount; layer++)
+                foreach (int layer in layers)
                 {
+                    if (layer >= detailLayerCount)
+                        continue;
                     int[,] cell = data.GetDetailLayer(x, z, 1, 1, layer);
                     if (cell[0, 0] == 0)
                         continue;
