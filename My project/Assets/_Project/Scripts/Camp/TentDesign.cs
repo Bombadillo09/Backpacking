@@ -68,7 +68,7 @@ namespace Backpacking.Camp
         public static Spec Of(TentModel model) => model switch
         {
             // A narrow trekking tent: one hoop pole near the head and a short strut at the foot.
-            TentModel.OnePerson => new Spec("1-person trekking tent", 0.45f, 1.1f, 0.95f, 0.5f, 0.75f, 0.55f,
+            TentModel.OnePerson => new Spec("1-person trekking tent", 0.46f, 1.1f, 0.92f, 0.42f, 0.7f, 0.5f,
                 new Color(0.36f, 0.45f, 0.26f), new Color(0.85f, 0.83f, 0.68f), false),
             // A freestanding dome: two poles crossing over the top from corner to corner.
             TentModel.TwoPerson => new Spec("2-person dome tent", 0.66f, 1.06f, 1.08f, 1f, 1f, 0.5f,
@@ -86,15 +86,42 @@ namespace Backpacking.Camp
         /// </summary>
         static float CanopyHeight(TentModel model, in Spec spec, float u, float v)
         {
-            // A hoop tent's cross-section is the half-circle of its pole; a dome's fabric slopes down between the
-            // poles to the corners. The ends of a hoop tent run down to stakes.
-            float across = model == TentModel.OnePerson ? Mathf.Sqrt(Mathf.Clamp01(1f - u * u)) : Slope(u, 0.8f);
-            float along = model == TentModel.OnePerson ? Slope(v, 0.45f) : Slope(v, 0.8f);
-            // Tapered tents get lower toward the foot.
-            float taper = Mathf.Lerp(spec.FootHeight, 1f, Mathf.InverseLerp(-1f, 0.35f, v));
-            if (model == TentModel.OnePerson && v > 0.35f)
-                taper = Mathf.Lerp(1f, 0.82f, Mathf.InverseLerp(0.35f, 1f, v));
-            return spec.Height * across * along * taper;
+            if (model == TentModel.OnePerson)
+            {
+                // Across, the half-circle of the hoop; along, the fabric's taut run between the poles and stakes.
+                float hoopSection = Mathf.Sqrt(Mathf.Clamp01(1f - u * u));
+                return spec.Height * Mathf.Pow(hoopSection, 0.85f) * HoopTentRidge(spec, v);
+            }
+            // A dome's fabric slopes down between the poles to the corners.
+            return spec.Height * Slope(u, 0.8f) * Slope(v, 0.8f);
+        }
+
+        /// <summary>Where the 1-person tent's hoop pole and foot strut cross the floor (v, from −1 foot to 1 head).</summary>
+        const float HoopAt = 0.22f, StrutAt = -0.74f;
+
+        /// <summary>
+        /// Height along the 1-person tent's ridge, as a fraction of its peak: up from the stakes at the foot to the
+        /// low strut, a long taut rise to the hoop near the head, then a steep run down over the vestibule to the
+        /// stakes at the head end. Fabric between supports sags a little.
+        /// </summary>
+        static float HoopTentRidge(in Spec spec, float v)
+        {
+            float foot = spec.FootHeight;
+            if (v <= StrutAt)
+            {
+                float t = Mathf.InverseLerp(-1f, StrutAt, v);
+                return foot * Mathf.Sin(t * Mathf.PI * 0.5f);
+            }
+            // The rise to the hoop and the fall to the head stakes, each a taut line that sags a little, meet in a
+            // rounded crown where the fly drapes over the pole rather than a sharp peak.
+            float up = (v - StrutAt) / (HoopAt - StrutAt);
+            float rise = Mathf.Lerp(foot, 1f, up) - 0.06f * Mathf.Sin(Mathf.Clamp01(up) * Mathf.PI);
+            float down = (v - HoopAt) / (1f - HoopAt);
+            float fall = 1f - down - 0.08f * Mathf.Sin(Mathf.Clamp01(down) * Mathf.PI);
+            const float crown = 0.14f;
+            float soft = -crown * Mathf.Log(Mathf.Exp(-rise / crown) + Mathf.Exp(-fall / crown));
+            // Keep the hoop at full height despite the rounding.
+            return Mathf.Max(0f, soft + crown * Mathf.Log(2f) * Mathf.Clamp01(1f - Mathf.Abs(v - HoopAt) * 1.6f));
         }
 
         /// <summary>1 in the middle, curving down to 0 at ±1; lower <paramref name="sharpness"/> keeps it fuller.</summary>
@@ -274,8 +301,8 @@ namespace Backpacking.Camp
             if (model == TentModel.OnePerson)
             {
                 // One hoop across near the head, one short strut across the foot.
-                paths.Add(Along(t => new Vector2(t * 0.999f, 0.3f)));
-                paths.Add(Along(t => new Vector2(t * 0.999f, -0.72f)));
+                paths.Add(Along(t => new Vector2(t * 0.999f, HoopAt)));
+                paths.Add(Along(t => new Vector2(t * 0.999f, StrutAt)));
             }
             else
             {
