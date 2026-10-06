@@ -213,7 +213,7 @@ namespace Backpacking.Navigation
             var points = new Vector2[trail.Points.Count];
             for (int i = 0; i < points.Length; i++)
                 points[i] = MapPosition(trail.Points[i]);
-            float dash = side * 0.009f, lineWidth = Mathf.Max(1.5f, side * 0.0028f);
+            float dash = Mathf.Max(1f, side * 0.009f), lineWidth = Mathf.Max(1.5f, side * 0.0028f);
 
             var line = new VisualElement { pickingMode = PickingMode.Ignore };
             line.style.position = Position.Absolute;
@@ -225,29 +225,40 @@ namespace Backpacking.Navigation
                 painter.strokeColor = TrailColour;
                 painter.lineWidth = lineWidth;
                 painter.lineCap = LineCap.Round;
-                // Walk the line, drawing every other dash-length stretch.
-                float along = 0f;
+                // Walk the line, alternating dash and gap. The countdown always resets to a full
+                // dash length, so every step moves forward, and all dashes go into one path with a
+                // single Stroke: degenerate or very many tiny strokes crash Painter2D natively.
+                painter.BeginPath();
+                bool drawing = true, penDown = false;
+                float left = dash;
                 for (int i = 0; i < points.Length - 1; i++)
                 {
                     Vector2 a = points[i], b = points[i + 1];
                     float length = Vector2.Distance(a, b);
+                    if (!(length > 0.01f))
+                        continue;
                     float done = 0f;
-                    while (done < length)
+                    while (length - done > 0.001f)
                     {
-                        float phase = along % (dash * 2f);
-                        bool drawing = phase < dash;
-                        float step = Mathf.Min(length - done, (drawing ? dash : dash * 2f) - phase);
+                        float step = Mathf.Min(length - done, left);
                         if (drawing)
                         {
-                            painter.BeginPath();
-                            painter.MoveTo(Vector2.Lerp(a, b, done / length));
+                            if (!penDown)
+                                painter.MoveTo(Vector2.Lerp(a, b, done / length));
                             painter.LineTo(Vector2.Lerp(a, b, (done + step) / length));
-                            painter.Stroke();
+                            penDown = true;
                         }
                         done += step;
-                        along += step;
+                        left -= step;
+                        if (left <= 0.001f)
+                        {
+                            drawing = !drawing;
+                            penDown = false;
+                            left = dash;
+                        }
                     }
                 }
+                painter.Stroke();
             };
             paper.Add(line);
         }
