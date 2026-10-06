@@ -30,6 +30,7 @@ namespace Backpacking.Character
         HumanBodyBones[] owners;
         Vector3[] posed;
         Mesh leftShoe, rightShoe;
+        float neckHeight = float.MaxValue;
         bool firstPerson, bootsOn = true;
 
         public CharacterLibrary Library { get => library; set => library = value; }
@@ -44,6 +45,8 @@ namespace Backpacking.Character
         public bool IsBuilt => model != null;
         /// <summary>The body's vertices as measured standing, in this object's space (for editor diagnostics).</summary>
         public IReadOnlyList<Vector3> MeasuredVertices => posed;
+        /// <summary>The humanoid bone that moves each vertex (for editor diagnostics).</summary>
+        public IReadOnlyList<HumanBodyBones> VertexOwners => owners;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics() => cutMeshes.Clear();
@@ -97,6 +100,8 @@ namespace Backpacking.Character
             if (posed == null)
                 return;
             owners = Owners(Body);
+            Transform neck = Animator.GetBoneTransform(HumanBodyBones.Neck);
+            neckHeight = neck != null ? transform.InverseTransformPoint(neck.position).y : float.MaxValue;
             Material bag = Tinted(library.pack, profile.packColour);
             Material webbing = Tinted(library.pack, Color.Lerp(profile.packColour, Color.black, 0.55f));
             AddPack(bag, webbing);
@@ -300,6 +305,13 @@ namespace Backpacking.Character
 
         bool BelowFootwear(int vertex, float top) => IsFootwear(owners[vertex], posed[vertex].y, top);
 
+        /// <summary>
+        /// The head and neck, and the collar and throat that rise around the neck: from the eyes these look like
+        /// your own chin when you look down.
+        /// </summary>
+        bool AboveShoulders(int vertex) =>
+            IsHead(owners[vertex]) || (posed[vertex].y > neckHeight - 0.02f && Mathf.Abs(posed[vertex].x) < 0.1f);
+
         /// <summary>The body with the head and/or the footwear cut away, made once per body and cut.</summary>
         Mesh CutMesh(Cut cut)
         {
@@ -318,7 +330,7 @@ namespace Backpacking.Character
                 for (int t = 0; t < triangles.Length; t += 3)
                 {
                     int a = triangles[t], b = triangles[t + 1], c = triangles[t + 2];
-                    if ((cut & Cut.Head) != 0 && (IsHead(owners[a]) || IsHead(owners[b]) || IsHead(owners[c])))
+                    if ((cut & Cut.Head) != 0 && (AboveShoulders(a) || AboveShoulders(b) || AboveShoulders(c)))
                         continue;
                     // Footwear goes if most of the triangle is in it; the bare legs reach a little higher.
                     if ((cut & Cut.Feet) != 0 && (BelowFootwear(a, top) ? 1 : 0) + (BelowFootwear(b, top) ? 1 : 0) + (BelowFootwear(c, top) ? 1 : 0) >= 2)
@@ -529,7 +541,7 @@ namespace Backpacking.Character
             for (int i = 0; i < 2; i++)
             {
                 float side = i == 0 ? -1f : 1f, x = side * 0.1f;
-                float top = Top(posed, torso, x);
+                float top = Top(posed, torso, x, neckHeight);
                 if (float.IsNaN(top))
                     continue;
                 float frontHigh = Surface(posed, torso, x, top - 0.1f, true);
@@ -630,12 +642,12 @@ namespace Backpacking.Character
             return best;
         }
 
-        /// <summary>The top of the shoulder at x; NaN if nothing is there.</summary>
-        static float Top(Vector3[] posed, bool[] torso, float x)
+        /// <summary>The top of the shoulder at x, under the neck; NaN if nothing is there.</summary>
+        static float Top(Vector3[] posed, bool[] torso, float x, float below)
         {
             float best = float.NaN;
             for (int i = 0; i < posed.Length; i++)
-                if (torso[i] && Mathf.Abs(posed[i].x - x) < 0.05f && (float.IsNaN(best) || posed[i].y > best))
+                if (torso[i] && posed[i].y < below && Mathf.Abs(posed[i].x - x) < 0.05f && (float.IsNaN(best) || posed[i].y > best))
                     best = posed[i].y;
             return best;
         }

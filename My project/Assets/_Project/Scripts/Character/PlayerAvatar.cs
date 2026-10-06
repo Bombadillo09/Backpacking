@@ -17,7 +17,7 @@ namespace Backpacking.Character
         [SerializeField] FirstPersonController player;
         [SerializeField] PlayerActivity activity;
         [Tooltip("In first person the body sits this far behind the eyes, so looking down shows the legs, not the inside of the chest.")]
-        [SerializeField] float firstPersonSetBack = 0.22f;
+        [SerializeField] float firstPersonSetBack = 0.12f;
         [Tooltip("Seated in first person, the body moves this far forward so the sitting head is under the eyes.")]
         [SerializeField] float seatedHeadForward = 0.2f;
         [Tooltip("Seconds off the ground before the jump pose plays, so walking down bumps doesn't trigger it.")]

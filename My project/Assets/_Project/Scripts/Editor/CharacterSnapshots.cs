@@ -66,6 +66,14 @@ namespace Backpacking.EditorTools
                     float y = root.transform.InverseTransformPoint(chest.position).y - 0.1f;
                     var slice = posed.Where(v => Mathf.Abs(v.x) < 0.03f && Mathf.Abs(v.y - y) < 0.03f).ToList();
                     report.AppendLine($"  measured: {posed.Count} vertices, x {posed.Min(v => v.x):0.00}..{posed.Max(v => v.x):0.00} y {posed.Min(v => v.y):0.00}..{posed.Max(v => v.y):0.00} z {posed.Min(v => v.z):0.00}..{posed.Max(v => v.z):0.00}");
+                    float neck = root.transform.InverseTransformPoint(animator.GetBoneTransform(HumanBodyBones.Neck).position).y;
+                    var owners = appearance.VertexOwners;
+                    var headRegion = Enumerable.Range(0, posed.Count).Where(i => posed[i].y > neck && Mathf.Abs(posed[i].x) < 0.15f);
+                    report.AppendLine("  above the neck: " + string.Join(", ", headRegion.GroupBy(i => owners[i]).Select(g => $"{g.Key} {g.Count()}")));
+                    var weights = appearance.Body.sharedMesh.boneWeights;
+                    var bones = appearance.Body.bones;
+                    report.AppendLine("  unmapped bones there: " + string.Join(", ", headRegion.Where(i => owners[i] == HumanBodyBones.LastBone)
+                        .Select(i => bones[weights[i].boneIndex0].name + " < " + bones[weights[i].boneIndex0].parent?.name).Distinct().Take(12)));
                     report.AppendLine($"  slice at y {y:0.00}: {slice.Count} vertices, z {(slice.Count > 0 ? slice.Min(v => v.z) : 0):0.00}..{(slice.Count > 0 ? slice.Max(v => v.z) : 0):0.00}");
                 }
                 finally
@@ -150,6 +158,15 @@ namespace Backpacking.EditorTools
                 Shot("1-idle", new Vector3(1.6f, 1.4f, 3.2f), new Vector3(0f, 0.95f, 0f));
                 if (rosterOnly)
                     return report.ToString();
+                // Standing in first person, as the player sees it: body set back behind the eyes, looking down.
+                appearance.SetFirstPerson(true);
+                appearance.transform.localPosition = new Vector3(0f, 0f, -0.12f);
+                Pose(0f, false, 1.2f);
+                Shot("0a-eyes-down", new Vector3(0f, 1.68f, 0f), new Vector3(0f, 0f, 0.45f));
+                Shot("0b-eyes-ahead-down", new Vector3(0f, 1.68f, 0f), new Vector3(0f, 0.9f, 1.4f));
+                Shot("0c-outside", new Vector3(1.2f, 1.9f, 1.2f), new Vector3(0f, 1.5f, 0f));
+                appearance.SetFirstPerson(false);
+                appearance.transform.localPosition = Vector3.zero;
                 Shot("1b-idle-back", new Vector3(-1.4f, 1.6f, -2.6f), new Vector3(0f, 1.1f, 0f));
                 Shot("1c-boots", new Vector3(0.5f, 0.45f, 1.1f), new Vector3(0f, 0.1f, 0.05f));
                 Pose(2.2f, false, 1.35f);
