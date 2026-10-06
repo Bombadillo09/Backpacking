@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 918bb8a2693de204591aab58877e80b3, type: 3}
+  m_Name: BiomeArt
+  m_EditorClassIdentifier: Assembly-CSharp-Editor::Backpacking.EditorTools.BiomeArtSettings
+  lowlandTrees:
+  - {fileID: 1498394229743683835, guid: 2fcd3f8d149da7648b93213f8379b9c4, type: 3}
+  conifers:
+  - {fileID: 1061909527542110524, guid: e877475bd075b5d4d8dab1135824fc32, type: 3}
+  valleyTrees:
+  - {fileID: 5326114636524513141, guid: 8699184be9ab82249a59ca703bbd32f9, type: 3}
+  grass: {fileID: 8574412962073106934, guid: 294e7c094e2f0064184b97806b775c74, type: 2}
+  dirt: {fileID: 8574412962073106934, guid: fc6c3406047234c4785687f3f859f704, type: 2}
+  rock: {fileID: 8574412962073106934, guid: aab782901ffa7734096f6cc076612317, type: 2}
+  snow: {fileID: 8574412962073106934, guid: 72bf2fefc0fbee24287df231d9e2a2ea, type: 2}
+  forestFloor: {fileID: 8574412962073106934, guid: ebf58b4a84c008247b49337cb0a0509a, type: 2}
+  alpineMeadow: {fileID: 8574412962073106934, guid: ca0d8a4c315478444a2f3e540aea0f95, type: 2}
+  grassTexture: {fileID: 2800000, guid: 8e7d3275c98a67c488c8179760a8c73a, type: 3}
+  grassHealthy: {r: 0.45, g: 0.6, b: 0.3, a: 1}
+  grassDry: {r: 0.65, g: 0.6, b: 0.35, a: 1}
+  treeDensity: 1
+  grassDensity: 1
+  treeDrawDistance: 700
+  grassDrawDistance: 90
