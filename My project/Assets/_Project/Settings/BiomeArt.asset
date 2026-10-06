@@ -98,6 +98,7 @@ MonoBehaviour:
   - {fileID: 8085966203867175263, guid: 51737edd788341740876984e327c4ed5, type: 3}
   forestDensity: 3.2
   remoteForestDensity: 0.5
+  trailForestDensity: 6
   denseForestWidth: 450
   treeScale: 1.7
   treeDensity: 1
