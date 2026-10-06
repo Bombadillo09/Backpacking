@@ -265,8 +265,8 @@ namespace Backpacking.Saving
 
             // Clear campsites before putting tents back on them.
             if (clearing != null && data.clearings != null)
-                foreach (Vector3 spot in data.clearings)
-                    clearing.Clear(spot, byHand: false);
+                foreach (Vector4 spot in data.clearings)
+                    clearing.Restore(spot);
 
             foreach (PlacedItemState item in data.placedItems)
             {

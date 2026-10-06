@@ -82,6 +82,13 @@ namespace Backpacking.Audio
         void Step(float volume)
         {
             Surface surface = SurfaceUnderfoot();
+            // Pushing through brush: crunching leaves and snapping twigs, louder the thicker it is.
+            float brush = Camp.Undergrowth.Density;
+            if (brush > 0.3f && surface != Surface.Water)
+            {
+                surface = Surface.Leaves;
+                volume *= 1f + brush;
+            }
             AudioClip clip = PickClip(surface);
             source.pitch = Random.Range(0.92f, 1.08f);
             source.PlayOneShot(clip, volume * Random.Range(0.85f, 1f));

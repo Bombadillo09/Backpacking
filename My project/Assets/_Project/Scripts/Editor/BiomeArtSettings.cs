@@ -86,6 +86,8 @@ namespace Backpacking.EditorTools
         [Range(0f, 6f)] public float forestDensity = 2.2f;
         [Tooltip("Trees per 100 m² in full forest far from the route. Lower keeps the total tree count manageable.")]
         [Range(0f, 6f)] public float remoteForestDensity = 0.5f;
+        [Tooltip("Trees per 100 m² in the woods along the trail. About 6 makes a dark, close forest.")]
+        [Range(0f, 8f)] public float trailForestDensity = 6f;
         [Tooltip("Width in metres of the dense band either side of the route.")]
         public float denseForestWidth = 450f;
 

@@ -67,6 +67,8 @@ namespace Backpacking.Player
         public float SpeedMultiplier { get; set; } = 1f;
         /// <summary>Whether sprinting is currently allowed. Set by other systems.</summary>
         public bool CanSprint { get; set; } = true;
+        /// <summary>Slows movement over difficult ground, e.g. thick brush. Set by other systems.</summary>
+        public float GroundSpeedMultiplier { get; set; } = 1f;
         /// <summary>Extra view rotation in degrees (x yaw, y pitch, z roll), e.g. shivering. Set by other systems.</summary>
         public Vector3 ViewOffset { get; set; }
 
@@ -144,7 +146,7 @@ namespace Backpacking.Player
 
             // Sprinting only makes sense moving forward.
             IsSprinting = CanSprint && sprintAction.IsPressed() && input.y > 0.1f && !IsCrouching;
-            float speed = (IsCrouching ? crouchSpeed : IsSprinting ? sprintSpeed : walkSpeed) * SpeedMultiplier;
+            float speed = (IsCrouching ? crouchSpeed : IsSprinting ? sprintSpeed : walkSpeed) * SpeedMultiplier * GroundSpeedMultiplier;
             if (wishDirection.sqrMagnitude > 0.0001f)
                 speed *= UphillSpeedMultiplier(wishDirection.normalized);
 

@@ -261,6 +261,39 @@ namespace Backpacking.Audio
             return Clip("Flutter", Normalise(samples, 0.8f));
         });
 
+        /// <summary>A blade cutting the air: a fast, rising whoosh.</summary>
+        public static AudioClip Swish() => Cached("Swish", () =>
+        {
+            var random = new Random(91);
+            var samples = new float[(int)(0.28f * SampleRate)];
+            var low = new OnePole();
+            var high = new OnePole();
+            for (int i = 0; i < samples.Length; i++)
+            {
+                float t = (float)i / samples.Length;
+                float noise = Noise(random);
+                // A band of noise sweeping upward, swelling then gone.
+                float centre = 600f + 3000f * t;
+                float band = high.LowPass(noise, centre * 1.6f) - low.LowPass(noise, centre * 0.6f);
+                samples[i] = band * MathF.Sin(t * MathF.PI) * MathF.Sin(t * MathF.PI);
+            }
+            return Clip("Swish", Normalise(samples, 0.6f));
+        });
+
+        public const int ChopVariants = 3;
+
+        /// <summary>The machete hitting brush: a sharp crack of stems and a rustle of leaves.</summary>
+        public static AudioClip Chop(int variant) => Cached($"Chop{variant}", () =>
+        {
+            var random = new Random(300 + variant);
+            var samples = new float[(int)(0.45f * SampleRate)];
+            AddThud(samples, random, 0f, 0.025f, 400f, 0.8f);
+            AddGrainsAt(samples, random, 0f, 0.03f, 900f, 0.6f, 1f, 2500f);
+            // Leaves and twigs settling after the cut.
+            AddGrainsAt(samples, random, 0.03f, 0.35f, 500f, 0.1f, 0.4f, 2000f);
+            return Clip($"Chop{variant}", Normalise(samples, 0.9f));
+        });
+
         /// <summary>A heartbeat: lub, then dub.</summary>
         public static AudioClip Heartbeat() => Cached("Heartbeat", () =>
         {

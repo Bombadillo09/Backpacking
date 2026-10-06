@@ -212,6 +212,14 @@ namespace Backpacking.EditorTools
             SetField(placer, "clearingPrefab", prefabs.ClearingMarker);
             var clearing = go.AddComponent<GroundClearing>();
             SetIntArray(clearing, "brushLayers", brushDetailLayers);
+            SetFloatArray(clearing, "brushWeights", brushDetailWeights);
+            var undergrowth = go.AddComponent<Undergrowth>();
+            SetField(undergrowth, "inputActions", inputActions);
+            SetField(undergrowth, "player", player);
+            SetField(undergrowth, "clearing", clearing);
+            SetField(undergrowth, "backpack", backpack);
+            SetField(undergrowth, "vitals", vitals);
+            SetField(undergrowth, "placer", placer);
             SetField(placer, "clearing", clearing);
             SetField(placer, "vitals", vitals);
 
@@ -585,6 +593,14 @@ namespace Backpacking.EditorTools
             AssetDatabase.CreateAsset(material, path);
             return material;
         }
+
+        static void SetFloatArray(Object target, string fieldName, float[] values) =>
+            Modify(target, fieldName, property =>
+            {
+                property.arraySize = values.Length;
+                for (int i = 0; i < values.Length; i++)
+                    property.GetArrayElementAtIndex(i).floatValue = values[i];
+            });
 
         static void SetIntArray(Object target, string fieldName, int[] values) =>
             Modify(target, fieldName, property =>

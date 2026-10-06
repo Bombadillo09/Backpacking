@@ -18,7 +18,14 @@ namespace Backpacking.Camp
     {
         [Tooltip("Terrain detail layers that count as brush (shrubs, deadfall, forest-floor plants). Set by the scene builder.")]
         [SerializeField] int[] brushLayers;
+        [Tooltip("How much each brush layer thickens the going, in the same order (shrubs count more than leaf litter).")]
+        [SerializeField] float[] brushWeights;
+        [Tooltip("Weighted plants in a cell that make it as thick as it gets.")]
+        [SerializeField] float fullBrush = 2.5f;
         [SerializeField] float radius = 4f;
+        [Tooltip("Reach of one swing of the machete, in metres.")]
+        [SerializeField] float chopRadius = 1.6f;
+        [SerializeField] float chopEnergy = 0.5f;
         [Tooltip("Game minutes to clear the brush, plus extra for each tree felled.")]
         [SerializeField] float baseMinutes = 20f;
         [SerializeField] float minutesPerTree = 15f;
@@ -30,11 +37,12 @@ namespace Backpacking.Camp
         int detailLayerCount;
         TreeInstance[] originalTrees;
         readonly List<(int layer, int x, int z, int[,] values)> originalDetails = new();
-        readonly List<Vector3> cleared = new();
+        // xyz is the centre, w the radius.
+        readonly List<Vector4> cleared = new();
 
         public float Radius => radius;
-        /// <summary>Centres of every spot cleared this trip. Saved.</summary>
-        public IReadOnlyList<Vector3> Cleared => cleared;
+        /// <summary>Every spot cleared or chopped this trip: centre in xyz, radius in w. Saved.</summary>
+        public IReadOnlyList<Vector4> Cleared => cleared;
 
         void Awake()
         {
@@ -62,6 +70,57 @@ namespace Backpacking.Camp
             return TreesWithin(position, within).Count > 0;
         }
 
+        /// <summary>How thick the undergrowth is right here, 0 (open) to 1 (as thick as it gets).</summary>
+        public float BrushDensity(Vector3 position)
+        {
+            if (terrain == null || brushLayers == null)
+                return 0f;
+            TerrainData data = terrain.terrainData;
+            (int x, int z) = CellAt(position);
+            if (x < 0 || z < 0 || x >= data.detailWidth || z >= data.detailHeight)
+                return 0f;
+            float weighted = 0f;
+            for (int i = 0; i < brushLayers.Length; i++)
+            {
+                int layer = brushLayers[i];
+                if (layer >= detailLayerCount)
+                    continue;
+                float weight = brushWeights != null && i < brushWeights.Length ? brushWeights[i] : 1f;
+                weighted += data.GetDetailLayer(x, z, 1, 1, layer)[0, 0] * weight;
+            }
+            return Mathf.Clamp01(weighted / fullBrush);
+        }
+
+        /// <summary>
+        /// One swing of the machete: cuts the brush around a point. Returns how many plants were cut.
+        /// Costs a little energy whether or not it hit anything.
+        /// </summary>
+        public int Chop(Vector3 position, Vitals vitals)
+        {
+            if (terrain == null)
+                return 0;
+            vitals?.Exert(chopEnergy);
+            int cut = RemovePlants(position, chopRadius);
+            if (cut > 0)
+                cleared.Add(new Vector4(position.x, position.y, position.z, chopRadius));
+            return cut;
+        }
+
+        /// <summary>Re-applies a spot from a save: a full campsite (felling trees) or a machete cut.</summary>
+        public void Restore(Vector4 spot)
+        {
+            var position = new Vector3(spot.x, spot.y, spot.z);
+            // Older saves stored campsites without a radius.
+            float spotRadius = spot.w > 0f ? spot.w : radius;
+            if (spotRadius >= radius)
+                Clear(position, byHand: false);
+            else
+            {
+                RemovePlants(position, spotRadius);
+                cleared.Add(spot);
+            }
+        }
+
         /// <summary>How long clearing here would take, and how many trees it fells.</summary>
         public (float minutes, int trees) Estimate(Vector3 position)
         {
@@ -75,8 +134,8 @@ namespace Backpacking.Camp
             if (terrain == null)
                 return;
             int felled = RemoveTrees(position);
-            RemovePlants(position);
-            cleared.Add(position);
+            RemovePlants(position, radius);
+            cleared.Add(new Vector4(position.x, position.y, position.z, radius));
             if (!byHand)
                 return;
 
@@ -158,10 +217,11 @@ namespace Backpacking.Camp
             return doomed.Count;
         }
 
-        void RemovePlants(Vector3 position)
+        int RemovePlants(Vector3 position, float within)
         {
             TerrainData data = terrain.terrainData;
-            foreach ((int x, int z) in CellsWithin(position, radius))
+            int removed = 0;
+            foreach ((int x, int z) in CellsWithin(position, within))
             {
                 for (int layer = 0; layer < detailLayerCount; layer++)
                 {
@@ -169,9 +229,18 @@ namespace Backpacking.Camp
                     if (cell[0, 0] == 0)
                         continue;
                     originalDetails.Add((layer, x, z, cell));
+                    removed += cell[0, 0];
                     data.SetDetailLayer(x, z, layer, new int[1, 1]);
                 }
             }
+            return removed;
+        }
+
+        (int x, int z) CellAt(Vector3 position)
+        {
+            TerrainData data = terrain.terrainData;
+            Vector3 local = position - terrain.transform.position;
+            return (Mathf.FloorToInt(local.x / (data.size.x / data.detailWidth)), Mathf.FloorToInt(local.z / (data.size.z / data.detailHeight)));
         }
 
         /// <summary>Detail cells whose centre lies within <paramref name="distance"/> of the position (at least the one underneath).</summary>

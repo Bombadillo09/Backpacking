@@ -16,8 +16,10 @@ namespace Backpacking.EditorTools
     {
         const string BiomeArtPath = Root + "/Settings/BiomeArt.asset";
         const string NatureFolder = GeneratedFolder + "/Nature";
-        const float TreeGridSpacing = 5f;
-        const int DetailResolution = 1024;
+        // Fine enough for about 8 trees per 100 m² in the thickest woods.
+        const float TreeGridSpacing = 3.5f;
+        // About 2.4 m per cell, fine enough to keep plants off a footpath.
+        const int DetailResolution = 2048;
 
         // Layer order in the terrain's splatmap.
         const int GrassLayer = 0, DirtLayer = 1, RockLayer = 2, SnowLayer = 3, ForestFloorLayer = 4, AlpineLayer = 5,
@@ -149,6 +151,8 @@ namespace Backpacking.EditorTools
                 float routeDistance = DistanceToRoute(new Vector2(u * TerrainSize - half, v * TerrainSize - half), route);
                 float nearRoute = 1f - Mathf.InverseLerp(art.denseForestWidth * 0.6f, art.denseForestWidth, routeDistance);
                 float perHundred = Mathf.Lerp(art.remoteForestDensity, art.forestDensity, nearRoute);
+                // Thickest of all along the trail.
+                perHundred = Mathf.Lerp(perHundred, art.trailForestDensity, TrailWoods(u, v) / 0.95f);
                 // Real forests grow in clumps with small gaps between, roughly 30 m across.
                 float clumping = Mathf.Lerp(0.3f, 1.7f, Mathf.PerlinNoise(u * 170f + 51f, v * 170f + 13f));
                 float chance = Mathf.Pow(biome.Forest, 1.3f) * perHundred * cellArea / 100f * clumping * art.treeDensity;
@@ -239,12 +243,13 @@ namespace Backpacking.EditorTools
 
         /// <summary>Detail layers that count as brush, for <see cref="Camp.GroundClearing"/>. Set by <see cref="GrowGrass"/>.</summary>
         static int[] brushDetailLayers = System.Array.Empty<int>();
+        static float[] brushDetailWeights = System.Array.Empty<float>();
 
         /// <summary>Grass everywhere it grows, plus optional ground plants for forest floors and meadows.</summary>
         static void GrowGrass(TerrainData data, RouteLayout route, BiomeArtSettings art)
         {
-            // Small patches: each one is a single mesh, and dense grass would overflow larger ones.
-            data.SetDetailResolution(DetailResolution, 16);
+            // Each patch is drawn as one mesh; 32 cells (about 78 m) keeps dense grass from overflowing one.
+            data.SetDetailResolution(DetailResolution, 32);
             data.wavingGrassStrength = art.grassWaveStrength;
             data.wavingGrassSpeed = art.grassWaveSpeed;
             data.wavingGrassAmount = art.grassWaveAmount;
@@ -269,68 +274,101 @@ namespace Backpacking.EditorTools
             AddPlantPrototypes(prototypes, plantLayers, art.forestStones, PlantGroup.Stones, 0.08f, 0.25f);
             data.detailPrototypes = prototypes.ToArray();
             // Shrubs, deadfall and forest-floor plants have to be cleared before pitching a tent.
-            brushDetailLayers = plantLayers
-                .FindAll(entry => entry.group is PlantGroup.ForestFloor or PlantGroup.Understory or PlantGroup.Debris)
-                .ConvertAll(entry => entry.layer)
-                .ToArray();
+            List<(int layer, PlantGroup group)> brush = plantLayers
+                .FindAll(entry => entry.group is PlantGroup.ForestFloor or PlantGroup.Understory or PlantGroup.Debris);
+            brushDetailLayers = brush.ConvertAll(entry => entry.layer).ToArray();
+            // Shrubs hold you up most, deadfall less, leaf litter hardly at all.
+            brushDetailWeights = brush.ConvertAll(entry => entry.group switch
+            {
+                PlantGroup.Understory => 1f,
+                PlantGroup.Debris => 0.5f,
+                _ => 0.3f,
+            }).ToArray();
 
-            var plants = new int[plantLayers.Count][,];
-            for (int i = 0; i < plants.Length; i++)
-                plants[i] = new int[DetailResolution, DetailResolution];
-            var random = new System.Random(Seed + 4);
             // Each kind gets an even share of its group, so they mix rather than stack up.
             var kindsPerGroup = new Dictionary<PlantGroup, int>();
             foreach ((int _, PlantGroup group) in plantLayers)
                 kindsPerGroup[group] = kindsPerGroup.TryGetValue(group, out int kinds) ? kinds + 1 : 1;
 
-            for (int z = 0; z < DetailResolution; z++)
-            for (int x = 0; x < DetailResolution; x++)
+            // Work out each cell's ground once, then fill the layers one at a time to keep memory down.
+            int res = DetailResolution;
+            var forest = new float[res * res];
+            var meadow = new float[res * res];
+            var alpine = new float[res * res];
+            var growth = new float[res * res];
+            var rocky = new float[res * res];
+            var woods = new float[res * res];
+            var fromTrail = new float[res * res];
+            for (int z = 0; z < res; z++)
+            for (int x = 0; x < res; x++)
             {
-                float u = x / (DetailResolution - 1f), v = z / (DetailResolution - 1f);
+                int cell = z * res + x;
+                float u = x / (res - 1f), v = z / (res - 1f);
                 float steepness = data.GetSteepness(u, v);
                 float height01 = data.GetInterpolatedHeight(u, v) / data.size.y;
                 Biome biome = SampleBiome(u, v, height01, steepness);
                 float bare = Mathf.Max(Mathf.InverseLerp(28f, 40f, steepness), Mathf.InverseLerp(0.6f, 0.7f, height01));
                 if (InLake(u, v, route))
                     bare = 1f;
-                float growth = 1f - bare;
-                float fromTrail = TrailDistance(u, v);
-
-                for (int i = 0; i < plantLayers.Count; i++)
-                {
-                    PlantGroup group = plantLayers[i].group;
-                    float share = 1f / kindsPerGroup[group];
-                    // Plants per detail cell (about 24 m²) where the biome is at its fullest.
-                    float where = group switch
-                    {
-                        PlantGroup.ForestFloor => biome.Forest * 3.2f,
-                        PlantGroup.Meadow => (biome.Meadow * (1f - biome.Alpine) + biome.Forest * 0.3f) * 1.6f,
-                        PlantGroup.Understory => biome.Forest * biome.Forest * 1.2f,
-                        PlantGroup.Grass => biome.Meadow * 7f + biome.Forest * 1.5f + biome.Alpine * 3f,
-                        // Wildflowers in open meadows and alpine pasture, a few along forest edges.
-                        PlantGroup.Flowers => (biome.Meadow + biome.Alpine * 0.6f + biome.Forest * 0.1f) * art.flowerDensity,
-                        PlantGroup.Debris => biome.Forest * 4f,
-                        // Stones under trees, and more of them on rocky ground and above the treeline.
-                        _ => (biome.Forest * 2f + biome.Alpine * 2.5f) * (1f + Mathf.InverseLerp(15f, 30f, steepness)),
-                    };
-                    float density = group == PlantGroup.Grass ? art.grassDensity : group == PlantGroup.Flowers ? 1f : art.plantDensity;
-                    // The path is trodden bare: sparse grass, no flowers, brush or deadfall.
-                    if (group == PlantGroup.Grass && fromTrail < 2.5f)
-                        density *= 0.2f;
-                    else if (group != PlantGroup.Grass && fromTrail < 3.5f)
-                        density = 0f;
-                    float amount = where * growth * share * density;
-                    // Fractional amounts become an occasional plant rather than none.
-                    int count = (int)amount + (random.NextDouble() < amount % 1f ? 1 : 0);
-                    plants[i][z, x] = Mathf.Clamp(count, 0, MaxPlantsPerCell);
-                }
+                forest[cell] = biome.Forest;
+                meadow[cell] = biome.Meadow;
+                alpine[cell] = biome.Alpine;
+                growth[cell] = 1f - bare;
+                rocky[cell] = Mathf.InverseLerp(15f, 30f, steepness);
+                woods[cell] = TrailWoods(u, v) * biome.Forest;
+                fromTrail[cell] = TrailDistance(u, v);
             }
 
+            // Densities below are per 24 m² (one cell at the old, coarser resolution), scaled to the real cell size.
+            float cellScale = (TerrainSize / res) * (TerrainSize / res) / 24f;
+            var counts = new int[res, res];
             for (int i = 0; i < plantLayers.Count; i++)
-                data.SetDetailLayer(0, 0, plantLayers[i].layer, plants[i]);
+            {
+                PlantGroup group = plantLayers[i].group;
+                float share = 1f / kindsPerGroup[group];
+                float density = group == PlantGroup.Grass ? art.grassDensity : group == PlantGroup.Flowers ? 1f : art.plantDensity;
+                var random = new System.Random(Seed + 4 + i * 7919);
+                for (int z = 0; z < res; z++)
+                for (int x = 0; x < res; x++)
+                {
+                    int cell = z * res + x;
+                    // The path is trodden bare, with only thin grass just beyond it.
+                    float trail = fromTrail[cell];
+                    if (trail < TrailBareWidth)
+                    {
+                        counts[z, x] = 0;
+                        continue;
+                    }
+                    float f = forest[cell], w = woods[cell];
+                    // Plants per 24 m² where the biome is at its fullest. The woods along the trail get a thick
+                    // understory, so the path is the easy way through.
+                    float where = group switch
+                    {
+                        PlantGroup.ForestFloor => f * 3.2f + w * 3f,
+                        PlantGroup.Meadow => (meadow[cell] * (1f - alpine[cell]) + f * 0.3f) * 1.6f,
+                        PlantGroup.Understory => f * f * 1.2f + w * 7f,
+                        PlantGroup.Grass => meadow[cell] * 7f + f * 1.5f + alpine[cell] * 3f,
+                        // Wildflowers in open meadows and alpine pasture, a few along forest edges.
+                        PlantGroup.Flowers => (meadow[cell] + alpine[cell] * 0.6f + f * 0.1f) * art.flowerDensity,
+                        PlantGroup.Debris => f * 4f + w * 3f,
+                        // Stones under trees, and more of them on rocky ground and above the treeline.
+                        _ => (f * 2f + alpine[cell] * 2.5f) * (1f + rocky[cell]),
+                    };
+                    float amount = where * growth[cell] * share * density * cellScale;
+                    if (group == PlantGroup.Grass && trail < TrailBareWidth + 1f)
+                        amount *= 0.4f;
+                    // Fractional amounts become an occasional plant rather than none.
+                    int count = (int)amount + (random.NextDouble() < amount % 1f ? 1 : 0);
+                    counts[z, x] = Mathf.Clamp(count, 0, MaxPlantsPerCell);
+                }
+                data.SetDetailLayer(0, 0, plantLayers[i].layer, counts);
+            }
         }
 
-        // Per detail cell (about 24 m²) of one kind; enough for thick meadow grass.
+        /// <summary>No plants in detail cells whose centre is this close to the middle of the trail.</summary>
+        const float TrailBareWidth = 2.4f;
+
+        // Per detail cell of one kind; plenty for thick meadow grass.
         const int MaxPlantsPerCell = 64;
 
         enum PlantGroup
