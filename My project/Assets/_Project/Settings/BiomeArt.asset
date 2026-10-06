@@ -98,7 +98,7 @@ MonoBehaviour:
   denseForestWidth: 450
   treeScale: 1.7
   treeDensity: 1
-  grassDensity: 1
+  grassDensity: 3
   plantDensity: 1
   boulderDensity: 1
   treeDrawDistance: 700
