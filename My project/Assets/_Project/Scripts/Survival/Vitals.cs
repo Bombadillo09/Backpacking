@@ -306,12 +306,12 @@ namespace Backpacking.Survival
             WarnOnce(ref warnedTired, energy, 20f, "You're exhausted. Sleep soon or you'll collapse.");
             WarnOnce(ref warnedHurt, health, 40f, HurtWarning());
             WarnOnce(ref warnedAching, Max - footStrain, Max - blistersAbove,
-                "Your feet are aching. Stop and rest them a while (Backpack > Rest your feet), or you'll get blisters.");
-            WarnOnce(ref warnedRaw, feet, 40f, "Your feet are raw. You're limping badly. Rest and sleep to let them heal.");
+                "Your feet are aching. Sit down (Z) and take your boots off (E) to rest them, or you'll get blisters.");
+            WarnOnce(ref warnedRaw, feet, 40f, "Your feet are raw. You're limping badly. Sit with your boots off (Z, then E) and sleep to let them heal.");
             if (!warnedBlisters && feet < 70f)
             {
                 warnedBlisters = true;
-                Notifications.Post("Blisters. Every step hurts now. Rest your feet, and sleep to let them heal.");
+                Notifications.Post("Blisters. Every step hurts now. Sit with your boots off (Z, then E), and sleep to let them heal.");
                 Trip.TripLog.Note("Blisters on both feet. Pushed too far without a rest.");
             }
             else if (warnedBlisters && feet > 85f)
