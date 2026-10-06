@@ -28,7 +28,8 @@ namespace Backpacking.EditorTools
             // The machete stands blade-up from its handle at the bottom.
             (HotbarKind.Machete, default, "machete", null, 1f, new Vector3(0f, -0.13f, -0.011f), Vector3.zero, 0.55f),
             // A green camp thermos as the water bottle, a bit smaller than the model's 32 cm.
-            (HotbarKind.Water, default, "plastic_thermos", null, 0.8f, new Vector3(-0.016f, 0.13f, 0f), Vector3.zero, 0.45f),
+            // Turned so its carry handle faces away from the palm, out to the right.
+            (HotbarKind.Water, default, "plastic_thermos", null, 0.8f, new Vector3(-0.016f, 0.13f, 0f), new Vector3(0f, 180f, 0f), 0.45f),
             // A roll of medical tape stands in for the bandage roll.
             (HotbarKind.Bandage, default, "medical_tape", null, 1.4f, Vector3.zero, new Vector3(90f, 0f, 0f), 0.2f),
             // The green first-aid case, shrunk to a pocket pill tin.

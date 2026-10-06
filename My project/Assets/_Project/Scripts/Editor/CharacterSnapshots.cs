@@ -133,18 +133,19 @@ namespace Backpacking.EditorTools
                     item = prefab != null ? Object.Instantiate(prefab) : HeldFood.Build(slot.food, heldLibrary.plain, owned);
                     preview.AddSingleGO(item);
 
-                    void Pose(bool firstPerson)
+                    void Pose(bool firstPerson, float swing = -1f)
                     {
                         // As in the game: in first person the head is hidden and the body sits a little behind the eyes.
                         appearance.SetFirstPerson(firstPerson);
                         root.transform.position = new Vector3(0f, 0f, firstPerson ? -0.12f : 0f);
-                        appearance.Pose.HandTarget = eye + look * new Vector3(0.22f, -0.22f, 0.42f);
+                        HeldItemView.Hold(eye, look, swing, -1f, out Vector3 target, out Quaternion frame);
+                        appearance.Pose.HandTarget = target;
                         appearance.Pose.HandWeight = 1f;
-                        appearance.Pose.HandFrame = look * Quaternion.Euler(-15f, 0f, -8f);
+                        appearance.Pose.HandFrame = frame;
                         animator.Rebind();
                         for (int k = 0; k < 20; k++)
                             animator.Update(0.05f);
-                        HeldItemView.Place(item.transform, animator, appearance.Pose.HandFrame);
+                        HeldItemView.Place(item.transform, animator, appearance.Pose.HandFrame, alignToHand: swing < 0f);
                         foreach (SkinnedMeshRenderer skin in root.GetComponentsInChildren<SkinnedMeshRenderer>())
                             skin.forceMatrixRecalculationPerRender = true;
                     }
@@ -166,6 +167,16 @@ namespace Backpacking.EditorTools
                     preview.camera.fieldOfView = 70f;
                     Pose(true);
                     Shot("eyes", eye, eye + look * Vector3.forward);
+                    if (slot.kind == HotbarKind.Machete)
+                        foreach (float swing in new[] { 0.2f, 0.38f, 0.5f, 0.58f, 0.7f, 0.85f })
+                        {
+                            Pose(true, swing);
+                            Shot($"swing{swing * 100f:00}-eyes", eye, eye + look * Vector3.forward);
+                            Pose(false, swing);
+                            preview.camera.fieldOfView = 45f;
+                            Shot($"swing{swing * 100f:00}-side", new Vector3(1.6f, 1.4f, 0.6f), new Vector3(0f, 1.3f, 0.3f));
+                            preview.camera.fieldOfView = 70f;
+                        }
                     report.AppendLine($"{name}: item at {at:F2}, hand {animator.GetBoneTransform(HumanBodyBones.RightHand).position:F2}");
                 }
                 return report.ToString();

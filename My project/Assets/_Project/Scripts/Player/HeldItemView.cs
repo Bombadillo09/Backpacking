@@ -19,7 +19,7 @@ namespace Backpacking.Player
         [SerializeField] FirstPersonController player;
         [SerializeField] CharacterAppearance appearance;
         [SerializeField] PlayerActivity activity;
-        [SerializeField] float swingSeconds = 0.32f;
+        [SerializeField] float swingSeconds = 0.55f;
         [SerializeField] float useSeconds = 0.9f;
 
         GameObject item;
@@ -77,7 +77,8 @@ namespace Backpacking.Player
             if (item == null || appearance.Animator == null)
                 return;
             HoldFrame(out _, out Quaternion frame);
-            Place(item.transform, appearance.Animator, frame);
+            // Mid-swing the blade follows the chop; otherwise it's kept square to the fist.
+            Place(item.transform, appearance.Animator, frame, alignToHand: swingTime < 0f);
             item.SetActive(raise > 0.5f);
         }
 
@@ -93,23 +94,47 @@ namespace Backpacking.Player
                 : Quaternion.Euler(Mathf.Clamp(view.eulerAngles.x > 180f ? view.eulerAngles.x - 360f : view.eulerAngles.x, -30f, 30f) * 0.5f,
                     player.transform.eulerAngles.y, 0f);
             Vector3 eyes = firstPerson ? view.position : player.transform.position + Vector3.up * (appearance.EyeHeight * appearance.transform.lossyScale.y);
-            target = eyes + look * new Vector3(0.22f, -0.22f, 0.42f);
-            frame = look * Quaternion.Euler(-15f, 0f, -8f);
+            Hold(eyes, look, swingTime, useTime, out target, out frame);
+        }
 
-            if (swingTime >= 0f)
+        // A chop as poses in the view's space (offset from the eyes, and the item's tilt): at rest, wound up with the
+        // blade back over the right shoulder, struck down and across to the left, followed through, and back.
+        static readonly (float time, Vector3 offset, Vector3 tilt)[] Chop =
+        {
+            (0f, new Vector3(0.22f, -0.22f, 0.42f), new Vector3(-15f, 0f, -8f)),
+            (0.38f, new Vector3(0.3f, -0.02f, 0.28f), new Vector3(-70f, 12f, -25f)),
+            (0.58f, new Vector3(0.04f, -0.34f, 0.5f), new Vector3(95f, -18f, 12f)),
+            (0.7f, new Vector3(-0.03f, -0.42f, 0.44f), new Vector3(118f, -22f, 18f)),
+            (1f, new Vector3(0.22f, -0.22f, 0.42f), new Vector3(-15f, 0f, -8f)),
+        };
+
+        /// <summary>
+        /// Where the right hand holds an item and the item's frame (+Y along it, +Z ahead), for eyes looking
+        /// <paramref name="look"/>, partway through a swing or a bite (−1 for neither).
+        /// </summary>
+        public static void Hold(Vector3 eyes, Quaternion look, float swing, float use, out Vector3 target, out Quaternion frame)
+        {
+            Vector3 offset = Chop[0].offset, tilt = Chop[0].tilt;
+            if (swing >= 0f)
             {
-                // A chop: up over the shoulder, then down and across.
-                float t = swingTime;
-                float wind = Mathf.Clamp01(t / 0.3f), strike = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.3f, 0.75f, t));
-                float back = Mathf.InverseLerp(0.75f, 1f, t);
-                float pitch = Mathf.Lerp(Mathf.Lerp(0f, -55f, wind), 75f, strike) * (1f - back);
-                target += look * (new Vector3(-0.08f * strike, 0.18f * wind - 0.32f * strike, 0.1f * strike) * (1f - back));
-                frame = frame * Quaternion.Euler(pitch, 0f, -20f * strike * (1f - back));
+                for (int k = 0; k < Chop.Length - 1; k++)
+                {
+                    if (swing > Chop[k + 1].time)
+                        continue;
+                    // Ease in and out of each pose; the strike itself is the quick one.
+                    float t = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(Chop[k].time, Chop[k + 1].time, swing));
+                    offset = Vector3.Lerp(Chop[k].offset, Chop[k + 1].offset, t);
+                    tilt = Vector3.Lerp(Chop[k].tilt, Chop[k + 1].tilt, t);
+                    break;
+                }
             }
-            else if (useTime >= 0f)
+            target = eyes + look * offset;
+            frame = look * Quaternion.Euler(tilt);
+
+            if (swing < 0f && use >= 0f)
             {
                 // Up to the mouth and back, tipping it to drink or eat.
-                float bell = Mathf.Sin(Mathf.Clamp01(useTime) * Mathf.PI);
+                float bell = Mathf.Sin(Mathf.Clamp01(use) * Mathf.PI);
                 Vector3 mouth = eyes + look * new Vector3(0.03f, -0.1f, 0.18f);
                 target = Vector3.Lerp(target, mouth, bell);
                 frame = frame * Quaternion.Euler(-60f * bell, 0f, 0f);
@@ -120,17 +145,18 @@ namespace Backpacking.Player
         /// Puts an item in the right fist: at the palm, a little along the hand from the wrist, pointing along the
         /// hold frame but kept square to the hand.
         /// </summary>
-        public static void Place(Transform item, Animator animator, Quaternion frame)
+        public static void Place(Transform item, Animator animator, Quaternion frame, bool alignToHand = true)
         {
             Transform hand = animator.GetBoneTransform(HumanBodyBones.RightHand);
             Transform middle = animator.GetBoneTransform(HumanBodyBones.RightMiddleProximal);
             if (hand == null)
                 return;
             Vector3 fingers = middle != null ? (middle.position - hand.position).normalized : frame * Vector3.forward;
-            Vector3 up = Vector3.ProjectOnPlane(frame * Vector3.up, fingers);
+            Vector3 up = alignToHand ? Vector3.ProjectOnPlane(frame * Vector3.up, fingers) : frame * Vector3.up;
             if (up.sqrMagnitude < 1e-4f)
                 up = frame * Vector3.up;
-            Vector3 palm = hand.position + fingers * 0.055f;
+            // In the palm, a little along the hand from the wrist and toward the thumb, clear of the fingers.
+            Vector3 palm = hand.position + fingers * 0.05f + frame * Vector3.left * 0.03f;
             Vector3 ahead = Vector3.ProjectOnPlane(frame * Vector3.forward, up);
             item.SetPositionAndRotation(palm, Quaternion.LookRotation(ahead.sqrMagnitude > 1e-4f ? ahead.normalized : fingers, up.normalized));
         }
