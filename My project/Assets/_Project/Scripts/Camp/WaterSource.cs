@@ -22,6 +22,8 @@ namespace Backpacking.Camp
                 space <= 0.01f ? "Bottle is full" : null));
             options.Add(new InteractionOption("Drink straight from the water (untreated)", () =>
                 backpack.DrinkUntreatedDirectly(drinkLitres)));
+            options.Add(new InteractionOption("Go fishing", interactor.Fishing.Begin,
+                backpack.HasFishingKit ? null : "You need a fishing kit"));
         }
     }
 }

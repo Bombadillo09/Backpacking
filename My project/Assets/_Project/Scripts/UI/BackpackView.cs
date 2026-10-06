@@ -17,8 +17,11 @@ namespace Backpacking.UI
         [SerializeField] CampPlacer placer;
         [SerializeField] PlayerActivity activity;
         [SerializeField] Key toggleKey = Key.Tab;
+        [SerializeField] float cleanRabbitMinutes = 15f;
+        [SerializeField] int meatPerRabbit = 2;
 
         GUIStyle headingStyle, textStyle, reasonStyle;
+        Vector2 foodScroll;
 
         public bool IsOpen { get; private set; }
 
@@ -65,7 +68,7 @@ namespace Backpacking.UI
                 reasonStyle = new GUIStyle(GUI.skin.label) { fontSize = 12, fontStyle = FontStyle.Italic };
             }
 
-            const float width = 760f, height = 560f;
+            const float width = 820f, height = 640f;
             var area = new Rect((Screen.width - width) / 2f, (Screen.height - height) / 2f, width, height);
             GUI.Box(area, GUIContent.none);
             GUI.Box(area, GUIContent.none);
@@ -75,19 +78,19 @@ namespace Backpacking.UI
             GUILayout.Space(6f);
             GUILayout.BeginHorizontal();
 
-            GUILayout.BeginVertical(GUILayout.Width(350f));
+            GUILayout.BeginVertical(GUILayout.Width(400f));
             DrawWater();
             GUILayout.Space(12f);
             DrawFood();
-            GUILayout.Space(12f);
-            DrawFuel();
             GUILayout.EndVertical();
 
             GUILayout.Space(20f);
 
             GUILayout.BeginVertical();
             DrawCampGear();
-            GUILayout.Space(12f);
+            GUILayout.Space(10f);
+            DrawFuel();
+            GUILayout.Space(10f);
             DrawClothing();
             GUILayout.EndVertical();
 
@@ -115,20 +118,45 @@ namespace Backpacking.UI
         void DrawFood()
         {
             GUILayout.Label("Food", headingStyle);
-            GUILayout.BeginHorizontal();
-            GUILayout.Label($"Snacks: {backpack.Snacks}", textStyle, GUILayout.Width(170f));
-            ActionButton("Eat snack", backpack.EatSnack, backpack.Snacks <= 0 ? "None left" : null);
-            GUILayout.EndHorizontal();
-            GUILayout.Label($"Trail meals: {backpack.TrailMeals}   (cook on a stove or fire, uses {CampCooking.MealWaterLitres:0.0} L water)", textStyle);
+            foodScroll = GUILayout.BeginScrollView(foodScroll, GUILayout.Height(300f));
+            bool any = false;
+            foreach (FoodKind kind in FoodCatalog.AllKinds)
+            {
+                int count = backpack.CountFood(kind);
+                if (count == 0)
+                    continue;
+                any = true;
+                FoodInfo info = FoodCatalog.Get(kind);
+
+                GUILayout.BeginHorizontal();
+                GUILayout.BeginVertical(GUILayout.Width(230f));
+                GUILayout.Label($"{info.Name}  ×{count}", textStyle);
+                GUILayout.Label(Describe(kind, info), reasonStyle);
+                GUILayout.EndVertical();
+
+                if (kind == FoodKind.RabbitCarcass)
+                    ActionButton("Clean", () =>
+                    {
+                        Close();
+                        activity.Begin("Cleaning the rabbit", cleanRabbitMinutes, () => backpack.CleanCarcass(meatPerRabbit));
+                    }, null);
+                else
+                    ActionButton(info.SicknessChance > 0f ? "Eat (risky)" : "Eat", () => backpack.Eat(kind), info.NotEdibleReason);
+                GUILayout.EndHorizontal();
+            }
+            if (!any)
+                GUILayout.Label("No food. Forage, fish or set snares.", textStyle);
+            GUILayout.EndScrollView();
         }
 
-        void DrawFuel()
+        string Describe(FoodKind kind, FoodInfo info)
         {
-            GUILayout.Label("Fire & Fuel", headingStyle);
-            GUILayout.Label($"Stove gas: {backpack.GasGrams:0} g", textStyle);
-            GUILayout.Label($"Matches: {backpack.Matches}", textStyle);
-            GUILayout.Label($"Firewood: {backpack.Firewood}   (look for fallen branches)", textStyle);
+            string keeps = !info.Spoils ? "keeps" : $"next spoils in {FormatHours(backpack.SoonestSpoilHours(kind))}";
+            string prep = info.SmokesInto != null ? info.CooksInto != null ? " · cook or smoke" : " · can smoke" : "";
+            return info.Satiety > 0f ? $"+{info.Satiety:0} food · {keeps}{prep}" : $"{keeps}{prep}";
         }
+
+        static string FormatHours(float hours) => hours >= 48f ? $"{hours / 24f:0} days" : $"{Mathf.CeilToInt(hours)} h";
 
         void DrawCampGear()
         {
@@ -136,7 +164,15 @@ namespace Backpacking.UI
             PlaceButton("Pitch tent", CampItem.Tent);
             PlaceButton("Build fire ring", CampItem.FireRing);
             PlaceButton("Set up stove", CampItem.Stove);
+            PlaceButton($"Set a snare ({backpack.Snares} left)", CampItem.Snare);
             GUILayout.Label($"Sleeping bag: {backpack.SleepingBagName} (comfort {backpack.SleepingBagComfort:0} °C)", textStyle);
+            GUILayout.Label(backpack.HasFishingKit ? "Fishing kit: yes, fish from the lake shore" : "Fishing kit: none", textStyle);
+        }
+
+        void DrawFuel()
+        {
+            GUILayout.Label("Fire & Fuel", headingStyle);
+            GUILayout.Label($"Stove gas: {backpack.GasGrams:0} g    Matches: {backpack.Matches}    Firewood: {backpack.Firewood}", textStyle);
         }
 
         void DrawClothing()
@@ -150,7 +186,7 @@ namespace Backpacking.UI
                     backpack.ToggleGarment(garment);
                 GUILayout.EndHorizontal();
             }
-            GUILayout.Label($"Comfortable down to about {vitals.ComfortTemperature:0} °C at rest. It's {vitals.FeltTemperature:0} °C now.", reasonStyle);
+            GUILayout.Label($"Comfortable down to about {vitals.ComfortTemperature:0} °C. It feels like {vitals.FeltTemperature:0} °C now.", reasonStyle);
         }
 
         void PlaceButton(string label, CampItem item)

@@ -16,7 +16,7 @@ namespace Backpacking.Camp
         public void GetOptions(Interactor interactor, List<InteractionOption> options)
         {
             var backpack = interactor.Backpack;
-            CampCooking.AddOptions(interactor, options, minutesPerLitre, mealMinutes,
+            CampCooking.AddOptions(interactor, options, minutesPerLitre, mealMinutes, canSmoke: false,
                 minutes => backpack.GasGrams < minutes * gasGramsPerMinute ? "Not enough gas" : null,
                 minutes => backpack.TryUseGas(minutes * gasGramsPerMinute));
 

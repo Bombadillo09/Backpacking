@@ -1,5 +1,6 @@
 using System;
 using Backpacking.Camp;
+using Backpacking.Gathering;
 using Backpacking.Interaction;
 using Backpacking.Player;
 using Backpacking.Survival;
@@ -20,6 +21,7 @@ namespace Backpacking.EditorTools
         const float LakeRadius = 40f;
         const float LakeDepth = 1.3f;
         const int FirewoodCount = 260;
+        const int BerryBushCount = 90;
 
         struct Lake
         {
@@ -91,26 +93,30 @@ namespace Backpacking.EditorTools
             water.AddComponent<WaterSource>();
         }
 
-        // ---------- Firewood ----------
+        // ---------- Scattered props ----------
 
-        static void ScatterFirewood(Terrain terrain, Lake lake, Vector3 spawn, GameObject prefab)
+        /// <summary>
+        /// Scatters prefab instances over gentle, lower ground away from the lake. The first
+        /// <paramref name="nearSpawn"/> land close to the start so they're easy to find early on.
+        /// </summary>
+        static void Scatter(string groupName, GameObject prefab, int count, int nearSpawn, float nearRadius,
+            float maxSteepness, float maxHeight01, int seed, Terrain terrain, Lake lake, Vector3 spawn)
         {
-            var random = new System.Random(Seed + 1);
-            var parent = new GameObject("Firewood").transform;
+            var random = new System.Random(seed);
+            var parent = new GameObject(groupName).transform;
             TerrainData data = terrain.terrainData;
             float half = TerrainSize / 2f;
 
             int placed = 0, attempts = 0;
-            while (placed < FirewoodCount && attempts++ < FirewoodCount * 20)
+            while (placed < count && attempts++ < count * 20)
             {
-                // A share of the wood lands near the start, so the first fire is easy to gather for.
-                Vector3 position = placed < 15
-                    ? spawn + new Vector3((float)random.NextDouble() * 60f - 30f, 0f, (float)random.NextDouble() * 60f - 30f)
+                Vector3 position = placed < nearSpawn
+                    ? spawn + new Vector3((float)random.NextDouble() * 2f - 1f, 0f, (float)random.NextDouble() * 2f - 1f) * nearRadius
                     : new Vector3((float)random.NextDouble() * TerrainSize * 0.94f - half * 0.94f, 0f,
                         (float)random.NextDouble() * TerrainSize * 0.94f - half * 0.94f);
 
                 float u = (position.x + half) / TerrainSize, v = (position.z + half) / TerrainSize;
-                if (data.GetSteepness(u, v) > 25f || data.GetInterpolatedHeight(u, v) > TerrainHeight * 0.5f)
+                if (data.GetSteepness(u, v) > maxSteepness || data.GetInterpolatedHeight(u, v) > TerrainHeight * maxHeight01)
                     continue;
                 Vector3 fromLake = position - lake.Centre;
                 fromLake.y = 0f;
@@ -118,10 +124,18 @@ namespace Backpacking.EditorTools
                     continue;
 
                 position.y = terrain.SampleHeight(position) + terrain.transform.position.y;
-                var wood = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent);
-                wood.transform.SetPositionAndRotation(position, Quaternion.Euler(0f, (float)random.NextDouble() * 360f, 0f));
+                var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent);
+                instance.transform.SetPositionAndRotation(position, Quaternion.Euler(0f, (float)random.NextDouble() * 360f, 0f));
                 placed++;
             }
+        }
+
+        static void ScatterGatherables(Terrain terrain, Lake lake, Vector3 spawn, CampPrefabs prefabs)
+        {
+            Scatter("Firewood", prefabs.Firewood, FirewoodCount, nearSpawn: 15, nearRadius: 30f,
+                maxSteepness: 25f, maxHeight01: 0.5f, Seed + 1, terrain, lake, spawn);
+            Scatter("Berry Bushes", prefabs.BerryBush, BerryBushCount, nearSpawn: 4, nearRadius: 45f,
+                maxSteepness: 20f, maxHeight01: 0.4f, Seed + 2, terrain, lake, spawn);
         }
 
         // ---------- Player survival systems ----------
@@ -137,8 +151,15 @@ namespace Backpacking.EditorTools
             var activity = go.AddComponent<PlayerActivity>();
             var placer = go.AddComponent<CampPlacer>();
             var interactor = go.AddComponent<Interactor>();
+            var fishing = go.AddComponent<FishingSession>();
 
             SetField(backpack, "vitals", vitals);
+            SetField(backpack, "timeOfDay", timeOfDay);
+            SetField(backpack, "temperature", temperature);
+
+            SetField(fishing, "inputActions", inputActions);
+            SetField(fishing, "timeOfDay", timeOfDay);
+            SetField(fishing, "backpack", backpack);
 
             SetField(vitals, "timeOfDay", timeOfDay);
             SetField(vitals, "temperature", temperature);
@@ -156,6 +177,7 @@ namespace Backpacking.EditorTools
             SetField(placer, "tentPrefab", prefabs.Tent);
             SetField(placer, "fireRingPrefab", prefabs.FireRing);
             SetField(placer, "stovePrefab", prefabs.Stove);
+            SetField(placer, "snarePrefab", prefabs.Snare);
 
             SetField(interactor, "inputActions", inputActions);
             SetField(interactor, "viewPoint", player.CameraPivot);
@@ -163,6 +185,7 @@ namespace Backpacking.EditorTools
             SetField(interactor, "vitals", vitals);
             SetField(interactor, "activity", activity);
             SetField(interactor, "placer", placer);
+            SetField(interactor, "fishing", fishing);
 
             var vitalsHud = hud.AddComponent<VitalsHud>();
             SetField(vitalsHud, "vitals", vitals);
@@ -177,7 +200,7 @@ namespace Backpacking.EditorTools
 
         struct CampPrefabs
         {
-            public GameObject Tent, FireRing, Stove, Firewood;
+            public GameObject Tent, FireRing, Stove, Firewood, Snare, BerryBush;
         }
 
         /// <summary>
@@ -193,7 +216,69 @@ namespace Backpacking.EditorTools
                 FireRing = GetOrCreatePrefab("Fire Ring", BuildFireRing),
                 Stove = GetOrCreatePrefab("Camp Stove", BuildStove),
                 Firewood = GetOrCreatePrefab("Firewood", BuildFirewood),
+                Snare = GetOrCreatePrefab("Snare", BuildSnare),
+                BerryBush = GetOrCreatePrefab("Berry Bush", BuildBerryBush),
             };
+        }
+
+        /// <summary>A stake with a wire loop. Its "Caught" child (a rabbit) is shown when something is caught.</summary>
+        static GameObject BuildSnare()
+        {
+            var root = new GameObject();
+            var snare = root.AddComponent<Snare>();
+            var collider = root.AddComponent<BoxCollider>();
+            collider.center = new Vector3(0f, 0.15f, 0f);
+            collider.size = new Vector3(0.45f, 0.3f, 0.45f);
+
+            Material wood = GetOrCreateMaterial("Wood", new Color(0.33f, 0.22f, 0.13f));
+            Material metal = GetOrCreateMaterial("Metal", new Color(0.6f, 0.6f, 0.62f), 0.6f);
+            Material fur = GetOrCreateMaterial("RabbitFur", new Color(0.45f, 0.38f, 0.3f));
+
+            AddVisual(PrimitiveType.Cylinder, root, new Vector3(0f, 0.15f, 0f), Quaternion.identity, new Vector3(0.025f, 0.15f, 0.025f), wood);
+            AddVisual(PrimitiveType.Cylinder, root, new Vector3(0f, 0.12f, 0.1f), Quaternion.Euler(90f, 0f, 0f), new Vector3(0.16f, 0.004f, 0.16f), metal);
+
+            var caught = new GameObject("Caught");
+            caught.transform.SetParent(root.transform, false);
+            AddVisual(PrimitiveType.Capsule, caught, new Vector3(0f, 0.08f, 0.18f), Quaternion.Euler(90f, 0f, 0f), new Vector3(0.16f, 0.14f, 0.16f), fur);
+            AddVisual(PrimitiveType.Sphere, caught, new Vector3(0f, 0.09f, 0.33f), Quaternion.identity, new Vector3(0.1f, 0.1f, 0.11f), fur);
+            AddVisual(PrimitiveType.Capsule, caught, new Vector3(-0.025f, 0.12f, 0.39f), Quaternion.Euler(75f, 0f, 0f), new Vector3(0.025f, 0.05f, 0.02f), fur);
+            AddVisual(PrimitiveType.Capsule, caught, new Vector3(0.025f, 0.12f, 0.39f), Quaternion.Euler(75f, 0f, 0f), new Vector3(0.025f, 0.05f, 0.02f), fur);
+            caught.SetActive(false);
+
+            SetField(snare, "caughtVisual", caught);
+            return root;
+        }
+
+        static GameObject BuildBerryBush()
+        {
+            var root = new GameObject();
+            var bush = root.AddComponent<BerryBush>();
+            var collider = root.AddComponent<BoxCollider>();
+            collider.center = new Vector3(0f, 0.45f, 0f);
+            collider.size = new Vector3(1.1f, 0.9f, 1.1f);
+
+            Material leaves = GetOrCreateMaterial("BushLeaves", new Color(0.16f, 0.3f, 0.12f));
+            Material berry = GetOrCreateMaterial("Berries", new Color(0.55f, 0.05f, 0.15f), 0.6f);
+
+            AddVisual(PrimitiveType.Sphere, root, new Vector3(0f, 0.4f, 0f), Quaternion.identity, new Vector3(1f, 0.75f, 0.95f), leaves);
+            AddVisual(PrimitiveType.Sphere, root, new Vector3(0.25f, 0.55f, 0.15f), Quaternion.identity, new Vector3(0.6f, 0.55f, 0.6f), leaves);
+            AddVisual(PrimitiveType.Sphere, root, new Vector3(-0.2f, 0.5f, -0.2f), Quaternion.identity, new Vector3(0.65f, 0.5f, 0.6f), leaves);
+
+            // Berries dotted over the outside of the bush.
+            var berries = new GameObject("Berries");
+            berries.transform.SetParent(root.transform, false);
+            var random = new System.Random(7);
+            for (int i = 0; i < 18; i++)
+            {
+                float angle = (float)random.NextDouble() * Mathf.PI * 2f;
+                float height = 0.2f + (float)random.NextDouble() * 0.5f;
+                float radius = 0.5f * Mathf.Sqrt(1f - Mathf.Pow((height - 0.4f) / 0.45f, 2f)) + 0.02f;
+                var position = new Vector3(Mathf.Cos(angle) * radius, height, Mathf.Sin(angle) * radius);
+                AddVisual(PrimitiveType.Sphere, berries, position, Quaternion.identity, Vector3.one * 0.07f, berry);
+            }
+
+            SetField(bush, "berriesVisual", berries);
+            return root;
         }
 
         static GameObject GetOrCreatePrefab(string prefabName, Func<GameObject> build)

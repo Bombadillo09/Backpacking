@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Backpacking.Camp;
+using Backpacking.Gathering;
 using Backpacking.Player;
 using Backpacking.Survival;
 using UnityEngine;
@@ -23,6 +24,7 @@ namespace Backpacking.Interaction
         [SerializeField] Vitals vitals;
         [SerializeField] PlayerActivity activity;
         [SerializeField] CampPlacer placer;
+        [SerializeField] FishingSession fishing;
 
         readonly List<InteractionOption> options = new();
         InputAction interactAction;
@@ -34,6 +36,7 @@ namespace Backpacking.Interaction
         public Vitals Vitals => vitals;
         public PlayerActivity Activity => activity;
         public CampPlacer Placer => placer;
+        public FishingSession Fishing => fishing;
         public bool MenuOpen => menuTarget != null;
 
         void Awake() => interactAction = inputActions.FindActionMap("Player", true).FindAction("Interact", true);

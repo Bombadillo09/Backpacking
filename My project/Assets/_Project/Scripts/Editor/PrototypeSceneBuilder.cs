@@ -81,7 +81,7 @@ namespace Backpacking.EditorTools
             SetField(hud, "player", player);
 
             AddSurvivalSystems(player, timeOfDay, temperature, hud.gameObject, prefabs);
-            ScatterFirewood(terrain, lake, player.transform.position, prefabs.Firewood);
+            ScatterGatherables(terrain, lake, player.transform.position, prefabs);
 
             EditorSceneManager.SaveScene(scene, ScenePath);
             AddSceneToBuildSettings(ScenePath);

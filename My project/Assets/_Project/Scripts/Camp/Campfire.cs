@@ -88,8 +88,8 @@ namespace Backpacking.Camp
 
             if (burning)
             {
-                CampCooking.AddOptions(interactor, options, minutesPerLitre, mealMinutes,
-                    minutes => fuelHours * 60f < minutes ? "The fire is too low. Add wood." : null,
+                CampCooking.AddOptions(interactor, options, minutesPerLitre, mealMinutes, canSmoke: true,
+                    minutes => fuelHours * 60f < minutes ? $"Needs {minutes / 60f:0.#} h of fire. Add wood." : null,
                     _ => { });
                 options.Add(new InteractionOption($"Fire will burn for about {FuelText()}", () => { }, ""));
             }

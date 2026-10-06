@@ -42,6 +42,8 @@ namespace Backpacking.World
 
         public float Hour => hour;
         public int Day => day;
+        /// <summary>Game hours since midnight at the start of day 1. Use for timers that span days.</summary>
+        public float TotalHours => (day - 1) * 24f + hour;
         /// <summary>0 at night, 1 in full daylight, in between at dawn and dusk.</summary>
         public float Daylight { get; private set; }
         /// <summary>Current clock speed-up: the largest of all active requests, or 1.</summary>

@@ -12,6 +12,7 @@ namespace Backpacking.Camp
         Tent,
         FireRing,
         Stove,
+        Snare,
     }
 
     /// <summary>
@@ -31,6 +32,7 @@ namespace Backpacking.Camp
         [SerializeField] GameObject tentPrefab;
         [SerializeField] GameObject fireRingPrefab;
         [SerializeField] GameObject stovePrefab;
+        [SerializeField] GameObject snarePrefab;
 
         [Header("Rules")]
         [SerializeField] float pitchMinutes = 15f;
@@ -62,6 +64,7 @@ namespace Backpacking.Camp
             CampItem.Tent => backpack.HasTent ? null : "Tent is already pitched",
             CampItem.Stove => backpack.HasStove ? null : "Stove is already set up",
             CampItem.FireRing => backpack.Firewood >= fireRingFirewood ? null : $"Needs {fireRingFirewood} firewood",
+            CampItem.Snare => backpack.Snares > 0 ? null : "No snares left",
             _ => null,
         };
 
@@ -207,6 +210,11 @@ namespace Backpacking.Camp
                     Instantiate(stovePrefab, position, rotation);
                     Notifications.Post("Stove set up.");
                     break;
+                case CampItem.Snare:
+                    backpack.TryUseSnare();
+                    Instantiate(snarePrefab, position, rotation);
+                    Notifications.Post("Snare set. Animals won't come near while you're close, so leave it be for a while.");
+                    break;
             }
         }
 
@@ -214,6 +222,7 @@ namespace Backpacking.Camp
         {
             CampItem.Tent => tentPrefab,
             CampItem.FireRing => fireRingPrefab,
+            CampItem.Snare => snarePrefab,
             _ => stovePrefab,
         };
 
@@ -243,9 +252,6 @@ namespace Backpacking.Camp
                 previewRenderer.sharedMaterials = materials;
                 previewRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             }
-            foreach (Transform child in copy.GetComponentsInChildren<Transform>(true))
-                child.gameObject.SetActive(true);
-
             copy.name = $"{prefab.name} (preview)";
             copy.transform.SetParent(null, false);
             Destroy(holder);
