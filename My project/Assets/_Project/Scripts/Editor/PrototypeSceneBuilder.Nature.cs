@@ -298,13 +298,16 @@ namespace Backpacking.EditorTools
                     float amount = where * growth * share * density;
                     // Fractional amounts become an occasional plant rather than none.
                     int count = (int)amount + (random.NextDouble() < amount % 1f ? 1 : 0);
-                    plants[i][z, x] = Mathf.Clamp(count, 0, 16);
+                    plants[i][z, x] = Mathf.Clamp(count, 0, MaxPlantsPerCell);
                 }
             }
 
             for (int i = 0; i < plantLayers.Count; i++)
                 data.SetDetailLayer(0, 0, plantLayers[i].layer, plants[i]);
         }
+
+        // Per detail cell (about 24 m²) of one kind; enough for thick meadow grass.
+        const int MaxPlantsPerCell = 64;
 
         enum PlantGroup
         {

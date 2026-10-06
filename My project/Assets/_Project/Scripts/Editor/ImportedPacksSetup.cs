@@ -86,6 +86,8 @@ namespace Backpacking.EditorTools
             art.grassDry = new Color(0.98f, 0.9f, 0.68f);
             art.grassHeight = new Vector2(0.45f, 0.95f);
             art.grassWidth = new Vector2(0.7f, 1.3f);
+            // Lush: about one tuft per square metre in full meadow.
+            art.grassDensity = 3f;
             art.flowerHeight = new Vector2(0.35f, 0.7f);
             art.flowerWidth = new Vector2(0.35f, 0.7f);
             report.Add($"Grass Flowers: {grass.Length} grass and {flowers.Length} flower textures.");

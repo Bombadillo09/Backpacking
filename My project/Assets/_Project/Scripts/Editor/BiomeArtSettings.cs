@@ -88,7 +88,8 @@ namespace Backpacking.EditorTools
         [Range(0.3f, 3f)] public float treeScale = 1f;
         [Tooltip("Multiplies all tree densities.")]
         [Range(0f, 3f)] public float treeDensity = 1f;
-        [Range(0f, 3f)] public float grassDensity = 1f;
+        [Tooltip("At 1, full meadow has about one grass tuft per 3 m². Higher costs frame rate.")]
+        [Range(0f, 6f)] public float grassDensity = 1f;
         [Range(0f, 3f)] public float plantDensity = 1f;
         [Range(0f, 3f)] public float boulderDensity = 1f;
         [Tooltip("Trees and grass further than this aren't drawn, in metres. Lower it if the frame rate struggles.")]
