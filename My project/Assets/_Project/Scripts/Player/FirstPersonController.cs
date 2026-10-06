@@ -100,6 +100,8 @@ namespace Backpacking.Player
         public float GroundSpeedMultiplier { get; set; } = 1f;
         /// <summary>Extra view rotation in degrees (x yaw, y pitch, z roll), e.g. shivering. Set by other systems.</summary>
         public Vector3 ViewOffset { get; set; }
+        /// <summary>How badly the hiker limps on sore feet, 0 to 1. Set by the vitals.</summary>
+        public float Limp { get; set; }
         /// <summary>How heavy the pack is, 0 (light) to 1 (as much as you can carry). Set by the vitals.</summary>
         public float LoadFactor { get; set; }
         /// <summary>Head bob: eye position offset in metres, and view rotation in degrees (x pitch, y yaw, z roll).</summary>

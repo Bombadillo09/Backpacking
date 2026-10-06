@@ -53,8 +53,9 @@ namespace Backpacking.EditorTools
             Stock = new[]
             {
                 (ShopItemId.GasCanister, Unlimited), (ShopItemId.Matches, Unlimited), (ShopItemId.TrailMix, Unlimited),
-                (ShopItemId.DehydratedMeal, Unlimited), (ShopItemId.Snare, Unlimited),
+                (ShopItemId.DehydratedMeal, Unlimited), (ShopItemId.Snare, Unlimited), (ShopItemId.Antibiotics, Unlimited),
                 (ShopItemId.WaterBladder, 1), (ShopItemId.WaterFilter, 1), (ShopItemId.FishingRod, 1), (ShopItemId.WoolHatAndGloves, 1),
+                (ShopItemId.LeatherBoots, 1),
             },
         };
 
@@ -65,8 +66,8 @@ namespace Backpacking.EditorTools
             Stock = new[]
             {
                 (ShopItemId.GasCanister, 6), (ShopItemId.Matches, 10), (ShopItemId.TrailMix, 12), (ShopItemId.DehydratedMeal, 8),
-                (ShopItemId.Snare, 4), (ShopItemId.WaterFilter, 1), (ShopItemId.FishingRod, 1),
-                (ShopItemId.InsulatedPants, 1), (ShopItemId.WinterSleepingBag, 1),
+                (ShopItemId.Snare, 4), (ShopItemId.Antibiotics, 3), (ShopItemId.WaterFilter, 1), (ShopItemId.FishingRod, 1),
+                (ShopItemId.InsulatedPants, 1), (ShopItemId.WinterSleepingBag, 1), (ShopItemId.LeatherBoots, 1),
             },
         };
 
@@ -76,8 +77,9 @@ namespace Backpacking.EditorTools
             SellRate = 1f,
             Stock = new[]
             {
-                (ShopItemId.GasCanister, 2), (ShopItemId.Matches, 4), (ShopItemId.DehydratedMeal, 4),
+                (ShopItemId.GasCanister, 2), (ShopItemId.Matches, 4), (ShopItemId.DehydratedMeal, 4), (ShopItemId.Antibiotics, 2),
                 (ShopItemId.WoolHatAndGloves, 1), (ShopItemId.WinterSleepingBag, 1), (ShopItemId.FourSeasonTent, 1),
+                (ShopItemId.MountaineeringBoots, 1),
             },
         };
 

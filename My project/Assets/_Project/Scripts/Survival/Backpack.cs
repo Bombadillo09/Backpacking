@@ -45,6 +45,10 @@ namespace Backpacking.Survival
         // Saves from before the machete existed get one.
         public bool hasMachete = true;
         public float packWeight = 1.3f;
+        public string bootsName;
+        public float bootsStrain = 1.15f, bootsWarmth;
+        public bool bootsWaterproof;
+        public int antibiotics;
         public int snares;
         public float waterCapacity, safeWater, untreatedWater;
         public string sleepingBagName;
@@ -85,6 +89,17 @@ namespace Backpacking.Survival
         [SerializeField, Min(0)] int snares = 3;
         [Tooltip("With a filter, water from lakes and streams is safe straight away.")]
         [SerializeField] bool hasWaterFilter;
+        [Header("Boots")]
+        [SerializeField] string bootsName = "Worn hiking boots";
+        [Tooltip("How fast your feet tire in them: 1 is ordinary boots, lower is better.")]
+        [SerializeField] float bootsStrain = 1.15f;
+        [SerializeField] bool bootsWaterproof;
+        [Tooltip("°C of warmth they add.")]
+        [SerializeField] float bootsWarmth;
+
+        [Tooltip("Courses of antibiotics, for infections.")]
+        [SerializeField, Min(0)] int antibiotics;
+
         [Tooltip("For clearing brush and saplings to make a campsite in the woods.")]
         [SerializeField] bool hasMachete = true;
 
@@ -157,6 +172,12 @@ namespace Backpacking.Survival
         public bool HasGoodRod => hasGoodRod;
         public bool HasWaterFilter => hasWaterFilter;
         public bool HasMachete => hasMachete;
+        public string BootsName => bootsName;
+        public int Antibiotics => antibiotics;
+        /// <summary>How fast your feet tire in these boots: 1 is ordinary, lower is better.</summary>
+        public float BootsStrain => bootsStrain;
+        public bool BootsWaterproof => bootsWaterproof;
+        public float BootsWarmth => bootsWarmth;
         public bool HasTent { get => hasTent; set => hasTent = value; }
         public bool HasStove { get => hasStove; set => hasStove = value; }
         public float GasGrams => gasGrams;
@@ -212,7 +233,7 @@ namespace Backpacking.Survival
                     weight += stoveWeight;
                 if (gasGrams > 0f)
                     weight += gasGrams / 1000f + Mathf.Ceil(gasGrams / 230f) * canisterWeight;
-                weight += matches * 0.002f + firewood * firewoodWeight + snares * snareWeight + pelts * peltWeight;
+                weight += antibiotics * 0.03f + matches * 0.002f + firewood * firewoodWeight + snares * snareWeight + pelts * peltWeight;
                 if (hasFishingKit)
                     weight += hasGoodRod ? fishingRodWeight : fishingKitWeight;
                 if (hasWaterFilter)
@@ -277,6 +298,18 @@ namespace Backpacking.Survival
 
         public void SetWaterCapacity(float litres) => waterCapacity = Mathf.Max(waterCapacity, litres);
         public void AddWaterFilter() => hasWaterFilter = true;
+
+        public void AddAntibiotics(int courses = 1) => antibiotics += courses;
+        public bool TryUseAntibiotics() => TrySpend(ref antibiotics, 1);
+
+        /// <summary>Swaps your boots for a new pair.</summary>
+        public void SetBoots(string name, float strain, bool waterproof, float warmth)
+        {
+            bootsName = name;
+            bootsStrain = strain;
+            bootsWaterproof = waterproof;
+            bootsWarmth = warmth;
+        }
 
         public void RemoveFishingKit()
         {
@@ -524,6 +557,11 @@ namespace Backpacking.Survival
             hasWaterFilter = hasWaterFilter,
             hasMachete = hasMachete,
             packWeight = packWeight,
+            bootsName = bootsName,
+            bootsStrain = bootsStrain,
+            bootsWarmth = bootsWarmth,
+            bootsWaterproof = bootsWaterproof,
+            antibiotics = antibiotics,
             snares = snares,
             waterCapacity = waterCapacity,
             safeWater = safeWater,
@@ -552,6 +590,10 @@ namespace Backpacking.Survival
             hasWaterFilter = state.hasWaterFilter;
             hasMachete = state.hasMachete;
             packWeight = state.packWeight;
+            // Saves from before boots existed keep the starting pair.
+            antibiotics = state.antibiotics;
+            if (!string.IsNullOrEmpty(state.bootsName))
+                SetBoots(state.bootsName, state.bootsStrain, state.bootsWaterproof, state.bootsWarmth);
             snares = state.snares;
             waterCapacity = state.waterCapacity;
             safeWater = state.safeWater;

@@ -10,6 +10,10 @@ namespace Backpacking.Survival
     {
         public float satiety, hydration, warmth, energy, sickHours, wetness;
         public float health = Vitals.Max;
+        // Saves from before feet existed start with healthy feet.
+        public float feet = Vitals.Max;
+        public float footStrain;
+        public float infection, infectionRisk, antibioticHours;
     }
 
     /// <summary>
@@ -78,6 +82,32 @@ namespace Backpacking.Survival
         [SerializeField] float tiredThreshold = 30f;
         [SerializeField] float criticalThreshold = 12f;
 
+        [Header("Feet")]
+        [Tooltip("Foot strain gained per hour of walking in ordinary boots with a light pack. 100 is as sore as it gets.")]
+        [SerializeField] float strainPerHour = 18f;
+        [Tooltip("Strain eased per hour standing still, resting your feet, or asleep.")]
+        [SerializeField] float idleStrainRecovery = 15f;
+        [SerializeField] float restingStrainRecovery = 80f;
+        [SerializeField] float sleepingStrainRecovery = 60f;
+        [Tooltip("Keep walking with strain above this and blisters start.")]
+        [SerializeField] float blistersAbove = 60f;
+        [Tooltip("Foot health lost per hour of walking at full strain.")]
+        [SerializeField] float blisterRate = 14f;
+        [Tooltip("Foot health healed per hour resting, and per hour asleep.")]
+        [SerializeField] float restingHeal = 3f;
+        [SerializeField] float sleepingHeal = 6f;
+
+        [Header("Foot Infection")]
+        [Tooltip("Hours of wet or blistered feet before an infection sets in (both at once counts double).")]
+        [SerializeField] float hoursToInfection = 7f;
+        [Tooltip("How fast an infection worsens, per hour.")]
+        [SerializeField] float infectionGrowth = 4f;
+        [Tooltip("Above this, the infection starts costing health.")]
+        [SerializeField] float infectionHarmsAbove = 50f;
+        [SerializeField] float infectionDamage = 3f;
+        [Tooltip("How long a course of antibiotics takes to clear an infection, in hours.")]
+        [SerializeField] float antibioticCourseHours = 4f;
+
         [Header("Health")]
         [SerializeField, Range(0f, Max)] float health = Max;
         [Tooltip("Health lost per hour with no food at all. Scales up from zero as food drops below critical.")]
@@ -95,7 +125,11 @@ namespace Backpacking.Survival
         float wetness;
         bool collapseArmed = true;
         bool incapacitated;
-        bool warnedCold, warnedHungry, warnedThirsty, warnedTired, warnedWet, warnedHurt;
+        bool warnedCold, warnedHungry, warnedThirsty, warnedTired, warnedWet, warnedHurt, warnedAching, warnedBlisters, warnedRaw;
+        float feet = Max, footStrain;
+        float infection, infectionRisk, antibioticHours;
+        bool warnedInfection;
+        float restingFeetUntil = -1f;
 
         /// <summary>Raised when energy runs out while awake. The player passes out where they stand.</summary>
         public event System.Action Collapsed;
@@ -112,6 +146,42 @@ namespace Backpacking.Survival
         public float Warmth => warmth;
         public float Energy => energy;
         public float Health => health;
+        /// <summary>Foot health, 100 healthy. Blisters bring it down.</summary>
+        public float Feet => feet;
+        /// <summary>How tired the feet are from walking, 0 fresh to 100. Resting eases it.</summary>
+        public float FootStrain => footStrain;
+        public bool HasBlisters => feet < 70f;
+        /// <summary>Foot infection, 0 none to 100 severe.</summary>
+        public float Infection => infection;
+        public bool IsInfected => infection > 0f;
+        public bool OnAntibiotics => antibioticHours > 0f;
+        /// <summary>Wet or blistered feet: an infection is brewing.</summary>
+        public bool FeetAtRisk => FeetWet || HasBlisters;
+        bool FeetWet => wetness > 40f && !backpack.BootsWaterproof;
+
+        /// <summary>Starts a course of antibiotics, which clears an infection over a few hours.</summary>
+        public void TakeAntibiotics()
+        {
+            antibioticHours = antibioticCourseHours;
+            infectionRisk = 0f;
+        }
+
+        /// <summary>
+        /// Boots and socks off over a smoky fire: knocks an infection right back, dries the feet and eases the ache.
+        /// </summary>
+        public void SmokeFeet()
+        {
+            infection = Mathf.Max(0f, infection - 60f);
+            infectionRisk = 0f;
+            wetness = Mathf.Min(wetness, 20f);
+            footStrain = Mathf.Max(0f, footStrain - 30f);
+            if (infection <= 0f)
+                warnedInfection = false;
+        }
+
+        /// <summary>Boots off and feet up for a while: strain eases much faster.</summary>
+        public void RestFeet(float hours) => restingFeetUntil = timeOfDay.TotalHours + hours;
+        bool RestingFeet => timeOfDay.TotalHours < restingFeetUntil;
         public bool IsSick => sickHours > 0f;
         public bool IsStarving => satiety < criticalThreshold;
         public bool IsDehydrated => hydration < criticalThreshold;
@@ -168,6 +238,11 @@ namespace Backpacking.Survival
             sickHours = sickHours,
             wetness = wetness,
             health = health,
+            feet = feet,
+            footStrain = footStrain,
+            infection = infection,
+            infectionRisk = infectionRisk,
+            antibioticHours = antibioticHours,
         };
 
         public void RestoreState(VitalsState state)
@@ -180,6 +255,11 @@ namespace Backpacking.Survival
             wetness = state.wetness;
             // Saves from before health existed have no value for it.
             health = state.health > 0f ? state.health : Max;
+            feet = state.feet > 0f ? state.feet : Max;
+            footStrain = state.footStrain;
+            infection = state.infection;
+            infectionRisk = state.infectionRisk;
+            antibioticHours = state.antibioticHours;
             incapacitated = false;
             collapseArmed = energy > collapseRearmEnergy;
         }
@@ -203,6 +283,7 @@ namespace Backpacking.Survival
             sickHours = Mathf.Max(0f, sickHours - hours);
 
             UpdateWarmth(hours, sprinting ? sprintingHeat : moving ? walkingHeat : 0f);
+            UpdateFeet(hours, moving, sprinting);
 
             if (IsSleeping)
                 energy = Mathf.Min(Max, energy + sleepRecovery * hours);
@@ -210,6 +291,12 @@ namespace Backpacking.Survival
             {
                 // Being frozen or starving wears you out much faster.
                 float strain = warmth <= 0f || satiety <= 0f || hydration <= 0f ? 3f : 1f;
+                // Limping on raw feet is tiring.
+                if (moving && feet < 40f)
+                    strain *= 1.25f;
+                // Fighting an infection wears you out.
+                if (infection > 30f)
+                    strain *= 1.3f;
                 energy = Mathf.Max(0f, energy - energyDrain * exertion * strain * hours);
             }
 
@@ -222,6 +309,75 @@ namespace Backpacking.Survival
             WarnOnce(ref warnedThirsty, hydration, 25f, "You're thirsty.");
             WarnOnce(ref warnedTired, energy, 20f, "You're exhausted. Sleep soon or you'll collapse.");
             WarnOnce(ref warnedHurt, health, 40f, HurtWarning());
+            WarnOnce(ref warnedAching, Max - footStrain, Max - blistersAbove,
+                "Your feet are aching. Stop and rest them a while (Backpack > Rest your feet), or you'll get blisters.");
+            WarnOnce(ref warnedRaw, feet, 40f, "Your feet are raw. You're limping badly. Rest and sleep to let them heal.");
+            if (!warnedBlisters && feet < 70f)
+            {
+                warnedBlisters = true;
+                Notifications.Post("Blisters. Every step hurts now. Rest your feet, and sleep to let them heal.");
+                Trip.TripLog.Note("Blisters on both feet. Pushed too far without a rest.");
+            }
+            else if (warnedBlisters && feet > 85f)
+                warnedBlisters = false;
+        }
+
+        /// <summary>
+        /// Walking tires the feet, faster with a heavy pack, at a sprint, in wet or poor boots. Keep going on
+        /// aching feet and blisters form; rest eases the ache and sleep heals the blisters.
+        /// </summary>
+        void UpdateFeet(float hours, bool moving, bool sprinting)
+        {
+            if (moving)
+            {
+                bool wetFeet = wetness > 40f && !backpack.BootsWaterproof;
+                float rate = strainPerHour * backpack.BootsStrain * (sprinting ? 1.8f : 1f)
+                             * (1f + 0.6f * player.LoadFactor) * (wetFeet ? 1.4f : 1f);
+                footStrain = Mathf.Min(Max, footStrain + rate * hours);
+                if (footStrain > blistersAbove)
+                    feet -= blisterRate * (footStrain - blistersAbove) / (Max - blistersAbove) * hours;
+            }
+            else
+            {
+                float recovery = IsSleeping ? sleepingStrainRecovery : RestingFeet ? restingStrainRecovery : idleStrainRecovery;
+                footStrain = Mathf.Max(0f, footStrain - recovery * hours);
+                // An infection keeps blisters from healing.
+                if (footStrain < blistersAbove && (IsSleeping || RestingFeet) && !IsInfected)
+                    feet += (IsSleeping ? sleepingHeal : restingHeal) * hours;
+            }
+            feet = Mathf.Clamp(feet, 0f, Max);
+            UpdateInfection(hours);
+        }
+
+        /// <summary>Feet kept wet or blistered too long get infected; antibiotics or smoking them over a fire cures it.</summary>
+        void UpdateInfection(float hours)
+        {
+            float exposure = (FeetWet ? 1f : 0f) + (HasBlisters ? 1f : 0f);
+            if (exposure > 0f && !OnAntibiotics)
+                infectionRisk += exposure * hours;
+            else
+                infectionRisk = Mathf.Max(0f, infectionRisk - 0.5f * hours);
+
+            if (!IsInfected && infectionRisk >= hoursToInfection)
+            {
+                infection = 10f;
+                Notifications.Post("Your feet are red, hot and swollen: an infection. Take antibiotics, or smoke your feet over a fire.", 8f);
+                Trip.TripLog.Note("My feet are infected. Should have kept them dry.");
+                warnedInfection = true;
+            }
+
+            if (OnAntibiotics)
+            {
+                antibioticHours = Mathf.Max(0f, antibioticHours - hours);
+                infection = Mathf.Max(0f, infection - 100f / antibioticCourseHours * hours);
+                if (IsInfected && infection <= 0f)
+                    Trip.TripLog.Note("The antibiotics did their job. The infection's gone.");
+            }
+            else if (IsInfected)
+                infection = Mathf.Min(Max, infection + infectionGrowth * (1f + 0.5f * exposure) * hours);
+
+            if (infection <= 0f)
+                warnedInfection = false;
         }
 
         void UpdateHealth(float hours)
@@ -230,7 +386,8 @@ namespace Backpacking.Survival
                 return;
 
             // Each vital starts hurting below critical, and hurts more the closer it gets to empty.
-            float damage = starvationDamage * Deficit(satiety)
+            float damage = (infection > infectionHarmsAbove ? infectionDamage * Mathf.InverseLerp(infectionHarmsAbove, Max, infection) * 2f : 0f)
+                           + starvationDamage * Deficit(satiety)
                            + dehydrationDamage * Deficit(hydration)
                            + hypothermiaDamage * Deficit(warmth)
                            + (IsSick ? sicknessDamage : 0f);
@@ -296,7 +453,7 @@ namespace Backpacking.Survival
             float soaked = wetness / Max;
             FeltTemperature = air + fire + (inTent ? backpack.TentShelter : 0f) - WindChill - soaked * soakedChill;
 
-            float insulation = (backpack.ClothingInsulation + HikerTraits.InsulationBonus) * (1f - soakedInsulationLoss * soaked);
+            float insulation = (backpack.ClothingInsulation + backpack.BootsWarmth + HikerTraits.InsulationBonus) * (1f - soakedInsulationLoss * soaked);
             ComfortTemperature = IsSleeping && InSleepingBag
                 ? backpack.SleepingBagComfort
                 : neutralTemperature - insulation - bodyHeat;
@@ -310,11 +467,14 @@ namespace Backpacking.Survival
         {
             float lowest = Mathf.Min(Mathf.Min(satiety, hydration), Mathf.Min(Mathf.Min(warmth, energy), health));
             float condition = lowest < criticalThreshold ? 0.6f : lowest < tiredThreshold ? 0.85f : 1f;
-            player.SpeedMultiplier = condition * backpack.LoadSpeedMultiplier * HikerTraits.SpeedFactor;
+            // Sore feet slow you down; blisters make you limp.
+            float footing = feet < 15f ? 0.5f : feet < 40f ? 0.7f : feet < 70f ? 0.88f : footStrain > 85f ? 0.92f : 1f;
+            player.SpeedMultiplier = condition * footing * backpack.LoadSpeedMultiplier * HikerTraits.SpeedFactor;
+            player.Limp = Mathf.InverseLerp(75f, 15f, feet);
             // From a light day pack (5 kg) up to all you can carry.
             player.LoadFactor = Mathf.InverseLerp(5f, backpack.MaxLoad, backpack.TotalWeight);
             player.CanSprint = energy > criticalThreshold && hydration > criticalThreshold && health > tiredThreshold
-                               && !backpack.IsOverloaded;
+                               && feet >= 40f && !backpack.IsOverloaded;
         }
 
         /// <summary>Posts a message when a value drops below a threshold, then rearms once it recovers.</summary>

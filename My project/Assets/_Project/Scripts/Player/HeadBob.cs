@@ -90,6 +90,9 @@ namespace Backpacking.Player
             float stance = Mathf.Abs(Mathf.Sin(phase));
             // Lowest as each foot strikes (a sharp dip), highest mid-stride; centred around the resting eye height.
             float y = height * (stance - 0.64f);
+            // A limp: every other step, onto the sorer foot, drops further.
+            if (Mathf.FloorToInt(phase / Mathf.PI) % 2 == 1)
+                y -= player.Limp * 0.03f * GameSettings.HeadBob * bobAmount * (1f - stance);
             float side = Mathf.Sin(phase);
             player.BobPosition = new Vector3(side * sway * strength, y + settle * GameSettings.HeadBob, 0f);
             player.BobRotation = new Vector3(Mathf.Pow(1f - stance, 4f) * nod * strength, 0f, -side * roll * strength);

@@ -24,6 +24,7 @@ namespace Backpacking.UI
             panel.Add(Vital("Water", () => vitals.Hydration, new Color(0.3f, 0.6f, 0.95f)));
             panel.Add(Vital("Warmth", () => vitals.Warmth, new Color(0.95f, 0.45f, 0.3f)));
             panel.Add(Vital("Energy", () => vitals.Energy, new Color(0.5f, 0.85f, 0.45f)));
+            panel.Add(Vital("Feet", () => vitals.Feet, new Color(0.85f, 0.6f, 0.5f), FeetState));
             panel.Add(bindings.Text(Status, "vitals-status", "shadowed"));
             panel.Add(bindings.Text(Load, "vitals-status", "shadowed"));
             GameUI.Current.Hud.Add(panel.IgnoreMouse());
@@ -48,6 +49,10 @@ namespace Backpacking.UI
             });
             return UIBuild.Box("vital").With(text, bar);
         }
+
+        string FeetState() =>
+            vitals.IsInfected ? (vitals.OnAntibiotics ? "   infected, treating" : "   infected")
+            : vitals.Feet < 40f ? "   raw" : vitals.HasBlisters ? "   blisters" : vitals.FootStrain > 60f ? "   aching" : vitals.FootStrain > 35f ? "   tired" : "";
 
         string HealthTrend() =>
             vitals.HealthRate < -0.05f ? "   falling" : vitals.HealthRate > 0.05f && vitals.Health < Vitals.Max ? "   recovering" : "";

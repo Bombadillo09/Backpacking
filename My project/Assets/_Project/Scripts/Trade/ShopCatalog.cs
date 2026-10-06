@@ -18,6 +18,9 @@ namespace Backpacking.Trade
         InsulatedPants,
         WinterSleepingBag,
         FourSeasonTent,
+        LeatherBoots,
+        MountaineeringBoots,
+        Antibiotics,
     }
 
     /// <summary>Something a trading post can sell: what it costs and what it does to the backpack.</summary>
@@ -58,6 +61,8 @@ namespace Backpacking.Trade
         const string PantsName = "Insulated pants";
         const string WinterBagName = "Winter down bag";
         const string FourSeasonTentName = "4-season mountain tent";
+        const string LeatherBootsName = "Leather hiking boots";
+        const string MountainBootsName = "Mountaineering boots";
 
         static readonly Dictionary<ShopItemId, ShopItem> items = new()
         {
@@ -71,6 +76,8 @@ namespace Backpacking.Trade
                 backpack => backpack.AddFood(FoodKind.TrailMeal)),
             [ShopItemId.Snare] = new ShopItem("Wire snare", "Catches rabbits while you're away.", 6, false,
                 backpack => backpack.AddSnare()),
+            [ShopItemId.Antibiotics] = new ShopItem("Antibiotics", "One course. Clears an infection in a few hours.", 25, false,
+                backpack => backpack.AddAntibiotics()),
 
             [ShopItemId.WaterBladder] = new ShopItem("3 L water bladder", "Replaces your 2 L bottle.", 18, true,
                 backpack => backpack.SetWaterCapacity(3f),
@@ -93,6 +100,14 @@ namespace Backpacking.Trade
             [ShopItemId.FourSeasonTent] = new ShopItem(FourSeasonTentName, "+9 °C when sleeping (yours is +5). 2.6 kg (yours is 1.8). Replaces your tent.", 150, true,
                 backpack => backpack.SetTent(FourSeasonTentName, 9f, 2.6f),
                 backpack => backpack.TentShelter >= 9f ? "Already owned" : null),
+            [ShopItemId.LeatherBoots] = new ShopItem(LeatherBootsName,
+                "Stiff, well-fitted boots. Your feet tire about a third slower than in worn boots. Replaces your boots.", 55, true,
+                backpack => backpack.SetBoots(LeatherBootsName, 0.8f, false, 0f),
+                backpack => backpack.BootsStrain <= 0.8f ? "Your boots are already this good" : null),
+            [ShopItemId.MountaineeringBoots] = new ShopItem(MountainBootsName,
+                "Waterproof and insulated (+2 °C). Your feet tire about 40% slower, and stay dry in the rain. Replaces your boots.", 110, true,
+                backpack => backpack.SetBoots(MountainBootsName, 0.7f, true, 2f),
+                backpack => backpack.BootsStrain <= 0.7f ? "Already owned" : null),
         };
 
         public static ShopItem Get(ShopItemId id) => items[id];
