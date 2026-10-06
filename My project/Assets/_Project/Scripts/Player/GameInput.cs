@@ -5,12 +5,12 @@ namespace Backpacking.Player
 {
     /// <summary>
     /// The game's own buttons beyond moving and looking, each bound to a key and a gamepad button in the
-    /// Player action map: pause, cancel/back, backpack, map, compass and fast-forward.
+    /// Player action map: pause, cancel/back, backpack, map, compass, journal and fast-forward.
     /// The first-person controller sets it up from its input actions.
     /// </summary>
     public static class GameInput
     {
-        static InputAction pause, cancel, backpack, map, compass, fastForward;
+        static InputAction pause, cancel, backpack, map, compass, fastForward, journal;
 
         public static void Initialize(InputActionAsset actions)
         {
@@ -21,6 +21,7 @@ namespace Backpacking.Player
             map = player.FindAction("Map");
             compass = player.FindAction("Compass");
             fastForward = player.FindAction("FastForward");
+            journal = player.FindAction("Journal");
             if (pause == null || cancel == null || backpack == null)
                 Debug.LogWarning("The Player action map is missing Pause, Cancel or Backpack; those buttons won't work.");
         }
@@ -35,12 +36,14 @@ namespace Backpacking.Player
         public static bool MapPressed => Pressed(map);
         /// <summary>Q or D-pad down.</summary>
         public static bool CompassPressed => Pressed(compass);
+        /// <summary>J (on a gamepad, open it from the backpack).</summary>
+        public static bool JournalPressed => Pressed(journal);
         /// <summary>T or left bumper, held.</summary>
         public static bool FastForwardHeld => fastForward != null && fastForward.IsPressed();
 
         static bool Pressed(InputAction action) => action != null && action.WasPressedThisFrame();
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() => pause = cancel = backpack = map = compass = fastForward = null;
+        static void ResetStatics() => pause = cancel = backpack = map = compass = fastForward = journal = null;
     }
 }

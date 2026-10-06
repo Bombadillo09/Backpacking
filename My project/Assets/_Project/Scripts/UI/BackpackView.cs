@@ -78,7 +78,13 @@ namespace Backpacking.UI
                     bindings.Text(() => backpack.Pelts > 0 ? $"${backpack.Money}    Rabbit pelts: {backpack.Pelts}" : $"${backpack.Money}", "money")),
                 bindings.Text(LoadDescription, "small"),
                 UIBuild.Box("columns").With(left, right),
-                UIBuild.Box("footer").With(UIBuild.Button("Close  (Tab)", Close)));
+                UIBuild.Box("footer").With(
+                    UIBuild.Button("Journal  (J)", () =>
+                    {
+                        Close();
+                        JournalView.ShowJournal();
+                    }),
+                    UIBuild.Button("Close  (Tab)", Close)));
             panel.style.width = 1000f;
 
             screen = UIBuild.Layer("centred").With(panel);

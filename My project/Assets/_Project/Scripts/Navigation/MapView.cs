@@ -161,13 +161,14 @@ namespace Backpacking.Navigation
             north.style.top = margin * 0.95f - labelSize;
             north.style.unityTextAlign = TextAnchor.MiddleCenter;
 
-            Label legend = Label($"Contours every {contourInterval:0} m   ·   Large markers: trading posts   ·   Small: checkpoints", labelSize);
+            Label legend = Label($"Contours every {contourInterval:0} m   ·   Large markers: trading posts and the summit   ·   Small: checkpoints", labelSize);
             legend.style.left = margin;
             legend.style.top = margin + mapSize + margin * 0.4f;
 
             foreach (NavigationPoint point in NavigationPoint.All)
             {
-                bool post = point.Kind == NavigationPointKind.TradingPost;
+                // Trading posts and the summit get big markers and capital letters.
+                bool post = point.Kind != NavigationPointKind.Checkpoint;
                 float size = side * (post ? 0.024f : 0.013f);
                 VisualElement marker = UIBuild.Box("map-marker");
                 marker.style.width = marker.style.height = size;

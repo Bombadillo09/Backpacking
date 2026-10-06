@@ -10,6 +10,8 @@ namespace Backpacking.Navigation
         Checkpoint,
         /// <summary>A destination with a vendor, days apart from the next.</summary>
         TradingPost,
+        /// <summary>The end of the thru-hike, where the summit register is.</summary>
+        Summit,
     }
 
     /// <summary>A named place in the world. It appears on the map and reports when the player reaches it.</summary>

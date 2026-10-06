@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Backpacking.Camp;
 using Backpacking.Survival;
+using Backpacking.Trip;
 using Backpacking.World;
 using UnityEngine;
 
@@ -24,6 +25,7 @@ namespace Backpacking.Saving
         public VitalsState vitals;
         public BackpackState backpack;
         public WeatherState weather;
+        public TripState trip;
 
         public List<string> collectedPickups = new();
         public List<string> visitedPoints = new();

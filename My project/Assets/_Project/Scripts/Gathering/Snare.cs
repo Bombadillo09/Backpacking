@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Backpacking.Interaction;
 using Backpacking.Survival;
 using Backpacking.World;
+using Backpacking.Trip;
 using UnityEngine;
 
 namespace Backpacking.Gathering
@@ -73,6 +74,7 @@ namespace Backpacking.Gathering
                 options.Add(new InteractionOption("Take the rabbit and reset the snare", () =>
                 {
                     backpack.AddFood(FoodKind.RabbitCarcass);
+                    TripLog.Tally(TripStat.Rabbits);
                     caught = false;
                     caughtVisual.SetActive(false);
                 }));
@@ -83,7 +85,10 @@ namespace Backpacking.Gathering
             options.Add(new InteractionOption(caught ? "Take the rabbit and pick up the snare" : "Pick up snare", () =>
             {
                 if (caught)
+                {
                     backpack.AddFood(FoodKind.RabbitCarcass);
+                    TripLog.Tally(TripStat.Rabbits);
+                }
                 backpack.AddSnare();
                 Destroy(gameObject);
             }));

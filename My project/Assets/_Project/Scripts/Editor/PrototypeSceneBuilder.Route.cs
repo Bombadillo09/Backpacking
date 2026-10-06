@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Backpacking.Navigation;
 using Backpacking.Trade;
+using Backpacking.Trip;
 using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -16,6 +17,7 @@ namespace Backpacking.EditorTools
         const float PondRadius = 25f;
         const float ValleyLakeRadius = 45f;
         const float PostFlattenRadius = 14f;
+        const float SummitFlattenRadius = 5f;
         const float RouteCorridorHalfWidth = 250f;
 
         class RouteStop
@@ -94,11 +96,17 @@ namespace Backpacking.EditorTools
             layout.Stops.Add(new RouteStop { Name = "Birch Ridge", U = 0.70f, V = 0.50f });
             layout.Stops.Add(new RouteStop { Name = "Alpine Tarn", U = 0.58f, V = 0.63f, LakeRadius = PondRadius });
             layout.Stops.Add(new RouteStop { Name = "North Pass Hut", U = FindPass(heights, 0.76f, 0.35f, 0.75f), V = 0.76f, Kind = NavigationPointKind.TradingPost, Vendor = MountainHutStock });
+            // The end of the thru-hike: the high point north of the pass.
+            const float summitV = 0.9f;
+            layout.Stops.Add(new RouteStop { Name = TripLog.Destination, U = FindPeak(heights, summitV, 0.35f, 0.75f), V = summitV, Kind = NavigationPointKind.Summit });
 
             foreach (RouteStop stop in layout.Stops)
             {
                 if (stop.Kind == NavigationPointKind.TradingPost)
                     FlattenAround(heights, stop.U, stop.V, PostFlattenRadius);
+                // A small level spot on top for the cairn and the register.
+                if (stop.Kind == NavigationPointKind.Summit)
+                    FlattenAround(heights, stop.U, stop.V, SummitFlattenRadius);
                 if (stop.LakeRadius > 0f)
                 {
                     // Lake just east of the cairn, so the cairn sits on its shore.
@@ -107,6 +115,39 @@ namespace Backpacking.EditorTools
                 }
             }
             return layout;
+        }
+
+        /// <summary>
+        /// The highest point near a row of the heightmap that isn't a cliff, so the summit can be walked up.
+        /// Searches a band a little either side of the row.
+        /// </summary>
+        static float FindPeak(float[,] heights, float v, float uMin, float uMax)
+        {
+            int resolution = heights.GetLength(0);
+            int z = Mathf.RoundToInt(v * (resolution - 1));
+            float metresPerSample = TerrainSize / (resolution - 1);
+            float bestU = (uMin + uMax) / 2f, highest = float.MinValue;
+            for (int x = Mathf.RoundToInt(uMin * (resolution - 1)); x <= Mathf.RoundToInt(uMax * (resolution - 1)); x++)
+            {
+                // Average slope to the neighbours a few samples away, in rise over run.
+                const int reach = 4;
+                float h = heights[z, x];
+                float slope = 0f;
+                slope = Mathf.Max(slope, Mathf.Abs(h - heights[z, Mathf.Max(0, x - reach)]));
+                slope = Mathf.Max(slope, Mathf.Abs(h - heights[z, Mathf.Min(resolution - 1, x + reach)]));
+                slope = Mathf.Max(slope, Mathf.Abs(h - heights[Mathf.Max(0, z - reach), x]));
+                slope = Mathf.Max(slope, Mathf.Abs(h - heights[Mathf.Min(resolution - 1, z + reach), x]));
+                float grade = slope * TerrainHeight / (reach * metresPerSample);
+                // Steeper than about 35° all round would be a spire; skip it.
+                if (grade > 0.7f)
+                    continue;
+                if (h > highest)
+                {
+                    highest = h;
+                    bestU = x / (resolution - 1f);
+                }
+            }
+            return bestU;
         }
 
         /// <summary>The lowest point across a row of the heightmap: a natural pass through the mountains.</summary>
@@ -196,10 +237,31 @@ namespace Backpacking.EditorTools
                 AddSaveId(point, $"point-{stop.Name}");
                 if (stop.Vendor != null)
                     CreateTradingPost(stop, position, terrain, parent, tradingPostPrefab);
+                if (stop.Kind == NavigationPointKind.Summit)
+                    CreateSummitRegister(position, terrain, point.transform, stone);
             }
 
             foreach (Lake lake in layout.Lakes)
                 CreateLake(lake, parent);
+        }
+
+        /// <summary>A metal box on a short post beside the summit cairn, holding the register to sign.</summary>
+        static void CreateSummitRegister(Vector3 cairn, Terrain terrain, Transform parent, Material post)
+        {
+            Vector3 position = cairn + new Vector3(0f, 0f, -2f);
+            position.y = terrain.SampleHeight(position) + terrain.transform.position.y;
+
+            var root = new GameObject("Summit Register");
+            root.transform.SetParent(parent, false);
+            root.transform.position = position;
+            CreatePart(PrimitiveType.Cylinder, root.transform, new Vector3(0f, 0.45f, 0f), new Vector3(0.1f, 0.45f, 0.1f), post, keepCollider: false);
+            CreatePart(PrimitiveType.Cube, root.transform, new Vector3(0f, 1.02f, 0f), new Vector3(0.4f, 0.28f, 0.3f),
+                GetOrCreateMaterial("RegisterBox", new Color(0.18f, 0.32f, 0.22f), 0.4f), keepCollider: false);
+
+            var collider = root.AddComponent<BoxCollider>();
+            collider.center = new Vector3(0f, 0.6f, 0f);
+            collider.size = new Vector3(0.45f, 1.2f, 0.35f);
+            root.AddComponent<SummitRegister>();
         }
 
         /// <summary>A trading post building just west of the cairn, its counter facing the cairn.</summary>

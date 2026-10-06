@@ -1,5 +1,6 @@
 using Backpacking.Player;
 using Backpacking.Survival;
+using Backpacking.Trip;
 using Backpacking.UI;
 using Backpacking.World;
 using UnityEngine;
@@ -117,6 +118,7 @@ namespace Backpacking.Gathering
                     if (Random.value < (backpack.HasGoodRod ? goodRodLandChance : landChance))
                     {
                         backpack.AddFood(FoodKind.RawFish);
+                        TripLog.Tally(TripStat.Fish);
                         caughtThisSession++;
                         ShowResult("You land a trout!");
                     }

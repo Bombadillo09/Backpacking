@@ -8,6 +8,7 @@ using Backpacking.Navigation;
 using Backpacking.Player;
 using Backpacking.Survival;
 using Backpacking.Trade;
+using Backpacking.Trip;
 using Backpacking.UI;
 using Backpacking.World;
 using UnityEngine;
@@ -32,6 +33,7 @@ namespace Backpacking.Saving
         [SerializeField] CampPlacer placer;
         [SerializeField] PlayerActivity activity;
         [SerializeField] WeatherSystem weather;
+        [SerializeField] TripLog trip;
         [SerializeField] string fileName = "trip.json";
         [Tooltip("How close to a route stop counts as being 'near' it in the save summary, in metres.")]
         [SerializeField] float nearbyDistance = 400f;
@@ -167,6 +169,7 @@ namespace Backpacking.Saving
                 vitals = vitals.CaptureState(),
                 backpack = backpack.CaptureState(),
                 weather = weather.CaptureState(),
+                trip = trip != null ? trip.CaptureState() : null,
                 summary = $"Day {timeOfDay.Day}, {timeOfDay.ClockText} {DescribeLocation()}",
             };
 
@@ -235,6 +238,8 @@ namespace Backpacking.Saving
             controller.enabled = false;
             player.transform.SetPositionAndRotation(data.playerPosition, Quaternion.Euler(0f, data.playerYaw, 0f));
             controller.enabled = true;
+            if (trip != null)
+                trip.RestoreState(data.trip);
 
             foreach (string id in data.collectedPickups)
                 if (pickupsAtStart.TryGetValue(id, out GameObject pickup) && pickup != null)

@@ -6,6 +6,7 @@ using Backpacking.Interaction;
 using Backpacking.Player;
 using Backpacking.Saving;
 using Backpacking.Survival;
+using Backpacking.Trip;
 using Backpacking.UI;
 using Backpacking.World;
 using UnityEditor;
@@ -238,6 +239,18 @@ namespace Backpacking.EditorTools
 
             var menus = hud.AddComponent<GameMenus>();
             SetField(menus, "saves", saves);
+
+            var trip = go.AddComponent<TripLog>();
+            SetField(trip, "timeOfDay", timeOfDay);
+            SetField(trip, "player", player);
+            SetField(trip, "vitals", vitals);
+            SetField(trip, "activity", activity);
+            SetField(trip, "temperature", temperature);
+            SetField(trip, "weather", weather);
+            SetField(saves, "trip", trip);
+            var journal = hud.AddComponent<JournalView>();
+            SetField(journal, "timeOfDay", timeOfDay);
+            SetField(journal, "saves", saves);
 
             go.AddComponent<Footsteps>();
             var ambience = go.AddComponent<AmbienceAudio>();

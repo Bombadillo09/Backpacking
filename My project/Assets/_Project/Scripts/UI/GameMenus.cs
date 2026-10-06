@@ -18,7 +18,7 @@ namespace Backpacking.UI
         const string ControlsText =
             "WASD|Left stick|Walk\nMouse|Right stick|Look around\nShift|Left stick press|Sprint\n" +
             "C|Right stick press|Crouch\nSpace|A|Jump\nE|Y|Interact, place gear, hook a fish\n" +
-            "Tab|View|Backpack, leave a shop\nM|D-pad up|Map\nQ|D-pad down|Compass\nHold T|Hold LB|Fast-forward time\n" +
+            "Tab|View|Backpack, leave a shop\nJ|Backpack > Journal|Trip journal\nM|D-pad up|Map\nQ|D-pad down|Compass\nHold T|Hold LB|Fast-forward time\n" +
             "Right-click|B|Back, cancel placing, stop fishing\nEsc|Start|Close screen, pause\nF5 / F9|-|Quick-save / quick-load";
 
         enum Page { None, Title, Pause, Settings, Controls, Confirm }
@@ -277,9 +277,9 @@ namespace Backpacking.UI
         void NewTrip()
         {
             HideAll();
-            Notifications.Post(saves.HasSave
-                ? "A new trip begins. Your next save replaces the old one."
-                : "A new trip begins. Head north along the route.", 6f);
+            string replaces = saves.HasSave ? " Your next save replaces the old trip." : "";
+            Notifications.Post($"Your goal: hike north along the route to {Trip.TripLog.Destination} and sign the summit register. "
+                               + $"Check your map (M).{replaces}", 12f);
         }
 
         // ---------- Pause ----------

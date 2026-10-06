@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Backpacking.Interaction;
 using Backpacking.Survival;
 using Backpacking.World;
+using Backpacking.Trip;
 using UnityEngine;
 
 namespace Backpacking.Gathering
@@ -45,6 +46,7 @@ namespace Backpacking.Gathering
                 {
                     interactor.Backpack.AddFood(FoodKind.Berries, Random.Range(minBerries, maxBerries + 1));
                     pickedAtHour = timeOfDay.TotalHours;
+                    TripLog.Tally(TripStat.BerryPicks);
                 }), HasBerries ? null : $"Already picked. More in about {Mathf.CeilToInt(regrowsIn)} h"));
         }
     }

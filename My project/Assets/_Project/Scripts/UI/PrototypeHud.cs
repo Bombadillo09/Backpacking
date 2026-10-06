@@ -20,7 +20,7 @@ namespace Backpacking.UI
 
         const string HelpText =
             "WASD move · Shift sprint · C crouch · Space jump\n" +
-            "M map · Q compass · Tab backpack · E interact\n" +
+            "M map · Q compass · Tab backpack · J journal · E interact\n" +
             "Hold T fast-forward time · F5 save · F9 load · Esc menu\n" +
             "Gamepad: Y interact · View backpack · D-pad map/compass · LB fast-forward · Start menu";
 
