@@ -311,6 +311,8 @@ namespace Backpacking.Survival
             float lowest = Mathf.Min(Mathf.Min(satiety, hydration), Mathf.Min(Mathf.Min(warmth, energy), health));
             float condition = lowest < criticalThreshold ? 0.6f : lowest < tiredThreshold ? 0.85f : 1f;
             player.SpeedMultiplier = condition * backpack.LoadSpeedMultiplier;
+            // From a light day pack (5 kg) up to all you can carry.
+            player.LoadFactor = Mathf.InverseLerp(5f, backpack.MaxLoad, backpack.TotalWeight);
             player.CanSprint = energy > criticalThreshold && hydration > criticalThreshold && health > tiredThreshold
                                && !backpack.IsOverloaded;
         }

@@ -9,9 +9,9 @@ namespace Backpacking.Audio
 {
     /// <summary>
     /// Footsteps that match the ground: grass and dirt, leaf litter, rock, snow, or splashing through water.
-    /// Steps come further apart as you speed up, louder when sprinting and softer when crouched.
+    /// Steps come with the head bob's stride, louder when sprinting or carrying a heavy pack and softer when crouched.
     /// </summary>
-    [RequireComponent(typeof(FirstPersonController))]
+    [RequireComponent(typeof(FirstPersonController), typeof(HeadBob))]
     public class Footsteps : MonoBehaviour
     {
         [Serializable]
@@ -28,18 +28,18 @@ namespace Backpacking.Audio
         [SerializeField, Range(0f, 1f)] float walkVolume = 0.4f;
         [SerializeField, Range(0f, 1f)] float sprintVolume = 0.65f;
         [SerializeField, Range(0f, 1f)] float crouchVolume = 0.15f;
-        [Tooltip("Seconds in the air before landing makes a sound.")]
-        [SerializeField] float landingAirTime = 0.3f;
+        [Tooltip("Extra loudness with a full pack: heavier footfalls.")]
+        [SerializeField, Range(0f, 1f)] float loadedExtra = 0.4f;
 
         FirstPersonController player;
+        HeadBob bob;
         AudioSource source;
-        float distanceSinceStep;
-        float airTime;
         int lastVariant;
 
         void Awake()
         {
             player = GetComponent<FirstPersonController>();
+            bob = GetComponent<HeadBob>();
             var go = new GameObject("Footsteps");
             go.transform.SetParent(transform, false);
             source = go.AddComponent<AudioSource>();
@@ -47,37 +47,30 @@ namespace Backpacking.Audio
             source.spatialBlend = 0f;
         }
 
-        void Update()
+        // Steps follow the head bob's stride, so each footfall sounds as the view dips.
+        void OnEnable()
         {
-            if (!player.IsGrounded)
-            {
-                airTime += Time.deltaTime;
+            if (bob == null)
                 return;
-            }
-
-            if (airTime > landingAirTime)
-            {
-                Step(1f);
-                distanceSinceStep = 0f;
-            }
-            airTime = 0f;
-
-            float speed = player.HorizontalSpeed;
-            if (speed < 0.3f)
-            {
-                // Half a step's credit, so the first step after stopping comes quickly.
-                distanceSinceStep = Mathf.Min(distanceSinceStep, 0.5f);
-                return;
-            }
-
-            distanceSinceStep += speed * Time.deltaTime;
-            float stride = Mathf.Clamp(0.45f + 0.23f * speed, 0.6f, 1.5f);
-            if (distanceSinceStep >= stride)
-            {
-                distanceSinceStep -= stride;
-                Step(player.IsCrouching ? crouchVolume : player.IsSprinting ? sprintVolume : walkVolume);
-            }
+            bob.Stepped += OnStepped;
+            bob.Landed += OnLanded;
         }
+
+        void OnDisable()
+        {
+            if (bob == null)
+                return;
+            bob.Stepped -= OnStepped;
+            bob.Landed -= OnLanded;
+        }
+
+        void OnStepped(float hardness)
+        {
+            float volume = player.IsCrouching ? crouchVolume : player.IsSprinting ? sprintVolume : walkVolume;
+            Step(volume * (1f + loadedExtra * player.LoadFactor));
+        }
+
+        void OnLanded(float fallSpeed) => Step(Mathf.Clamp01(0.5f + fallSpeed * 0.08f));
 
         void Step(float volume)
         {

@@ -6,7 +6,8 @@ namespace Backpacking.Player
 {
     /// <summary>
     /// First-person movement for a hiker: walk, sprint, crouch and jump, with speed
-    /// reduced when climbing steep ground. The transform's origin sits at the feet.
+    /// reduced when climbing steep ground. Momentum builds and fades gradually, more so under a
+    /// heavy pack. The transform's origin sits at the feet.
     /// </summary>
     [RequireComponent(typeof(CharacterController))]
     public class FirstPersonController : MonoBehaviour
@@ -19,8 +20,19 @@ namespace Backpacking.Player
         [SerializeField] float walkSpeed = 2.2f;
         [SerializeField] float sprintSpeed = 4.5f;
         [SerializeField] float crouchSpeed = 1.1f;
-        [SerializeField] float acceleration = 12f;
         [SerializeField, Range(0f, 1f)] float airControl = 0.2f;
+
+        [Header("Momentum (m/s²)")]
+        [Tooltip("Speeding up with a light pack.")]
+        [SerializeField] float acceleration = 7f;
+        [Tooltip("Speeding up with a full pack.")]
+        [SerializeField] float loadedAcceleration = 3.5f;
+        [Tooltip("Slowing down with a light pack.")]
+        [SerializeField] float deceleration = 9f;
+        [Tooltip("Slowing down with a full pack: it carries you on a little.")]
+        [SerializeField] float loadedDeceleration = 5f;
+        [Tooltip("Jump height kept with a full pack.")]
+        [SerializeField, Range(0.1f, 1f)] float loadedJump = 0.6f;
 
         [Header("Slopes")]
         [Tooltip("Uphill incline (degrees) where slowdown begins.")]
@@ -53,6 +65,7 @@ namespace Backpacking.Player
         Vector3 horizontalVelocity;
         float verticalVelocity;
         float pitch;
+        float eyeHeight = 1.68f;
 
         bool cursorWasNeeded;
         bool invertY;
@@ -61,6 +74,8 @@ namespace Backpacking.Player
         public bool IsSprinting { get; private set; }
         public bool IsCrouching { get; private set; }
         public float HorizontalSpeed => horizontalVelocity.magnitude;
+        public float VerticalVelocity => verticalVelocity;
+        public float WalkSpeed => walkSpeed;
         public Transform CameraPivot => cameraPivot;
 
         /// <summary>Scales all movement speeds, e.g. when exhausted. Set by other systems.</summary>
@@ -71,10 +86,17 @@ namespace Backpacking.Player
         public float GroundSpeedMultiplier { get; set; } = 1f;
         /// <summary>Extra view rotation in degrees (x yaw, y pitch, z roll), e.g. shivering. Set by other systems.</summary>
         public Vector3 ViewOffset { get; set; }
+        /// <summary>How heavy the pack is, 0 (light) to 1 (as much as you can carry). Set by the vitals.</summary>
+        public float LoadFactor { get; set; }
+        /// <summary>Head bob: eye position offset in metres, and view rotation in degrees (x pitch, y yaw, z roll).</summary>
+        public Vector3 BobPosition { get; set; }
+        public Vector3 BobRotation { get; set; }
 
         void Awake()
         {
             controller = GetComponent<CharacterController>();
+            if (cameraPivot != null)
+                eyeHeight = cameraPivot.localPosition.y;
 
             if (inputActions == null)
             {
@@ -124,7 +146,13 @@ namespace Backpacking.Player
             if (!locked)
                 UpdateCrouch();
             Move(locked);
-            cameraPivot.localRotation = Quaternion.Euler(pitch + ViewOffset.y, ViewOffset.x, ViewOffset.z);
+        }
+
+        // After everything that moves the view this frame (head bob, shivering) has had its say.
+        void LateUpdate()
+        {
+            cameraPivot.localPosition = new Vector3(0f, eyeHeight, 0f) + BobPosition;
+            cameraPivot.localRotation = Quaternion.Euler(pitch + ViewOffset.y + BobRotation.x, ViewOffset.x + BobRotation.y, ViewOffset.z + BobRotation.z);
         }
 
         void Look()
@@ -150,8 +178,15 @@ namespace Backpacking.Player
             if (wishDirection.sqrMagnitude > 0.0001f)
                 speed *= UphillSpeedMultiplier(wishDirection.normalized);
 
-            float accel = controller.isGrounded ? acceleration : acceleration * airControl;
-            horizontalVelocity = Vector3.MoveTowards(horizontalVelocity, wishDirection * speed, accel * Time.deltaTime);
+            // A loaded hiker is slow to get going and slow to stop.
+            Vector3 target = wishDirection * speed;
+            bool slowing = target.sqrMagnitude < horizontalVelocity.sqrMagnitude;
+            float accel = slowing
+                ? Mathf.Lerp(deceleration, loadedDeceleration, LoadFactor)
+                : Mathf.Lerp(acceleration, loadedAcceleration, LoadFactor);
+            if (!controller.isGrounded)
+                accel *= airControl;
+            horizontalVelocity = Vector3.MoveTowards(horizontalVelocity, target, accel * Time.deltaTime);
 
             if (controller.isGrounded)
             {
@@ -160,7 +195,7 @@ namespace Backpacking.Player
                     verticalVelocity = -2f - HorizontalSpeed;
 
                 if (!locked && jumpAction.WasPressedThisFrame() && !IsCrouching)
-                    verticalVelocity = Mathf.Sqrt(2f * jumpHeight * -gravity);
+                    verticalVelocity = Mathf.Sqrt(2f * jumpHeight * Mathf.Lerp(1f, loadedJump, LoadFactor) * -gravity);
             }
             verticalVelocity += gravity * Time.deltaTime;
 
@@ -211,7 +246,7 @@ namespace Backpacking.Player
             float height = Mathf.MoveTowards(controller.height, targetHeight, crouchTransitionSpeed * Time.deltaTime);
             controller.height = height;
             controller.center = new Vector3(0f, height * 0.5f, 0f);
-            cameraPivot.localPosition = new Vector3(0f, height - eyeOffsetFromTop, 0f);
+            eyeHeight = height - eyeOffsetFromTop;
         }
 
         bool HasHeadroomToStand()

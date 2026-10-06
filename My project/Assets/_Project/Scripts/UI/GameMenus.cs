@@ -125,6 +125,7 @@ namespace Backpacking.UI
                 SliderRow("Master volume", 0f, 1f, GameSettings.MasterVolume, value => GameSettings.MasterVolume = value, value => $"{value * 100f:0}%"),
                 SliderRow("Mouse sensitivity", 0.02f, 0.4f, GameSettings.MouseSensitivity, value => GameSettings.MouseSensitivity = value, value => $"{value * 10f:0.0}"),
                 SliderRow("Field of view", 55f, 95f, GameSettings.FieldOfView, value => GameSettings.FieldOfView = value, value => $"{value:0}°"),
+                SliderRow("Head bob", 0f, 1f, GameSettings.HeadBob, value => GameSettings.HeadBob = value, value => $"{value * 100f:0}%"),
                 ToggleRow("Invert mouse Y", GameSettings.InvertMouseY, value => GameSettings.InvertMouseY = value),
                 ToggleRow("Show control hints", GameSettings.ShowControlHints, value => GameSettings.ShowControlHints = value),
                 UIBuild.Box("setting").With(UIBuild.Text("Fullscreen", "setting-label"), fullscreen),

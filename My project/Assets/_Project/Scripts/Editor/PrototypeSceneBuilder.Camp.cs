@@ -269,6 +269,7 @@ namespace Backpacking.EditorTools
             SetField(journal, "timeOfDay", timeOfDay);
             SetField(journal, "saves", saves);
 
+            go.AddComponent<HeadBob>();
             go.AddComponent<Footsteps>();
             var ambience = go.AddComponent<AmbienceAudio>();
             SetField(ambience, "timeOfDay", timeOfDay);

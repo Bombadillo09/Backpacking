@@ -36,6 +36,13 @@ namespace Backpacking.UI
             set => Set("fov", Mathf.Clamp(value, 55f, 95f));
         }
 
+        /// <summary>How much the view bobs and sways when walking, 0 (none) to 1 (full).</summary>
+        public static float HeadBob
+        {
+            get => PlayerPrefs.GetFloat(Prefix + "headBob", 1f);
+            set => Set("headBob", Mathf.Clamp01(value));
+        }
+
         /// <summary>Shows the list of keys in the corner of the HUD.</summary>
         public static bool ShowControlHints
         {
