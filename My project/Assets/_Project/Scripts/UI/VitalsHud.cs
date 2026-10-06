@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Backpacking.UI
 {
-    /// <summary>Food, water, warmth and energy bars in the bottom-left corner.</summary>
+    /// <summary>Health, food, water, warmth and energy bars in the bottom-left corner.</summary>
     public class VitalsHud : MonoBehaviour
     {
         [SerializeField] Vitals vitals;
@@ -18,8 +18,10 @@ namespace Backpacking.UI
 
             const float width = 220f, barHeight = 10f, rowHeight = 30f;
             float x = 16f;
-            float y = Screen.height - 16f - rowHeight * 4f - 44f;
+            float y = Screen.height - 16f - rowHeight * 5f - 44f;
 
+            string trend = vitals.HealthRate < -0.05f ? "  ▼" : vitals.HealthRate > 0.05f && vitals.Health < Vitals.Max ? "  ▲" : "";
+            DrawBar(x, ref y, width, barHeight, rowHeight, "Health", vitals.Health, new Color(0.85f, 0.2f, 0.3f), trend);
             DrawBar(x, ref y, width, barHeight, rowHeight, "Food", vitals.Satiety, new Color(0.9f, 0.65f, 0.25f));
             DrawBar(x, ref y, width, barHeight, rowHeight, "Water", vitals.Hydration, new Color(0.3f, 0.6f, 0.95f));
             DrawBar(x, ref y, width, barHeight, rowHeight, "Warmth", vitals.Warmth, new Color(0.95f, 0.45f, 0.3f));
@@ -32,6 +34,12 @@ namespace Backpacking.UI
                 status += vitals.Wetness > 60f ? "  ·  soaked" : "  ·  damp";
             if (vitals.IsSick)
                 status += "  ·  sick";
+            if (vitals.IsHypothermic)
+                status += "  ·  hypothermic";
+            if (vitals.IsDehydrated)
+                status += "  ·  dehydrated";
+            if (vitals.IsStarving)
+                status += "  ·  starving";
             DrawShadowed(new Rect(x, y, 500f, 22f), status);
 
             float weight = backpack.TotalWeight;
@@ -39,10 +47,11 @@ namespace Backpacking.UI
             DrawShadowed(new Rect(x, y + 22f, 500f, 22f), $"Pack {weight:0.0} / {backpack.ComfortableLoad:0} kg{load}");
         }
 
-        void DrawBar(float x, ref float y, float width, float barHeight, float rowHeight, string label, float value, Color colour)
+        void DrawBar(float x, ref float y, float width, float barHeight, float rowHeight, string label, float value, Color colour,
+            string suffix = "")
         {
             float fraction = value / Vitals.Max;
-            DrawShadowed(new Rect(x, y, width, 18f), $"{label}  {value:0}");
+            DrawShadowed(new Rect(x, y, width, 18f), $"{label}  {value:0}{suffix}");
             var bar = new Rect(x, y + 18f, width, barHeight);
             GUI.color = new Color(0f, 0f, 0f, 0.5f);
             GUI.DrawTexture(bar, Texture2D.whiteTexture);

@@ -227,6 +227,19 @@ namespace Backpacking.EditorTools
             SetField(saves, "weather", weather);
             SetField(interactor, "saves", saves);
 
+            var rescue = go.AddComponent<Rescue>();
+            SetField(rescue, "vitals", vitals);
+            SetField(rescue, "activity", activity);
+            SetField(rescue, "player", player);
+            SetField(rescue, "backpack", backpack);
+            SetField(rescue, "timeOfDay", timeOfDay);
+            SetField(rescue, "saves", saves);
+
+            var effects = hud.AddComponent<ConditionEffects>();
+            SetField(effects, "vitals", vitals);
+            SetField(effects, "player", player);
+            SetField(effects, "activity", activity);
+
             var vitalsHud = hud.AddComponent<VitalsHud>();
             SetField(vitalsHud, "vitals", vitals);
             SetField(vitalsHud, "backpack", backpack);

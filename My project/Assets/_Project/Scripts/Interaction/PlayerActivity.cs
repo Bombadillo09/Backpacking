@@ -27,7 +27,10 @@ namespace Backpacking.Interaction
         [SerializeField] float sleepHoursPerSecond = 1.2f;
         [Tooltip("Warmth level that wakes you up shivering.")]
         [SerializeField] float wakeWhenWarmthBelow = 20f;
+        [Tooltip("Hours spent unconscious after collapsing from exhaustion.")]
+        [SerializeField] float passOutHours = 3f;
 
+        bool unconscious;
         string label;
         float durationHours;
         float elapsedHours;
@@ -69,13 +72,39 @@ namespace Backpacking.Interaction
             if (!Begin("Sleeping", 0f, null))
                 return false;
 
+            StartSleeping(night ? Mathf.Repeat(wakeHour - hour, 24f) : napHours, inTent, inBag: true);
+            return true;
+        }
+
+        /// <summary>
+        /// Collapses from exhaustion where the player stands: no tent, no sleeping bag, and the cold
+        /// doesn't wake you. Cancels whatever the player was doing.
+        /// </summary>
+        public void PassOut()
+        {
+            Interrupt();
+            Begin("Passed out", 0f, null);
+            StartSleeping(passOutHours, inTent: false, inBag: false);
+            unconscious = true;
+            Notifications.Post("You collapse from exhaustion.");
+        }
+
+        /// <summary>Stops the current task or sleep without finishing it.</summary>
+        public void Interrupt()
+        {
+            if (IsBusy)
+                Finish();
+        }
+
+        void StartSleeping(float hours, bool inTent, bool inBag)
+        {
             sleeping = true;
-            durationHours = night ? Mathf.Repeat(wakeHour - hour, 24f) : napHours;
+            durationHours = hours;
             vitals.IsSleeping = true;
             vitals.IsSheltered = inTent;
+            vitals.InSleepingBag = inBag;
             sleepingInTent = inTent;
             timeOfDay.RequestSpeed(this, sleepHoursPerSecond / timeOfDay.BaseHoursPerSecond);
-            return true;
         }
 
         void Update()
@@ -85,7 +114,7 @@ namespace Backpacking.Interaction
 
             elapsedHours += Time.deltaTime * timeOfDay.HoursPerSecond;
 
-            if (sleeping && vitals.Warmth < wakeWhenWarmthBelow)
+            if (sleeping && !unconscious && vitals.Warmth < wakeWhenWarmthBelow)
             {
                 Finish();
                 Notifications.Post("You wake up shivering. It's too cold to sleep. Warm up or add layers.");
@@ -95,13 +124,15 @@ namespace Backpacking.Interaction
 
             if (elapsedHours >= durationHours)
             {
-                bool wasSleeping = sleeping;
+                bool wasSleeping = sleeping, wasUnconscious = unconscious;
                 Action completed = onComplete;
                 Finish();
                 completed?.Invoke();
                 if (wasSleeping)
                 {
-                    Notifications.Post($"You wake up. It's {timeOfDay.ClockText}.");
+                    Notifications.Post(wasUnconscious
+                        ? $"You come to on the cold ground. It's {timeOfDay.ClockText}."
+                        : $"You wake up. It's {timeOfDay.ClockText}.");
                     WokeUp?.Invoke(sleepingInTent);
                 }
             }
@@ -115,7 +146,9 @@ namespace Backpacking.Interaction
             {
                 vitals.IsSleeping = false;
                 vitals.IsSheltered = false;
+                vitals.InSleepingBag = false;
                 sleeping = false;
+                unconscious = false;
             }
             timeOfDay.ClearSpeed(this);
             PlayerControlLock.Unlock(this);
@@ -141,7 +174,8 @@ namespace Backpacking.Interaction
                 GUI.color = new Color(0f, 0f, 0.02f, Mathf.Clamp01(elapsedHours * 4f) * 0.92f);
                 GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), Texture2D.whiteTexture);
                 GUI.color = Color.white;
-                GUI.Label(new Rect(0f, Screen.height * 0.45f, Screen.width, 30f), $"Sleeping...   {timeOfDay.ClockText}", labelStyle);
+                string text = unconscious ? "Unconscious..." : "Sleeping...";
+                GUI.Label(new Rect(0f, Screen.height * 0.45f, Screen.width, 30f), $"{text}   {timeOfDay.ClockText}", labelStyle);
                 return;
             }
 

@@ -9,11 +9,14 @@ namespace Backpacking.Survival
     public class VitalsState
     {
         public float satiety, hydration, warmth, energy, sickHours, wetness;
+        public float health = Vitals.Max;
     }
 
     /// <summary>
     /// Food, water, warmth and energy, each 0–100. They change with game time (so they keep pace when
     /// time is sped up), drain faster with exertion, and slow the player down when low.
+    /// Health falls while any of them is critical and recovers slowly when you're looked after.
+    /// Running out of energy makes you collapse; running out of health means you need rescuing.
     /// </summary>
     public class Vitals : MonoBehaviour
     {
@@ -75,9 +78,29 @@ namespace Backpacking.Survival
         [SerializeField] float tiredThreshold = 30f;
         [SerializeField] float criticalThreshold = 12f;
 
+        [Header("Health")]
+        [SerializeField, Range(0f, Max)] float health = Max;
+        [Tooltip("Health lost per hour with no food at all. Scales up from zero as food drops below critical.")]
+        [SerializeField] float starvationDamage = 4f;
+        [SerializeField] float dehydrationDamage = 8f;
+        [SerializeField] float hypothermiaDamage = 20f;
+        [SerializeField] float sicknessDamage = 1.5f;
+        [Tooltip("Health regained per hour while food, water and warmth are above the tired threshold and you're not sick.")]
+        [SerializeField] float healthRecovery = 1.5f;
+        [SerializeField] float sleepingHealthRecovery = 4f;
+        [Tooltip("Energy needed before you can collapse again, so one collapse doesn't chain into the next.")]
+        [SerializeField] float collapseRearmEnergy = 15f;
+
         float sickHours;
         float wetness;
-        bool warnedCold, warnedHungry, warnedThirsty, warnedTired, warnedWet;
+        bool collapseArmed = true;
+        bool incapacitated;
+        bool warnedCold, warnedHungry, warnedThirsty, warnedTired, warnedWet, warnedHurt;
+
+        /// <summary>Raised when energy runs out while awake. The player passes out where they stand.</summary>
+        public event System.Action Collapsed;
+        /// <summary>Raised once when health reaches zero. Someone has to come and get you.</summary>
+        public event System.Action Incapacitated;
 
         /// <summary>How wet the player's clothes are, 0 dry to 100 soaked.</summary>
         public float Wetness => wetness;
@@ -88,12 +111,23 @@ namespace Backpacking.Survival
         public float Hydration => hydration;
         public float Warmth => warmth;
         public float Energy => energy;
+        public float Health => health;
         public bool IsSick => sickHours > 0f;
+        public bool IsStarving => satiety < criticalThreshold;
+        public bool IsDehydrated => hydration < criticalThreshold;
+        public bool IsHypothermic => warmth < criticalThreshold;
+        public bool IsExhausted => energy < criticalThreshold;
+        /// <summary>Health gained per game hour right now; negative while hurting.</summary>
+        public float HealthRate { get; private set; }
+        public float CriticalThreshold => criticalThreshold;
+        public float TiredThreshold => tiredThreshold;
 
         /// <summary>Set while sleeping; sleeping uses the sleeping bag instead of clothing.</summary>
         public bool IsSleeping { get; set; }
         /// <summary>Set while sleeping inside a tent.</summary>
         public bool IsSheltered { get; set; }
+        /// <summary>Set while asleep in the sleeping bag. Passing out on the ground leaves you in your clothes.</summary>
+        public bool InSleepingBag { get; set; }
 
         /// <summary>Air temperature the player feels, including fires and shelter (°C).</summary>
         public float FeltTemperature { get; private set; }
@@ -104,6 +138,20 @@ namespace Backpacking.Survival
         public void Drink(float amount) => hydration = Mathf.Min(Max, hydration + amount);
         public void MakeSick(float hours) => sickHours = Mathf.Max(sickHours, hours);
 
+        /// <summary>Sets every vital at once, e.g. after a rescue. Also dries you off and cures sickness.</summary>
+        public void Recover(float newHealth, float newSatiety, float newHydration, float newWarmth, float newEnergy)
+        {
+            health = newHealth;
+            satiety = newSatiety;
+            hydration = newHydration;
+            warmth = newWarmth;
+            energy = newEnergy;
+            wetness = 0f;
+            sickHours = 0f;
+            incapacitated = false;
+            collapseArmed = true;
+        }
+
         public VitalsState CaptureState() => new()
         {
             satiety = satiety,
@@ -112,6 +160,7 @@ namespace Backpacking.Survival
             energy = energy,
             sickHours = sickHours,
             wetness = wetness,
+            health = health,
         };
 
         public void RestoreState(VitalsState state)
@@ -122,6 +171,10 @@ namespace Backpacking.Survival
             energy = state.energy;
             sickHours = state.sickHours;
             wetness = state.wetness;
+            // Saves from before health existed have no value for it.
+            health = state.health > 0f ? state.health : Max;
+            incapacitated = false;
+            collapseArmed = energy > collapseRearmEnergy;
         }
 
         void Update()
@@ -153,11 +206,66 @@ namespace Backpacking.Survival
                 energy = Mathf.Max(0f, energy - energyDrain * exertion * strain * hours);
             }
 
+            UpdateHealth(hours);
+            CheckCollapse();
+
             ApplyEffects();
             WarnOnce(ref warnedCold, warmth, 40f, "You're getting cold. Put on a layer or find warmth.");
             WarnOnce(ref warnedHungry, satiety, 25f, "You're hungry.");
             WarnOnce(ref warnedThirsty, hydration, 25f, "You're thirsty.");
-            WarnOnce(ref warnedTired, energy, 20f, "You're exhausted. You need sleep.");
+            WarnOnce(ref warnedTired, energy, 20f, "You're exhausted. Sleep soon or you'll collapse.");
+            WarnOnce(ref warnedHurt, health, 40f, HurtWarning());
+        }
+
+        void UpdateHealth(float hours)
+        {
+            if (incapacitated)
+                return;
+
+            // Each vital starts hurting below critical, and hurts more the closer it gets to empty.
+            float damage = starvationDamage * Deficit(satiety)
+                           + dehydrationDamage * Deficit(hydration)
+                           + hypothermiaDamage * Deficit(warmth)
+                           + (IsSick ? sicknessDamage : 0f);
+
+            // Energy doesn't count here: sleep is how it comes back, and sleep should heal.
+            float lowest = Mathf.Min(satiety, Mathf.Min(hydration, warmth));
+            bool lookedAfter = damage <= 0f && lowest > tiredThreshold;
+            float recovery = lookedAfter ? (IsSleeping ? sleepingHealthRecovery : healthRecovery) : 0f;
+
+            HealthRate = recovery - damage;
+            health = Mathf.Clamp(health + HealthRate * hours, 0f, Max);
+            if (health <= 0f)
+            {
+                incapacitated = true;
+                Incapacitated?.Invoke();
+            }
+        }
+
+        float Deficit(float value) => value >= criticalThreshold ? 0f : 1f - value / criticalThreshold;
+
+        void CheckCollapse()
+        {
+            if (IsSleeping || incapacitated)
+                return;
+            if (!collapseArmed && energy > collapseRearmEnergy)
+                collapseArmed = true;
+            if (collapseArmed && energy <= 0f)
+            {
+                collapseArmed = false;
+                Collapsed?.Invoke();
+            }
+        }
+
+        string HurtWarning()
+        {
+            if (IsHypothermic)
+                return "You're hypothermic and getting weaker. Get warm now: a fire, dry layers or your sleeping bag.";
+            if (IsDehydrated)
+                return "You're badly dehydrated and getting weaker. Drink something.";
+            if (IsStarving)
+                return "You're starving and getting weaker. Eat something.";
+            return "You're in bad shape. Rest, eat and stay warm.";
         }
 
         void UpdateWetness(float hours, float fireWarmth)
@@ -182,7 +290,7 @@ namespace Backpacking.Survival
             FeltTemperature = air + fire + (inTent ? backpack.TentShelter : 0f) - WindChill - soaked * soakedChill;
 
             float insulation = backpack.ClothingInsulation * (1f - soakedInsulationLoss * soaked);
-            ComfortTemperature = IsSleeping
+            ComfortTemperature = IsSleeping && InSleepingBag
                 ? backpack.SleepingBagComfort
                 : neutralTemperature - insulation - bodyHeat;
 
@@ -193,10 +301,11 @@ namespace Backpacking.Survival
 
         void ApplyEffects()
         {
-            float lowest = Mathf.Min(Mathf.Min(satiety, hydration), Mathf.Min(warmth, energy));
+            float lowest = Mathf.Min(Mathf.Min(satiety, hydration), Mathf.Min(Mathf.Min(warmth, energy), health));
             float condition = lowest < criticalThreshold ? 0.6f : lowest < tiredThreshold ? 0.85f : 1f;
             player.SpeedMultiplier = condition * backpack.LoadSpeedMultiplier;
-            player.CanSprint = energy > criticalThreshold && hydration > criticalThreshold && !backpack.IsOverloaded;
+            player.CanSprint = energy > criticalThreshold && hydration > criticalThreshold && health > tiredThreshold
+                               && !backpack.IsOverloaded;
         }
 
         /// <summary>Posts a message when a value drops below a threshold, then rearms once it recovers.</summary>

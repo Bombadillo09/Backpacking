@@ -65,6 +65,8 @@ namespace Backpacking.Player
         public float SpeedMultiplier { get; set; } = 1f;
         /// <summary>Whether sprinting is currently allowed. Set by other systems.</summary>
         public bool CanSprint { get; set; } = true;
+        /// <summary>Extra view rotation in degrees (x yaw, y pitch, z roll), e.g. shivering. Set by other systems.</summary>
+        public Vector3 ViewOffset { get; set; }
 
         void Awake()
         {
@@ -106,6 +108,7 @@ namespace Backpacking.Player
             if (!locked)
                 UpdateCrouch();
             Move(locked);
+            cameraPivot.localRotation = Quaternion.Euler(pitch + ViewOffset.y, ViewOffset.x, ViewOffset.z);
         }
 
         void Look()
@@ -116,7 +119,6 @@ namespace Backpacking.Player
 
             transform.Rotate(0f, delta.x, 0f);
             pitch = Mathf.Clamp(pitch - delta.y, -maxPitch, maxPitch);
-            cameraPivot.localRotation = Quaternion.Euler(pitch, 0f, 0f);
         }
 
         void Move(bool locked)
