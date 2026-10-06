@@ -14,21 +14,21 @@ namespace Backpacking.Player
     public class HeadBob : MonoBehaviour
     {
         [Header("Bob (metres and degrees)")]
-        [SerializeField] float walkHeight = 0.035f;
-        [SerializeField] float sprintHeight = 0.06f;
-        [SerializeField] float sway = 0.022f;
-        [SerializeField] float roll = 0.7f;
+        [SerializeField] float walkHeight = 0.02f;
+        [SerializeField] float sprintHeight = 0.035f;
+        [SerializeField] float sway = 0.012f;
+        [SerializeField] float roll = 0.35f;
         [Tooltip("Head nod as each foot lands.")]
-        [SerializeField] float nod = 0.5f;
-        [Tooltip("How much deeper every step is with a full pack (0.6 = 60% deeper).")]
-        [SerializeField] float loadedExtra = 0.6f;
+        [SerializeField] float nod = 0.25f;
+        [Tooltip("How much deeper every step is with a full pack (0.4 = 40% deeper).")]
+        [SerializeField] float loadedExtra = 0.4f;
         [SerializeField, Range(0f, 1f)] float crouchScale = 0.55f;
 
         [Header("Weight")]
         [Tooltip("Downward push on the view from each footfall, in m/s.")]
-        [SerializeField] float stepImpact = 0.18f;
+        [SerializeField] float stepImpact = 0.1f;
         [Tooltip("Downward push on landing, per m/s of falling speed.")]
-        [SerializeField] float landImpact = 0.12f;
+        [SerializeField] float landImpact = 0.09f;
         [SerializeField] float springStiffness = 140f;
         [SerializeField] float springDamping = 15f;
 
