@@ -126,7 +126,10 @@ namespace Backpacking.EditorTools
             report.Add($"Free Vegetation: {converted} materials converted to URP, {grass.Length} grass clumps and {shrubs.Length} shrub added.");
         }
 
-        /// <summary>The pack ships HDRP materials, which draw pink in URP. Switches them to URP Lit, keeping their textures.</summary>
+        /// <summary>
+        /// The pack ships HDRP materials, which draw pink in URP. Switches them to URP Lit, keeping their textures.
+        /// Also repairs materials an earlier version of this converted without their textures.
+        /// </summary>
         static int ConvertHdrpMaterials(string folder)
         {
             Shader urpLit = Shader.Find("Universal Render Pipeline/Lit");
@@ -134,16 +137,24 @@ namespace Backpacking.EditorTools
             foreach (string guid in AssetDatabase.FindAssets("t:Material", new[] { folder }))
             {
                 var material = AssetDatabase.LoadAssetAtPath<Material>(AssetDatabase.GUIDToAssetPath(guid));
-                if (material == null || material.shader == urpLit)
+                if (material == null)
                     continue;
 
-                // Read the HDRP values before switching; the material keeps them stored either way.
-                Texture baseMap = TextureOrNull(material, "_BaseColorMap");
-                Texture normalMap = TextureOrNull(material, "_NormalMap");
-                Color colour = material.HasProperty("_BaseColor") ? material.GetColor("_BaseColor") : Color.white;
-                bool cutout = material.HasProperty("_AlphaCutoffEnable") && material.GetFloat("_AlphaCutoffEnable") > 0.5f;
-                float cutoff = material.HasProperty("_AlphaCutoff") ? material.GetFloat("_AlphaCutoff") : 0.5f;
-                float smoothness = material.HasProperty("_Smoothness") ? material.GetFloat("_Smoothness") : 0.3f;
+                // HDRP isn't installed, so its shader can't report these values; read them from the material's
+                // saved properties instead, which keep every value whatever the shader.
+                var saved = new SerializedObject(material).FindProperty("m_SavedProperties");
+                Texture baseMap = SavedTexture(saved, "_BaseColorMap");
+                if (baseMap == null)
+                    continue;
+                bool alreadyDone = material.shader == urpLit && material.GetTexture("_BaseMap") == baseMap;
+                if (alreadyDone)
+                    continue;
+
+                Texture normalMap = SavedTexture(saved, "_NormalMap");
+                Color colour = SavedColour(saved, "_BaseColor") ?? Color.white;
+                bool cutout = (SavedFloat(saved, "_AlphaCutoffEnable") ?? 0f) > 0.5f;
+                float cutoff = SavedFloat(saved, "_AlphaCutoff") ?? 0.5f;
+                float smoothness = SavedFloat(saved, "_Smoothness") ?? 0.3f;
 
                 material.shader = urpLit;
                 material.SetTexture("_BaseMap", baseMap);
@@ -171,8 +182,31 @@ namespace Backpacking.EditorTools
             return count;
         }
 
-        static Texture TextureOrNull(Material material, string property) =>
-            material.HasProperty(property) ? material.GetTexture(property) : null;
+        static Texture SavedTexture(SerializedProperty saved, string name)
+        {
+            SerializedProperty entry = FindSaved(saved.FindPropertyRelative("m_TexEnvs"), name);
+            return entry?.FindPropertyRelative("second.m_Texture").objectReferenceValue as Texture;
+        }
+
+        static float? SavedFloat(SerializedProperty saved, string name) =>
+            FindSaved(saved.FindPropertyRelative("m_Floats"), name)?.FindPropertyRelative("second").floatValue;
+
+        static Color? SavedColour(SerializedProperty saved, string name) =>
+            FindSaved(saved.FindPropertyRelative("m_Colors"), name)?.FindPropertyRelative("second").colorValue;
+
+        /// <summary>Finds a name/value pair in one of a material's saved property lists.</summary>
+        static SerializedProperty FindSaved(SerializedProperty list, string name)
+        {
+            if (list == null)
+                return null;
+            for (int i = 0; i < list.arraySize; i++)
+            {
+                SerializedProperty entry = list.GetArrayElementAtIndex(i);
+                if (entry.FindPropertyRelative("first").stringValue == name)
+                    return entry;
+            }
+            return null;
+        }
 
         /// <summary>
         /// A copy of a vegetation prefab with all its child meshes merged onto the root (one submesh per
