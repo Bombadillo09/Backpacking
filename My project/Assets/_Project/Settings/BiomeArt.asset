@@ -33,6 +33,16 @@ MonoBehaviour:
   grassTexture: {fileID: 2800000, guid: 8e7d3275c98a67c488c8179760a8c73a, type: 3}
   grassHealthy: {r: 0.45, g: 0.6, b: 0.3, a: 1}
   grassDry: {r: 0.65, g: 0.6, b: 0.35, a: 1}
+  extraGrassTextures: []
+  grassHeight: {x: 0.35, y: 0.75}
+  grassWidth: {x: 0.5, y: 1}
+  flowerTextures: []
+  flowerHeight: {x: 0.3, y: 0.6}
+  flowerWidth: {x: 0.3, y: 0.6}
+  flowerDensity: 2
+  rabbitModel: {fileID: 0}
+  deerModel: {fileID: 0}
+  birdModel: {fileID: 0}
   forestFloorPlants:
   - {fileID: 397059435589770102, guid: 76ee08f7967fd544697fa11525ca8d8f, type: 3}
   meadowPlants:
