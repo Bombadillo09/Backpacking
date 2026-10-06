@@ -769,7 +769,32 @@ namespace Backpacking.EditorTools
                 var log = (GameObject)PrefabUtility.InstantiatePrefab(logs[random.Next(logs.Length)], parent);
                 log.transform.SetPositionAndRotation(position, lying);
                 log.transform.localScale = Vector3.one * Mathf.Lerp(0.6f, 1.6f, (float)random.NextDouble());
+                MakeGatherable(log, placed);
                 placed++;
+            }
+        }
+
+        /// <summary>Fallen deadwood short enough to break up and carry.</summary>
+        const float GatherableLogLength = 3f;
+
+        /// <summary>
+        /// Small fallen logs look just like the firewood pickups (same models), so they can be gathered too: a
+        /// piece of firewood per 0.9 m, 2 to 4. Bigger trunks stay where they fell.
+        /// </summary>
+        static void MakeGatherable(GameObject log, int index)
+        {
+            Bounds bounds = RendererBounds(log);
+            float length = Mathf.Max(bounds.size.x, bounds.size.z);
+            if (length > GatherableLogLength)
+                return;
+            var pickup = log.AddComponent<Backpacking.Interaction.FirewoodPickup>();
+            Modify(pickup, "pieces", property => property.intValue = Mathf.Clamp(Mathf.RoundToInt(length / 0.9f), 2, 4));
+            AddSaveId(log, $"deadwood-{index}");
+            if (log.GetComponentInChildren<Collider>() == null)
+            {
+                var collider = log.AddComponent<BoxCollider>();
+                collider.center = log.transform.InverseTransformPoint(bounds.center);
+                collider.size = log.transform.InverseTransformVector(bounds.size);
             }
         }
 

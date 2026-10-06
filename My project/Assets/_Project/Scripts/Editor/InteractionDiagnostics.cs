@@ -15,13 +15,19 @@ namespace Backpacking.EditorTools
     {
         public static string Firewood()
         {
+            // Outside Play mode physics only learns where moved objects are when asked.
+            Physics.SyncTransforms();
             var report = new StringBuilder();
             var blockers = new Dictionary<string, int>();
             int pieces = 0, reachable = 0, tries = 0, clear = 0;
             foreach (FirewoodPickup wood in Object.FindObjectsByType<FirewoodPickup>(FindObjectsSortMode.None))
             {
                 pieces++;
-                Vector3 target = wood.transform.position + Vector3.up * 0.08f;
+                // Aim just below the top of whatever you'd see: the pickup's collider.
+                Collider body = wood.GetComponentInChildren<Collider>();
+                Vector3 target = body != null
+                    ? new Vector3(body.bounds.center.x, body.bounds.max.y - 0.03f, body.bounds.center.z)
+                    : wood.transform.position + Vector3.up * 0.08f;
                 bool any = false;
                 for (int a = 0; a < 8; a++)
                 {
