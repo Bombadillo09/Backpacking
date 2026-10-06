@@ -1,5 +1,6 @@
 using System.IO;
 using System.Linq;
+using Backpacking.Navigation;
 using Backpacking.Player;
 using Backpacking.UI;
 using Backpacking.World;
@@ -9,6 +10,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
+using Compass = Backpacking.Navigation.Compass;
 
 namespace Backpacking.EditorTools
 {
@@ -61,6 +63,14 @@ namespace Backpacking.EditorTools
             SetField(temperature, "timeOfDay", timeOfDay);
 
             FirstPersonController player = CreatePlayer(terrain);
+            CreateNavigationPoints(terrain, player.transform.position);
+
+            var navigation = new GameObject("Navigation");
+            var map = navigation.AddComponent<MapView>();
+            SetField(map, "terrain", terrain);
+            SetField(map, "player", player.transform);
+            var compass = navigation.AddComponent<Compass>();
+            SetField(compass, "holder", player.transform);
 
             var hud = new GameObject("Prototype HUD").AddComponent<PrototypeHud>();
             SetField(hud, "timeOfDay", timeOfDay);
@@ -134,14 +144,16 @@ namespace Backpacking.EditorTools
                 float height = 0.12f + 0.14f * hills + mountainMask * 0.6f * ridges;
 
                 // A valley that winds south to north, fading out where the mountains begin.
-                float valleyCentre = 0.5f + 0.12f * Mathf.Sin(v * 7f) + 0.05f * Mathf.Sin(v * 17f + 1f);
-                float valleyShape = Mathf.SmoothStep(0f, 1f, Mathf.Abs(u - valleyCentre) / 0.09f);
+                float valleyShape = Mathf.SmoothStep(0f, 1f, Mathf.Abs(u - ValleyCentre(v)) / 0.09f);
                 height = Mathf.Lerp(height * Mathf.Lerp(0.55f, 1f, mountainMask), height, valleyShape);
 
                 heights[z, x] = Mathf.Clamp01(height);
             }
             return heights;
         }
+
+        /// <summary>Normalised east-west position of the valley floor at normalised north-south position <paramref name="v"/>.</summary>
+        static float ValleyCentre(float v) => 0.5f + 0.12f * Mathf.Sin(v * 7f) + 0.05f * Mathf.Sin(v * 17f + 1f);
 
         static float[,,] GenerateSplatmap(TerrainData data)
         {
@@ -336,9 +348,105 @@ namespace Backpacking.EditorTools
             return fpc;
         }
 
+        // ---------- Navigation points ----------
+
+        static void CreateNavigationPoints(Terrain terrain, Vector3 spawn)
+        {
+            float half = TerrainSize / 2f;
+            Material stone = GetOrCreateMaterial("CairnStone", new Color(0.45f, 0.44f, 0.42f));
+            Material flag = GetOrCreateMaterial("MarkerFlag", new Color(1f, 0.45f, 0.05f));
+            var parent = new GameObject("Navigation Points").transform;
+
+            // Start point, already visited.
+            CreateNavigationPoint("Trailhead", spawn + new Vector3(4f, 0f, 6f), terrain, parent, stone, flag, visited: true);
+
+            // On the valley floor, about halfway north.
+            const float valleyV = 0.45f;
+            var valley = new Vector3(ValleyCentre(valleyV) * TerrainSize - half, 0f, valleyV * TerrainSize - half);
+            CreateNavigationPoint("Valley Crossing", valley, terrain, parent, stone, flag);
+
+            // Out in the western hills.
+            CreateNavigationPoint("Aspen Meadow", new Vector3(-TerrainSize * 0.3f, 0f, -TerrainSize * 0.08f), terrain, parent, stone, flag);
+
+            // The lowest point along a line through the mountains: a natural pass.
+            float passZ = TerrainSize * 0.28f;
+            var pass = new Vector3(0f, 0f, passZ);
+            float lowest = float.MaxValue;
+            for (float x = -half * 0.8f; x <= half * 0.8f; x += 10f)
+            {
+                float h = terrain.SampleHeight(new Vector3(x, 0f, passZ));
+                if (h < lowest)
+                {
+                    lowest = h;
+                    pass.x = x;
+                }
+            }
+            CreateNavigationPoint("North Pass", pass, terrain, parent, stone, flag);
+        }
+
+        /// <summary>A stone cairn with a tall orange flag, visible from a distance.</summary>
+        static void CreateNavigationPoint(string pointName, Vector3 position, Terrain terrain, Transform parent,
+            Material stone, Material flag, bool visited = false)
+        {
+            position.y = terrain.SampleHeight(position) + terrain.transform.position.y;
+            var root = new GameObject(pointName);
+            root.transform.SetParent(parent, false);
+            root.transform.position = position;
+
+            var point = root.AddComponent<NavigationPoint>();
+            SetString(point, "displayName", pointName);
+            SetBool(point, "visited", visited);
+
+            float[] stoneSizes = { 1.1f, 0.8f, 0.55f };
+            float y = 0f;
+            foreach (float size in stoneSizes)
+            {
+                y += size * 0.4f;
+                CreatePart(PrimitiveType.Sphere, root.transform, new Vector3(0f, y, 0f), new Vector3(size, size * 0.8f, size), stone, keepCollider: true);
+                y += size * 0.4f;
+            }
+
+            CreatePart(PrimitiveType.Cylinder, root.transform, new Vector3(0f, 3.5f, 0f), new Vector3(0.06f, 3.5f, 0.06f), stone, keepCollider: false);
+            CreatePart(PrimitiveType.Cube, root.transform, new Vector3(0.6f, 6.4f, 0f), new Vector3(1.2f, 0.75f, 0.03f), flag, keepCollider: false);
+        }
+
+        static void CreatePart(PrimitiveType type, Transform parent, Vector3 localPosition, Vector3 scale, Material material, bool keepCollider)
+        {
+            GameObject part = GameObject.CreatePrimitive(type);
+            part.transform.SetParent(parent, false);
+            part.transform.localPosition = localPosition;
+            part.transform.localScale = scale;
+            part.GetComponent<Renderer>().sharedMaterial = material;
+            if (!keepCollider)
+                Object.DestroyImmediate(part.GetComponent<Collider>());
+        }
+
+        static Material GetOrCreateMaterial(string materialName, Color colour)
+        {
+            string path = $"{GeneratedFolder}/{materialName}.mat";
+            var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material != null)
+                return material;
+
+            material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            material.SetColor("_BaseColor", colour);
+            material.SetFloat("_Smoothness", 0.15f);
+            AssetDatabase.CreateAsset(material, path);
+            return material;
+        }
+
         // ---------- Helpers ----------
 
-        static void SetField(Object target, string fieldName, Object value)
+        static void SetField(Object target, string fieldName, Object value) =>
+            Modify(target, fieldName, property => property.objectReferenceValue = value);
+
+        static void SetString(Object target, string fieldName, string value) =>
+            Modify(target, fieldName, property => property.stringValue = value);
+
+        static void SetBool(Object target, string fieldName, bool value) =>
+            Modify(target, fieldName, property => property.boolValue = value);
+
+        static void Modify(Object target, string fieldName, System.Action<SerializedProperty> apply)
         {
             var serialized = new SerializedObject(target);
             SerializedProperty property = serialized.FindProperty(fieldName);
@@ -347,7 +455,7 @@ namespace Backpacking.EditorTools
                 Debug.LogError($"No serialized field '{fieldName}' on {target.GetType().Name}.");
                 return;
             }
-            property.objectReferenceValue = value;
+            apply(property);
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 

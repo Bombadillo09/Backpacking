@@ -1,3 +1,4 @@
+using Backpacking.Navigation;
 using Backpacking.Player;
 using Backpacking.World;
 using UnityEngine;
@@ -6,8 +7,8 @@ using UnityEngine.InputSystem;
 namespace Backpacking.UI
 {
     /// <summary>
-    /// Temporary on-screen readout for testing: clock, temperature, altitude and speed.
-    /// Hold T to fast-forward time.
+    /// Temporary on-screen readout for testing: clock, temperature, altitude and speed,
+    /// plus a banner when arriving at a destination. Hold T to fast-forward time.
     /// </summary>
     public class PrototypeHud : MonoBehaviour
     {
@@ -16,7 +17,18 @@ namespace Backpacking.UI
         [SerializeField] FirstPersonController player;
         [SerializeField] float fastForwardMultiplier = 60f;
 
-        GUIStyle style;
+        GUIStyle style, bannerStyle;
+        string message;
+        float messageHideTime;
+
+        void OnEnable() => NavigationPoint.Arrived += ShowArrival;
+        void OnDisable() => NavigationPoint.Arrived -= ShowArrival;
+
+        void ShowArrival(NavigationPoint point)
+        {
+            message = $"Arrived at {point.DisplayName}";
+            messageHideTime = Time.time + 5f;
+        }
 
         void Update()
         {
@@ -27,6 +39,7 @@ namespace Backpacking.UI
         void OnGUI()
         {
             style ??= new GUIStyle(GUI.skin.label) { fontSize = 16 };
+            bannerStyle ??= new GUIStyle(style) { alignment = TextAnchor.MiddleCenter, fontSize = 26 };
 
             Vector3 position = player.transform.position;
             string state = player.IsCrouching ? " (crouching)" : player.IsSprinting ? " (sprinting)" : "";
@@ -36,13 +49,21 @@ namespace Backpacking.UI
                 $"{temperature.GetTemperature(position):0.0} °C   Altitude {temperature.GetAltitude(position):0} m\n" +
                 $"Speed {player.HorizontalSpeed:0.0} m/s{state}\n\n" +
                 "WASD move · Shift sprint · C crouch · Space jump\n" +
+                "M map · Q compass\n" +
                 "Hold T fast-forward time · Esc release cursor";
 
-            var rect = new Rect(14f, 12f, 700f, 200f);
-            style.normal.textColor = new Color(0f, 0f, 0f, 0.8f);
-            GUI.Label(new Rect(rect.x + 1f, rect.y + 1f, rect.width, rect.height), text, style);
-            style.normal.textColor = Color.white;
-            GUI.Label(rect, text, style);
+            DrawShadowedLabel(new Rect(14f, 12f, 700f, 200f), text, style);
+
+            if (message != null && Time.time < messageHideTime)
+                DrawShadowedLabel(new Rect(0f, Screen.height * 0.18f, Screen.width, 40f), message, bannerStyle);
+        }
+
+        static void DrawShadowedLabel(Rect rect, string text, GUIStyle labelStyle)
+        {
+            labelStyle.normal.textColor = new Color(0f, 0f, 0f, 0.8f);
+            GUI.Label(new Rect(rect.x + 1f, rect.y + 1f, rect.width, rect.height), text, labelStyle);
+            labelStyle.normal.textColor = Color.white;
+            GUI.Label(rect, text, labelStyle);
         }
     }
 }
