@@ -18,6 +18,10 @@ namespace Backpacking.Camp
             if (handling == null)
                 return;
             options.Add(new InteractionOption("Put your pack on", handling.PickUp));
+            if (interactor.Backpack.HasStove)
+                options.Add(new InteractionOption("Take out the stove and set it up", () => interactor.Placer.BeginPlacement(CampItem.Stove)));
+            if (interactor.Backpack.HasChair && interactor.Backpack.ChairInPack)
+                options.Add(new InteractionOption("Take out the camp chair", () => interactor.Placer.BeginPlacement(CampItem.Chair)));
             if (interactor.Backpack.HasTent)
                 options.Add(new InteractionOption("Take out the tent bag", () => handling.TakeOutTent(),
                     handling.TentBag != null ? "The tent bag is already out" : null));

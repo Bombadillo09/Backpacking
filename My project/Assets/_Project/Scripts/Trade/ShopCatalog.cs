@@ -25,6 +25,8 @@ namespace Backpacking.Trade
         TwoPersonTent,
         FoamMat,
         InflatableMat,
+        Bandages,
+        CampChair,
     }
 
     /// <summary>Something a trading post can sell: what it costs and what it does to the backpack.</summary>
@@ -83,6 +85,12 @@ namespace Backpacking.Trade
                 backpack => backpack.AddFood(FoodKind.TrailMeal)),
             [ShopItemId.Snare] = new ShopItem("Wire snare", "Catches rabbits while you're away.", 6, false,
                 backpack => backpack.AddSnare()),
+            [ShopItemId.Bandages] = new ShopItem("Bandages", "A pack of 3, for cuts.", 4, false,
+                backpack => backpack.AddBandages(3)),
+            [ShopItemId.CampChair] = new ShopItem("Lightweight camp chair",
+                "Folds into a sack the size of a water bottle. Poles first, then the seat. Sitting in it, your feet rest 60% faster than on the ground. 0.9 kg.", 40, true,
+                backpack => backpack.AddChair(),
+                backpack => backpack.HasChair ? "Already owned" : null),
             [ShopItemId.Antibiotics] = new ShopItem("Antibiotics", "One course. Clears an infection in a few hours.", 25, false,
                 backpack => backpack.AddAntibiotics()),
 

@@ -216,6 +216,8 @@ namespace Backpacking.Saving
                     state.hasCatch = snare.HasCatch;
                 if (instance.TryGetComponent(out Tent tent))
                     state.stage = tent.Stage;
+                if (instance.TryGetComponent(out CampChair chair))
+                    state.chairStage = chair.Stage;
                 data.placedItems.Add(state);
             }
             return data;
@@ -292,6 +294,8 @@ namespace Backpacking.Saving
                     snare.HasCatch = item.hasCatch;
                 if (instance.TryGetComponent(out Tent tent))
                     tent.Setup(backpack.TentModel, item.stage);
+                if (instance.TryGetComponent(out CampChair chair))
+                    chair.Setup(item.chairStage);
             }
             // Older saves have no pack state: it's on your back.
             if (packHandling != null)

@@ -49,6 +49,23 @@ namespace Backpacking.EditorTools
                     made.Add(tent);
                     preview.AddSingleGO(tent);
                 }
+                var chairPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/_Project/Prefabs/Camp/Camp Chair.prefab");
+                if (chairPrefab != null)
+                {
+                    var chair = chairPrefab.GetComponent<CampChair>();
+                    var serialized = new SerializedObject(chair);
+                    var frame = (Material)serialized.FindProperty("frameMaterial").objectReferenceValue;
+                    var fabric = (Material)serialized.FindProperty("fabricMaterial").objectReferenceValue;
+                    ChairStage[] chairStages = { ChairStage.Packed, ChairStage.Frame, ChairStage.Ready };
+                    for (int k = 0; k < chairStages.Length; k++)
+                    {
+                        var copy = new GameObject($"Chair {chairStages[k]}");
+                        copy.transform.SetPositionAndRotation(new Vector3(-4f + k * 0.9f, 0f, 2.6f), Quaternion.Euler(0f, 160f, 0f));
+                        CampChair.Build(copy.transform, chairStages[k], frame, fabric);
+                        made.Add(copy);
+                        preview.AddSingleGO(copy);
+                    }
+                }
                 foreach ((GameObject prefab, Vector3 at) in new[] { (packPrefab, new Vector3(3.6f, 0f, 0.4f)), (bagPrefab, new Vector3(3.6f, 0f, -0.6f)) })
                 {
                     if (prefab == null)
@@ -87,6 +104,7 @@ namespace Backpacking.EditorTools
                 Shot("pitched-2p", new Vector3(4.4f, 1.7f, 3.4f), new Vector3(2.4f, 0.45f, 0f), 900, 700);
                 Shot("pitched-4s", new Vector3(4.4f, 1.7f, 0f), new Vector3(2.4f, 0.45f, -3.4f), 900, 700);
                 Shot("poles-2p", new Vector3(1.6f, 1.9f, 2.6f), new Vector3(0f, 0.3f, 0f), 900, 700);
+                Shot("chair", new Vector3(-3.6f, 1.1f, 0.6f), new Vector3(-3.1f, 0.3f, 2.6f), 900, 600);
                 Shot("gear", new Vector3(4.9f, 0.9f, 1.4f), new Vector3(3.6f, 0.2f, -0.1f), 900, 700);
                 return "Rendered to Temp/CampSnapshots.";
             }

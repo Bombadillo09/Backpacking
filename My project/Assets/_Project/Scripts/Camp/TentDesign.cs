@@ -178,6 +178,10 @@ namespace Backpacking.Camp
             return bounds;
         }
 
+        internal static void DiscardMesh(Mesh mesh) => Discard(mesh);
+
+        internal static Mesh DoubleSidedMesh(List<Vector3> vertices, List<Vector2> uvs, List<int> triangles) => DoubleSided(vertices, uvs, triangles);
+
         static void Discard(Object thing)
         {
             if (Application.isPlaying)
@@ -322,7 +326,7 @@ namespace Backpacking.Camp
         }
 
         /// <summary>A round tube along a path, for poles and guy lines.</summary>
-        static Mesh Tube(IReadOnlyList<Vector3> path, float radius, int sides = 6)
+        internal static Mesh Tube(IReadOnlyList<Vector3> path, float radius, int sides = 6)
         {
             var vertices = new List<Vector3>();
             var triangles = new List<int>();

@@ -130,7 +130,7 @@ namespace Backpacking.UI
                     Text = $"Pick up {Key}3 pieces of firewood{End} with {Key}E{End}. There's fallen wood lying around the trailhead.",
                     Done = () => backpack.Firewood >= 3 },
                 new Step { Title = "Through the brush",
-                    Text = $"Off the trail, thick brush slows you to a crawl. Walk into the woods and {Key}click{End} to swing your machete and hack a way through. The trail is always the easy way.",
+                    Text = $"Off the trail, thick brush slows you to a crawl. Your hotbar (bottom of the screen) holds what you carry to hand: press {Key}1{End} to take the machete in hand, walk into the woods and {Key}click{End} to swing it and hack a way through. The trail is always the easy way. (Keys 1–5 hold your water, food and bandages too; click to use them.)",
                     Begin = () => swung = false,
                     Done = () => swung },
                 new Step { Title = "Clear a campsite",

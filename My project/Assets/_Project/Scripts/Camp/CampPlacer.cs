@@ -17,6 +17,7 @@ namespace Backpacking.Camp
         Snare,
         /// <summary>Not gear: a spot to clear of brush with the machete.</summary>
         Clearing,
+        Chair,
     }
 
     /// <summary>
@@ -37,6 +38,7 @@ namespace Backpacking.Camp
         [SerializeField] GameObject fireRingPrefab;
         [SerializeField] GameObject stovePrefab;
         [SerializeField] GameObject snarePrefab;
+        [SerializeField] GameObject chairPrefab;
         [Tooltip("The see-through disc shown while choosing a spot to clear.")]
         [SerializeField] GameObject clearingPrefab;
 
@@ -96,12 +98,21 @@ namespace Backpacking.Camp
             CampItem.Tent => PackHandling.Current != null && PackHandling.Current.TentBag != null ? null
                 : backpack.HasTent ? "Take your pack off and take the tent bag out of it first"
                 : "Your tent is already out",
-            CampItem.Stove => backpack.HasStove ? null : "Stove is already set up",
+            CampItem.Stove => !backpack.HasStove ? "Your stove is already out" : GearProblem(),
             CampItem.FireRing => backpack.Firewood >= fireRingFirewood ? null : $"Needs {fireRingFirewood} firewood",
-            CampItem.Snare => backpack.Snares > 0 ? null : "No snares left",
+            CampItem.Snare => backpack.Snares <= 0 ? "No snares left" : GearProblem(),
+            CampItem.Chair => !backpack.HasChair ? "You don't have a chair. Trading posts sell them"
+                : !backpack.ChairInPack ? "Your chair is already out" : GearProblem(),
             CampItem.Clearing => backpack.HasMachete ? null : "You need a machete",
             _ => null,
         };
+
+        /// <summary>Camp gear lives inside the pack: take the pack off and stay beside it to get it out.</summary>
+        string GearProblem() =>
+            PackHandling.Current == null ? null
+            : backpack.IsWorn ? "Take your pack off first, to get it out"
+            : !PackHandling.Current.CanReachPack ? "Go back to your pack to get it out"
+            : null;
 
         public void BeginPlacement(CampItem item)
         {
@@ -112,7 +123,7 @@ namespace Backpacking.Camp
             if (RestMode.Current != null)
                 RestMode.Current.StandUp();
             placing = item;
-            preview = item == CampItem.Tent ? CreateTentPreview() : CreatePreview(PrefabFor(item));
+            preview = item == CampItem.Tent ? CreateTentPreview() : item == CampItem.Chair ? CreateChairPreview() : CreatePreview(PrefabFor(item));
             GameUI.ClaimEscape(this, CancelPlacement);
         }
 
@@ -176,7 +187,7 @@ namespace Backpacking.Camp
                 return "Place it on the ground";
 
             float slope = Vector3.Angle(hit.normal, Vector3.up);
-            float maxSlope = placing == CampItem.Tent ? 15f : 25f;
+            float maxSlope = placing is CampItem.Tent or CampItem.Chair ? 15f : 25f;
             if (slope > maxSlope)
                 return "Ground is too steep";
 
@@ -264,6 +275,11 @@ namespace Backpacking.Camp
                     (float minutes, int _) = clearing.Estimate(position);
                     activity.Begin("Clearing a campsite", minutes, () => clearing.Clear(position, backpack, vitals));
                     break;
+                case CampItem.Chair:
+                    backpack.ChairInPack = false;
+                    Spawn(item, position, rotation).GetComponent<CampChair>().Setup(ChairStage.Packed);
+                    Notifications.Post("Chair out of its sack. Look at it to put the frame together.", 3.5f);
+                    break;
                 case CampItem.Snare:
                     backpack.TryUseSnare();
                     Spawn(item, position, rotation);
@@ -278,8 +294,19 @@ namespace Backpacking.Camp
             CampItem.FireRing => fireRingPrefab,
             CampItem.Snare => snarePrefab,
             CampItem.Clearing => clearingPrefab,
+            CampItem.Chair => chairPrefab,
             _ => stovePrefab,
         };
+
+        /// <summary>The chair, set up and see-through, to choose a spot for it.</summary>
+        GameObject CreateChairPreview()
+        {
+            var root = new GameObject("Chair (preview)");
+            CampChair.Build(root.transform, ChairStage.Ready, previewMaterial, previewMaterial);
+            foreach (Renderer previewRenderer in root.GetComponentsInChildren<Renderer>())
+                previewRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            return root;
+        }
 
         /// <summary>Your tent as it'll stand once pitched, see-through, to choose a spot for it.</summary>
         GameObject CreateTentPreview()

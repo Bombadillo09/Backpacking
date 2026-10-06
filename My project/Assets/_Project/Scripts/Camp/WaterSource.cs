@@ -23,8 +23,13 @@ namespace Backpacking.Camp
                 space <= 0.01f ? "Bottle is full" : null));
             options.Add(new InteractionOption($"Drink straight from the water ({treatment})", () =>
                 backpack.DrinkFromSource(drinkLitres)));
+            // The rod lives in the pack, like the rest of the camp gear.
+            PackHandling pack = PackHandling.Current;
             options.Add(new InteractionOption("Go fishing", interactor.Fishing.Begin,
-                backpack.HasFishingKit ? null : "You need a fishing kit"));
+                !backpack.HasFishingKit ? "You need a fishing kit"
+                : pack != null && backpack.IsWorn ? "Take your pack off to get your fishing kit out"
+                : pack != null && !pack.CanReachPack ? "Your fishing kit is in your pack, back there"
+                : null));
         }
     }
 }

@@ -105,9 +105,12 @@ namespace Backpacking.Character
                 return;
             // Sink to the ground at the same pace as the camera lowers.
             seated = Mathf.MoveTowards(seated, player.Seated ? 1f : 0f, Time.deltaTime * 2.5f);
-            pose.Seated = seated;
+            // In a chair the sitting clip is already right (it's a chair pose); on the ground it's adjusted to sit on it.
+            bool inChair = RestMode.Current != null && RestMode.Current.InChair;
+            pose.Seated = inChair ? 0f : seated;
             if (shownFirstPerson)
-                appearance.transform.localPosition = new Vector3(0f, 0f, Mathf.Lerp(-firstPersonSetBack, seatedHeadForward, Mathf.SmoothStep(0f, 1f, seated)));
+                appearance.transform.localPosition = new Vector3(0f, 0f,
+                    Mathf.Lerp(-firstPersonSetBack, inChair ? -0.05f : seatedHeadForward, Mathf.SmoothStep(0f, 1f, seated)));
             pose.GroundFeet = player.IsGrounded && !activity.IsBusy;
             // Seen from behind, the head and shoulders follow the view, except while busy with a task (the clip
             // knows where to look). In first person the head is hidden and turning the chest would only crowd the view.

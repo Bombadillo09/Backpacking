@@ -98,6 +98,9 @@ namespace Backpacking.Survival
                     "Fix whatever is hurting you, then eat, drink, stay warm and rest to recover."));
 
             // ---------- Arms & legs ----------
+            if (vitals.IsBleeding)
+                list.Add(new BodyCondition("Cut hand", BodyPart.Arms, 2,
+                    "An open cut from the machete. It keeps bleeding and wearing you down.", "Bandage it: put bandages on your hotbar and use them."));
             if (vitals.Warmth < 25f)
                 list.Add(new BodyCondition("Numb hands", BodyPart.Arms, vitals.Warmth < 12f ? 2 : 1,
                     "Your fingers are stiff with cold.", "Warm up: gloves, a fire, or your sleeping bag."));

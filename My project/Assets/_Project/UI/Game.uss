@@ -592,3 +592,49 @@
 .blackout {
     background-color: rgb(0, 0, 0);
 }
+
+/* ---------- Hotbar ---------- */
+
+.hotbar {
+    position: absolute;
+    bottom: 18px;
+    left: 0;
+    right: 0;
+    flex-direction: row;
+    justify-content: center;
+}
+
+.hotbar-slot {
+    width: 104px;
+    height: 58px;
+    margin: 0 4px;
+    padding: 4px 6px;
+    background-color: rgba(10, 12, 10, 0.55);
+    border-width: 2px;
+    border-color: rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+}
+
+.hotbar-slot.selected {
+    border-color: var(--accent);
+    background-color: rgba(40, 28, 18, 0.7);
+}
+
+.hotbar-key {
+    font-size: 12px;
+    color: var(--accent);
+    -unity-font-style: bold;
+}
+
+.hotbar-name {
+    font-size: 13px;
+    white-space: normal;
+}
+
+.hotbar-count {
+    font-size: 12px;
+    color: var(--ink-dim);
+    position: absolute;
+    right: 6px;
+    top: 4px;
+}

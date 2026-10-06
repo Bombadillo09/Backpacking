@@ -20,11 +20,11 @@ namespace Backpacking.Camp
                 minutes => backpack.GasGrams < minutes * gasGramsPerMinute ? "Not enough gas" : null,
                 minutes => backpack.TryUseGas(minutes * gasGramsPerMinute));
 
-            options.Add(new InteractionOption("Pack up stove", () =>
+            options.Add(new InteractionOption("Pack the stove away", () =>
             {
                 backpack.HasStove = true;
                 Destroy(gameObject);
-            }));
+            }, PackHandling.Current == null || PackHandling.Current.CanReachPack ? null : "Bring it to your pack first (or put the pack on)"));
         }
     }
 }

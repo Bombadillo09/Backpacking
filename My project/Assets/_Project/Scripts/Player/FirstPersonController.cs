@@ -74,7 +74,7 @@ namespace Backpacking.Player
         float eyeHeight = 1.68f;
         float cameraDistance;
         float seatedAmount;
-        const float SeatedEyeHeight = 0.86f;
+        public const float SeatedEyeHeight = 0.86f;
 
         bool cursorWasNeeded;
         bool invertY;
@@ -88,6 +88,8 @@ namespace Backpacking.Player
         public bool ThirdPerson { get; set; }
         /// <summary>Sitting on the ground: no walking, eyes at sitting height. Set by the rest mode.</summary>
         public bool Seated { get; set; }
+        /// <summary>Eye height while seated: on the ground by default, higher in a chair. Set by the rest mode.</summary>
+        public float SeatedEyeHeightNow { get; set; } = SeatedEyeHeight;
         /// <summary>The move stick or keys right now, even while seated or locked (e.g. to stand up).</summary>
         public Vector2 MoveInput => moveAction != null ? moveAction.ReadValue<Vector2>() : Vector2.zero;
         /// <summary>
@@ -176,7 +178,7 @@ namespace Backpacking.Player
         // After everything that moves the view this frame (head bob, shivering) has had its say.
         void LateUpdate()
         {
-            Vector3 eye = new Vector3(0f, Mathf.Lerp(eyeHeight, SeatedEyeHeight, Mathf.SmoothStep(0f, 1f, seatedAmount)), 0f) + BobPosition;
+            Vector3 eye = new Vector3(0f, Mathf.Lerp(eyeHeight, SeatedEyeHeightNow, Mathf.SmoothStep(0f, 1f, seatedAmount)), 0f) + BobPosition;
             Quaternion look = Quaternion.Euler(pitch + ViewOffset.y + BobRotation.x, ViewOffset.x + BobRotation.y, ViewOffset.z + BobRotation.z);
             cameraPivot.localRotation = look;
             cameraPivot.localPosition = ThirdPerson ? eye + look * ThirdPersonOffset(eye, look) : eye;

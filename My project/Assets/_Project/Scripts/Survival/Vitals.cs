@@ -14,6 +14,8 @@ namespace Backpacking.Survival
         public float feet = Vitals.Max;
         public float footStrain;
         public float infection, infectionRisk, antibioticHours;
+        /// <summary>Hours an open cut keeps bleeding until bandaged.</summary>
+        public float bleedingHours;
     }
 
     /// <summary>
@@ -88,6 +90,12 @@ namespace Backpacking.Survival
         [Tooltip("Strain eased per hour standing still, sitting, sitting with boots off, or asleep.")]
         [SerializeField] float idleStrainRecovery = 10f;
         [SerializeField] float seatedStrainRecovery = 35f;
+        [Tooltip("Sitting in a camp chair, with your legs off the ground: feet recover this much faster than sitting on the ground.")]
+        [SerializeField] float chairRecoveryFactor = 1.6f;
+
+        [Header("Cuts")]
+        [Tooltip("Health lost per hour while a cut is bleeding.")]
+        [SerializeField] float bleedingDamage = 6f;
         [SerializeField] float bootsOffStrainRecovery = 90f;
         [SerializeField] float sleepingStrainRecovery = 60f;
         [Tooltip("Keep walking with strain above this and blisters start.")]
@@ -166,6 +174,33 @@ namespace Backpacking.Survival
 
         /// <summary>Sitting down to rest. Set by the rest mode each frame.</summary>
         public bool Seated { get; set; }
+        /// <summary>Sitting in a camp chair rather than on the ground: you rest faster.</summary>
+        public bool InChair { get; set; }
+        /// <summary>An open cut that keeps bleeding until bandaged.</summary>
+        public bool IsBleeding => bleedingHours > 0f;
+        float bleedingHours;
+
+        /// <summary>A gash from the machete: it bleeds (slowly costing health) until bandaged, or for several hours.</summary>
+        public void Cut(float hours = 6f)
+        {
+            bool fresh = !IsBleeding;
+            bleedingHours = Mathf.Max(bleedingHours, hours);
+            if (fresh)
+            {
+                Notifications.Post("The machete glances off a branch and opens a cut on your hand. Bandage it (put bandages on your hotbar).", 6f);
+                Trip.TripLog.Note("Cut my hand with the machete.");
+            }
+        }
+
+        /// <summary>Stops a cut bleeding. Returns false if there's nothing to bandage.</summary>
+        public bool Bandage()
+        {
+            if (!IsBleeding)
+                return false;
+            bleedingHours = 0f;
+            return true;
+        }
+
         /// <summary>Sitting with boots and socks off: feet recover fast, dry out and air.</summary>
         public bool BootsOff { get; set; }
         /// <summary>Bare feet held in a campfire's smoke: draws out infection and dries them.</summary>
@@ -239,6 +274,7 @@ namespace Backpacking.Survival
             infection = infection,
             infectionRisk = infectionRisk,
             antibioticHours = antibioticHours,
+            bleedingHours = bleedingHours,
         };
 
         public void RestoreState(VitalsState state)
@@ -256,6 +292,7 @@ namespace Backpacking.Survival
             infection = state.infection;
             infectionRisk = state.infectionRisk;
             antibioticHours = state.antibioticHours;
+            bleedingHours = state.bleedingHours;
             incapacitated = false;
             collapseArmed = energy > collapseRearmEnergy;
         }
@@ -338,6 +375,8 @@ namespace Backpacking.Survival
             {
                 float recovery = IsSleeping ? sleepingStrainRecovery : BootsOff ? bootsOffStrainRecovery
                     : Seated ? seatedStrainRecovery : idleStrainRecovery;
+                if (InChair && !IsSleeping)
+                    recovery *= chairRecoveryFactor;
                 footStrain = Mathf.Max(0f, footStrain - recovery * hours);
                 // An infection keeps blisters from healing.
                 if (footStrain < blistersAbove && (IsSleeping || BootsOff) && !IsInfected)
@@ -402,7 +441,9 @@ namespace Backpacking.Survival
                            + starvationDamage * Deficit(satiety)
                            + dehydrationDamage * Deficit(hydration)
                            + hypothermiaDamage * Deficit(warmth)
-                           + (IsSick ? sicknessDamage : 0f);
+                           + (IsSick ? sicknessDamage : 0f)
+                           + (IsBleeding ? bleedingDamage : 0f);
+            bleedingHours = Mathf.Max(0f, bleedingHours - hours);
 
             // Energy doesn't count here: sleep is how it comes back, and sleep should heal.
             float lowest = Mathf.Min(satiety, Mathf.Min(hydration, warmth));

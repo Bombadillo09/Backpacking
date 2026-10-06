@@ -47,14 +47,20 @@ namespace Backpacking.UI
                     bindings.ActionButton("Drink untreated", backpack.DrinkUntreatedWater,
                         () => backpack.UntreatedWater <= 0f ? "No untreated water" : null, Busy),
                     bindings.ActionButton("Pour out untreated", backpack.PourOutUntreatedWater,
-                        () => backpack.UntreatedWater <= 0f ? "" : null, Busy)),
+                        () => backpack.UntreatedWater <= 0f ? "" : null, Busy),
+                    HotbarButton(new HotbarSlot(HotbarKind.Water))),
                 bindings.Text(() => backpack.HasWaterFilter
                     ? "Your filter makes lake and stream water safe as you fill up."
                     : "Untreated water may make you sick. Boil it first.", "reason"),
                 UIBuild.Text("FIRST AID", "heading"),
                 UIBuild.Box("row").With(
                     bindings.ActionButton(() => $"Take antibiotics ({backpack.Antibiotics})", TakeAntibiotics,
-                        () => backpack.Antibiotics <= 0 ? "None left. Trading posts sell them." : !vitals.IsInfected ? "" : vitals.OnAntibiotics ? "Already taking a course" : null, Busy)),
+                        () => backpack.Antibiotics <= 0 ? "None left. Trading posts sell them." : !vitals.IsInfected ? "" : vitals.OnAntibiotics ? "Already taking a course" : null, Busy),
+                    HotbarButton(new HotbarSlot(HotbarKind.Antibiotics))),
+                UIBuild.Box("row").With(
+                    bindings.ActionButton(() => $"Bandage a cut ({backpack.Bandages})", BandageCut,
+                        () => backpack.Bandages <= 0 ? "None left. Trading posts sell them." : !vitals.IsBleeding ? "" : null, Busy),
+                    HotbarButton(new HotbarSlot(HotbarKind.Bandage))),
                 UIBuild.Text("Sore feet? Sit down (Z) and take your boots off (E). By a lit fire, that holds your feet in its smoke, which fights infection. Your journal's Status page (J) shows how you are.", "reason"),
                 UIBuild.Text("FOOD", "heading"),
                 foodList);
@@ -74,6 +80,8 @@ namespace Backpacking.UI
                 UIBuild.Box("row").With(
                     PlaceButton("Set up stove", CampItem.Stove),
                     PlaceButton(() => $"Set a snare ({backpack.Snares} left)", CampItem.Snare)),
+                UIBuild.Box("row").With(PlaceButton("Take out camp chair", CampItem.Chair)),
+                UIBuild.Text("Camp gear (stove, snares, chair, fishing kit) lives inside the pack: take the pack off to get it out.", "reason"),
                 UIBuild.Box("row").With(PlaceButton("Clear campsite (machete)", CampItem.Clearing)),
                 UIBuild.Text("In the woods, clear the brush before pitching the tent or building a fire.", "reason"),
                 bindings.Text(() => $"Tent: {backpack.TentName} (+{backpack.TentShelter:0} °C when sleeping)", "small"),
@@ -82,12 +90,16 @@ namespace Backpacking.UI
                     : "Sleeping mat: none. Trading posts sell them: warmer nights and better rest.", "small"),
                 bindings.Text(() => $"Sleeping bag: {backpack.SleepingBagName} (comfort {backpack.SleepingBagComfort:0} °C)", "small"),
                 bindings.Text(() => $"Fishing: {(backpack.HasGoodRod ? "telescopic rod" : backpack.HasFishingKit ? "basic hand line" : "none")}", "small"),
-                bindings.Text(() => $"Tools: {(backpack.HasMachete ? "machete" : "none")}", "small"),
+                UIBuild.Box("row", "spread").With(
+                    bindings.Text(() => $"Tools: {(backpack.HasMachete ? "machete" : "none")}", "small"),
+                    HotbarButton(new HotbarSlot(HotbarKind.Machete))),
                 bindings.Text(() => $"Boots: {backpack.BootsName}{(backpack.BootsWaterproof ? ", waterproof" : "")}  (feet {FeetDescription()})", "small"),
                 UIBuild.Text("FIRE & FUEL", "heading"),
                 UIBuild.Box("row", "spread").With(
                     bindings.Text(() => $"Stove gas: {backpack.GasGrams:0} g    Matches: {backpack.Matches}    Firewood: {backpack.Firewood}"),
                     bindings.Enabled(UIBuild.Button("Drop wood", () => backpack.TryUseFirewood(1)), () => backpack.Firewood > 0)),
+                UIBuild.Text("HOTBAR  (keys 1–5; click a slot to empty it)", "heading"),
+                HotbarRow(),
                 UIBuild.Text("CLOTHING", "heading"),
                 clothingList,
                 bindings.Text(() => $"Comfortable down to about {vitals.ComfortTemperature:0} °C. It feels like {vitals.FeltTemperature:0} °C now.", "reason"));
@@ -161,6 +173,44 @@ namespace Backpacking.UI
         }
 
         bool Busy() => activity.IsBusy;
+
+        void BandageCut()
+        {
+            Close();
+            activity.Begin("Cleaning and bandaging the cut", 3f, () =>
+            {
+                if (backpack.TryUseBandage() && vitals.Bandage())
+                    Notifications.Post("Cut cleaned and bandaged.", 2.5f);
+            });
+        }
+
+        /// <summary>"Hotbar": puts this item in the first free hotbar slot (greyed out once it's there).</summary>
+        VisualElement HotbarButton(HotbarSlot item, Bindings into = null) =>
+            (into ?? bindings).ActionButton("Hotbar", () =>
+            {
+                if (!backpack.AssignHotbar(item))
+                    Notifications.Post("Your hotbar's full. Click a slot below to empty it.", 3f);
+            }, () => backpack.OnHotbar(item) ? "" : null, null);
+
+        /// <summary>The five hotbar slots; clicking one empties it.</summary>
+        VisualElement HotbarRow()
+        {
+            VisualElement row = UIBuild.Box("row");
+            for (int i = 0; i < Backpack.HotbarSize; i++)
+            {
+                int slot = i;
+                Button button = UIBuild.Button("", () => backpack.ClearHotbar(slot));
+                button.style.width = 88f;
+                bindings.Add(() =>
+                {
+                    HotbarSlot held = slot < backpack.Hotbar.Count ? backpack.Hotbar[slot] : default;
+                    string name = Player.Hotbar.Describe(held);
+                    button.SetText($"{slot + 1}  {(string.IsNullOrEmpty(name) ? "—" : name)}");
+                });
+                row.Add(button);
+            }
+            return row;
+        }
 
         void TogglePack()
         {
@@ -242,6 +292,7 @@ namespace Backpacking.UI
                         listBindings.Text(() => $"{info.Name}  ×{backpack.CountFood(kind)}"),
                         listBindings.Text(() => Describe(kind, info), "reason")),
                     action,
+                    HotbarButton(new HotbarSlot(HotbarKind.Food, kind), listBindings),
                     UIBuild.Button("Drop", () => backpack.TryTakeFood(kind), "quiet")));
             }
             if (!any)

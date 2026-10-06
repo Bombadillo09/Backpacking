@@ -31,6 +31,33 @@ namespace Backpacking.Survival
         }
     }
 
+    /// <summary>What a hotbar slot holds.</summary>
+    public enum HotbarKind
+    {
+        Empty,
+        Machete,
+        Water,
+        Food,
+        Antibiotics,
+        Bandage,
+    }
+
+    /// <summary>One of the five hotbar slots: a kind of item, and for food, which food.</summary>
+    [Serializable]
+    public struct HotbarSlot
+    {
+        public HotbarKind kind;
+        public FoodKind food;
+
+        public HotbarSlot(HotbarKind kind, FoodKind food = default)
+        {
+            this.kind = kind;
+            this.food = food;
+        }
+
+        public bool Same(HotbarSlot other) => kind == other.kind && (kind != HotbarKind.Food || food == other.food);
+    }
+
     /// <summary>Everything in the backpack, in a form that can be written to a save file.</summary>
     [Serializable]
     public class BackpackState
@@ -53,6 +80,10 @@ namespace Backpacking.Survival
         public float bootsStrain = 1.15f, bootsWarmth;
         public bool bootsWaterproof;
         public int antibiotics;
+        public int bandages;
+        public bool hasChair, chairInPack;
+        /// <summary>Empty in saves from before the hotbar: the default slots are used.</summary>
+        public List<HotbarSlot> hotbar = new();
         public int snares;
         public float waterCapacity, safeWater, untreatedWater;
         public string sleepingBagName;
@@ -105,6 +136,25 @@ namespace Backpacking.Survival
 
         [Tooltip("Courses of antibiotics, for infections.")]
         [SerializeField, Min(0)] int antibiotics;
+        [Tooltip("For cuts.")]
+        [SerializeField, Min(0)] int bandages = 3;
+
+        [Header("Camp chair")]
+        [Tooltip("Owned at all (bought at a trading post).")]
+        [SerializeField] bool hasChair;
+        [Tooltip("In the pack. False while it's out: set up or lying on the ground.")]
+        [SerializeField] bool chairInPack;
+        [SerializeField] float chairWeight = 0.9f;
+
+        [Header("Hotbar")]
+        [SerializeField] List<HotbarSlot> hotbar = new()
+        {
+            new HotbarSlot(HotbarKind.Machete),
+            new HotbarSlot(HotbarKind.Water),
+            new HotbarSlot(HotbarKind.Food, FoodKind.TrailMix),
+            new HotbarSlot(HotbarKind.Bandage),
+            new HotbarSlot(HotbarKind.Empty),
+        };
 
         [Tooltip("For clearing brush and saplings to make a campsite in the woods.")]
         [SerializeField] bool hasMachete = true;
@@ -196,6 +246,11 @@ namespace Backpacking.Survival
         public bool HasMachete => hasMachete;
         public string BootsName => bootsName;
         public int Antibiotics => antibiotics;
+        public int Bandages => bandages;
+        public bool HasChair => hasChair;
+        public bool ChairInPack { get => chairInPack; set => chairInPack = value; }
+        public const int HotbarSize = 5;
+        public IReadOnlyList<HotbarSlot> Hotbar => hotbar;
         /// <summary>How fast your feet tire in these boots: 1 is ordinary, lower is better.</summary>
         public float BootsStrain => bootsStrain;
         public bool BootsWaterproof => bootsWaterproof;
@@ -255,7 +310,9 @@ namespace Backpacking.Survival
                     weight += stoveWeight;
                 if (gasGrams > 0f)
                     weight += gasGrams / 1000f + Mathf.Ceil(gasGrams / 230f) * canisterWeight;
-                weight += antibiotics * 0.03f + matches * 0.002f + firewood * firewoodWeight + snares * snareWeight + pelts * peltWeight;
+                if (hasChair && chairInPack)
+                    weight += chairWeight;
+                weight += antibiotics * 0.03f + bandages * 0.01f + matches * 0.002f + firewood * firewoodWeight + snares * snareWeight + pelts * peltWeight;
                 if (hasFishingKit)
                     weight += hasGoodRod ? fishingRodWeight : fishingKitWeight;
                 if (hasWaterFilter)
@@ -347,6 +404,46 @@ namespace Backpacking.Survival
 
         public void AddAntibiotics(int courses = 1) => antibiotics += courses;
         public bool TryUseAntibiotics() => TrySpend(ref antibiotics, 1);
+        public void AddBandages(int count) => bandages += count;
+        public bool TryUseBandage() => TrySpend(ref bandages, 1);
+
+        public void AddChair()
+        {
+            hasChair = true;
+            chairInPack = true;
+        }
+
+        /// <summary>Puts something on the hotbar: in the given slot, or the first empty one. Moves it if it's already on.</summary>
+        public bool AssignHotbar(HotbarSlot item, int slot = -1)
+        {
+            NormaliseHotbar();
+            int existing = hotbar.FindIndex(entry => entry.Same(item));
+            if (slot < 0)
+                slot = existing >= 0 ? existing : hotbar.FindIndex(entry => entry.kind == HotbarKind.Empty);
+            if (slot < 0 || slot >= HotbarSize)
+                return false;
+            if (existing >= 0 && existing != slot)
+                hotbar[existing] = new HotbarSlot(HotbarKind.Empty);
+            hotbar[slot] = item;
+            return true;
+        }
+
+        public void ClearHotbar(int slot)
+        {
+            NormaliseHotbar();
+            if (slot >= 0 && slot < HotbarSize)
+                hotbar[slot] = new HotbarSlot(HotbarKind.Empty);
+        }
+
+        public bool OnHotbar(HotbarSlot item) => hotbar.Exists(entry => entry.Same(item));
+
+        void NormaliseHotbar()
+        {
+            while (hotbar.Count < HotbarSize)
+                hotbar.Add(new HotbarSlot(HotbarKind.Empty));
+            if (hotbar.Count > HotbarSize)
+                hotbar.RemoveRange(HotbarSize, hotbar.Count - HotbarSize);
+        }
 
         /// <summary>Swaps your boots for a new pair.</summary>
         public void SetBoots(string name, float strain, bool waterproof, float warmth)
@@ -613,6 +710,10 @@ namespace Backpacking.Survival
             bootsWarmth = bootsWarmth,
             bootsWaterproof = bootsWaterproof,
             antibiotics = antibiotics,
+            bandages = bandages,
+            hasChair = hasChair,
+            chairInPack = chairInPack,
+            hotbar = new List<HotbarSlot>(hotbar),
             snares = snares,
             waterCapacity = waterCapacity,
             safeWater = safeWater,
@@ -648,6 +749,12 @@ namespace Backpacking.Survival
             packWeight = state.packWeight;
             // Saves from before boots existed keep the starting pair.
             antibiotics = state.antibiotics;
+            bandages = state.bandages;
+            hasChair = state.hasChair;
+            chairInPack = state.chairInPack;
+            if (state.hotbar != null && state.hotbar.Count > 0)
+                hotbar = new List<HotbarSlot>(state.hotbar);
+            NormaliseHotbar();
             if (!string.IsNullOrEmpty(state.bootsName))
                 SetBoots(state.bootsName, state.bootsStrain, state.bootsWaterproof, state.bootsWarmth);
             snares = state.snares;

@@ -68,5 +68,6 @@ namespace Backpacking.Saving
         public bool hasCatch;
         /// <summary>For a tent, how far it's pitched. Saves from before staged pitching were fully pitched.</summary>
         public TentStage stage = TentStage.Pitched;
+        public ChairStage chairStage = ChairStage.Ready;
     }
 }

@@ -9,8 +9,9 @@ using UnityEngine.UIElements;
 namespace Backpacking.Camp
 {
     /// <summary>
-    /// Pushing through the woods off the trail. Thick brush slows you to a crawl; swing the machete
-    /// (click, or X on a gamepad) to hack a way through. What you cut stays cut.
+    /// Pushing through the woods off the trail. Thick brush slows you to a crawl; with the machete in hand (hotbar)
+    /// click, or X on a gamepad, to hack a way through. What you cut stays cut. Now and then a careless swing
+    /// cuts your hand.
     /// </summary>
     public class Undergrowth : MonoBehaviour
     {
@@ -30,6 +31,8 @@ namespace Backpacking.Camp
         [Tooltip("Brush thicker than this shows the hint.")]
         [SerializeField, Range(0f, 1f)] float hintAbove = 0.35f;
         [SerializeField, Range(0f, 1f)] float volume = 0.7f;
+        [Tooltip("Chance a swing that hits brush cuts your hand instead. More when you're exhausted.")]
+        [SerializeField, Range(0f, 0.2f)] float cutChance = 0.015f;
 
         InputAction attack;
         AudioSource source;
@@ -78,7 +81,7 @@ namespace Backpacking.Camp
 
             bool free = !PlayerControlLock.MovementLocked && !placer.IsPlacing && !RestMode.SeatedNow
                         && UnityEngine.Cursor.lockState == CursorLockMode.Locked;
-            if (free && attack.WasPressedThisFrame() && Time.time >= nextSwing && backpack.HasMachete)
+            if (free && attack.WasPressedThisFrame() && Time.time >= nextSwing && Player.Hotbar.HoldingMachete)
                 Swing();
 
             if (hint == null)
@@ -86,9 +89,9 @@ namespace Backpacking.Camp
             bool showHint = free && density > hintAbove;
             hint.SetVisible(showHint);
             if (showHint)
-                hint.SetText(backpack.HasMachete
-                    ? "Thick brush. Click (or X) to hack through with your machete"
-                    : "Thick brush slows you down. Stick to the trail");
+                hint.SetText(!backpack.HasMachete ? "Thick brush slows you down. Stick to the trail"
+                    : Player.Hotbar.HoldingMachete ? "Thick brush. Click (or X) to hack through with your machete"
+                    : "Thick brush. Take your machete in hand (its hotbar key) to hack through");
         }
 
         /// <summary>Raised on every swing of the machete, hit or miss.</summary>
@@ -103,7 +106,11 @@ namespace Backpacking.Camp
             source.pitch = Random.Range(0.9f, 1.1f);
             source.PlayOneShot(SoundSynth.Swish(), volume * 0.6f);
             if (cut > 0)
+            {
                 source.PlayOneShot(SoundSynth.Chop(Random.Range(0, SoundSynth.ChopVariants)), volume);
+                if (Random.value < cutChance * (vitals.IsExhausted ? 3f : 1f))
+                    vitals.Cut();
+            }
         }
     }
 }
