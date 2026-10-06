@@ -71,13 +71,13 @@ namespace Backpacking.EditorTools
             library.beard = Model("Hair_Beard");
 
             Texture2D Tex(string name) => AssetDatabase.LoadAssetAtPath<Texture2D>($"{ArtFolder}/Textures/{name}.png");
-            library.maleSkin = GetOrCreateMaterial("Skin_Male", Tex("T_Superhero_Male_Light"), Tex("T_Superhero_Male_Normal"), 0.35f);
-            library.femaleSkin = GetOrCreateMaterial("Skin_Female", Tex("T_Superhero_Female_Light"), Tex("T_Superhero_Female_Normal"), 0.35f);
+            library.maleSkin = GetOrCreateMaterial("Skin_Male", Tex("T_Superhero_Male_Light"), Tex("T_Superhero_Male_Normal"), 0.22f);
+            library.femaleSkin = GetOrCreateMaterial("Skin_Female", Tex("T_Superhero_Female_Light"), Tex("T_Superhero_Female_Normal"), 0.22f);
             library.hairShort = GetOrCreateMaterial("Hair_Short", Tex("T_Hair_1_BaseColor"), Tex("T_Hair_1_Normal"), 0.3f);
             library.hairLong = GetOrCreateMaterial("Hair_Long", Tex("T_Hair_2_BaseColor"), Tex("T_Hair_2_Normal"), 0.3f);
             library.eyes = GetOrCreateMaterial("Eyes", Tex("T_Eye_Brown"), Tex("T_Eye_Normal"), 0.8f);
             library.clothing = GetOrCreateMaterial("Clothing", null, null, 0.12f);
-            library.boots = GetOrCreateMaterial("Boots", null, null, 0.3f, new Color(0.22f, 0.15f, 0.1f));
+            library.boots = GetOrCreateMaterial("Boots", null, null, 0.25f, new Color(0.4f, 0.27f, 0.16f));
             library.pack = GetOrCreateMaterial("Pack", null, null, 0.2f);
             library.animator = BuildAnimator();
 
@@ -120,8 +120,14 @@ namespace Backpacking.EditorTools
             var clips = new Dictionary<string, AnimationClip>();
             foreach (Object asset in AssetDatabase.LoadAllAssetsAtPath($"{ArtFolder}/Animations/UAL1_Standard.fbx"))
                 if (asset is AnimationClip clip && !clip.name.StartsWith("__preview__"))
-                    clips[clip.name] = clip;
-            AnimationClip Clip(string name) => clips.TryGetValue(name, out AnimationClip clip) ? clip : null;
+                    clips[clip.name.Substring(clip.name.LastIndexOf('|') + 1)] = clip; // takes are named "Armature|Idle_Loop"
+            AnimationClip Clip(string name)
+            {
+                if (clips.TryGetValue(name, out AnimationClip clip))
+                    return clip;
+                Debug.LogWarning($"Animation {name} not found in UAL1_Standard.fbx; the hiker will hold still in that state.");
+                return null;
+            }
 
             string path = $"{OutputFolder}/Hiker.controller";
             AssetDatabase.DeleteAsset(path);
@@ -178,6 +184,14 @@ namespace Backpacking.EditorTools
             back.hasExitTime = true;
             back.exitTime = 0.8f;
             back.duration = 0.15f;
+
+            // Feet stay planted where the clips put them, and HikerPose adjusts the body after the clips
+            // (sitting on the ground, looking around, feet on slopes).
+            foreach (ChildAnimatorState child in machine.states)
+                child.state.iKOnFeet = true;
+            AnimatorControllerLayer[] layers = controller.layers;
+            layers[0].iKPass = true;
+            controller.layers = layers;
 
             EditorUtility.SetDirty(controller);
             return controller;

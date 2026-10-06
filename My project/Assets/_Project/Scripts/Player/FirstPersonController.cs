@@ -74,7 +74,7 @@ namespace Backpacking.Player
         float eyeHeight = 1.68f;
         float cameraDistance;
         float seatedAmount;
-        const float SeatedEyeHeight = 0.9f;
+        const float SeatedEyeHeight = 0.86f;
 
         bool cursorWasNeeded;
         bool invertY;
