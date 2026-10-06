@@ -30,27 +30,43 @@ MonoBehaviour:
   alpineMeadow: {fileID: 8574412962073106934, guid: a6f12d3c56c677946a56f0926e8290b5, type: 2}
   leafLitter: {fileID: 8574412962073106934, guid: 871ac9f95dc8d1148a76cac0647cff4a, type: 2}
   needleLitter: {fileID: 8574412962073106934, guid: ee404bfe35796ae4cbbf927fb074bb73, type: 2}
-  grassTexture: {fileID: 2800000, guid: 8e7d3275c98a67c488c8179760a8c73a, type: 3}
-  grassHealthy: {r: 0.45, g: 0.6, b: 0.3, a: 1}
-  grassDry: {r: 0.65, g: 0.6, b: 0.35, a: 1}
-  extraGrassTextures: []
-  grassHeight: {x: 0.35, y: 0.75}
-  grassWidth: {x: 0.5, y: 1}
-  flowerTextures: []
-  flowerHeight: {x: 0.3, y: 0.6}
-  flowerWidth: {x: 0.3, y: 0.6}
+  grassTexture: {fileID: 2800000, guid: 91a1945982e98be4d9fe3e3d12fdebd8, type: 3}
+  grassHealthy: {r: 0.92, g: 0.97, b: 0.88, a: 1}
+  grassDry: {r: 0.98, g: 0.9, b: 0.68, a: 1}
+  extraGrassTextures:
+  - {fileID: 2800000, guid: cf3069941001b5c46b1f13d4551d0fd9, type: 3}
+  grassHeight: {x: 0.45, y: 0.95}
+  grassWidth: {x: 0.7, y: 1.3}
+  flowerTextures:
+  - {fileID: 2800000, guid: 5733619f617fd954cac22d3d11fd1b93, type: 3}
+  - {fileID: 2800000, guid: b0601839c4520064bb61d58d088810bc, type: 3}
+  - {fileID: 2800000, guid: c6bde8cacfa93444fa98152cb9e36815, type: 3}
+  - {fileID: 2800000, guid: 5c744e80ad52c884c9ac4c9139b3aaae, type: 3}
+  - {fileID: 2800000, guid: e3b33de953074bc4a88d9487f19c1202, type: 3}
+  - {fileID: 2800000, guid: b3d0250e4b7a1ac4abe98a38d34d2048, type: 3}
+  - {fileID: 2800000, guid: 5afd653e4d79b7a4c9523dd543c0bead, type: 3}
+  - {fileID: 2800000, guid: 8900a35e436818940b97df26c3a8a1aa, type: 3}
+  - {fileID: 2800000, guid: d238efbd27bc5ae4ead9839995f74830, type: 3}
+  - {fileID: 2800000, guid: dcefc591c195a9f468e9157baa03eb4f, type: 3}
+  flowerHeight: {x: 0.35, y: 0.7}
+  flowerWidth: {x: 0.35, y: 0.7}
   flowerDensity: 2
   rabbitModel: {fileID: 0}
-  deerModel: {fileID: 0}
+  deerModel: {fileID: 6835260351911759011, guid: 04a080194a9ac6942939949af1dbdab7, type: 3}
   birdModel: {fileID: 0}
   forestFloorPlants:
   - {fileID: 397059435589770102, guid: 76ee08f7967fd544697fa11525ca8d8f, type: 3}
   meadowPlants:
   - {fileID: 8719227644399826093, guid: 7112dc96e0601294995617473b0550fe, type: 3}
   - {fileID: 5938184429941139080, guid: 5a36c869cc1d1e9458c468c2bb91ab78, type: 3}
+  - {fileID: 1063051275406872306, guid: 31d20301b03fe8d48a819bbc80a81ad8, type: 3}
+  - {fileID: 7011246868781108194, guid: 15a9b549a091cac4488fe7bfd4098668, type: 3}
+  - {fileID: 3549930289340314878, guid: 6ff3e7db0504c444886c54bb6b926ac6, type: 3}
+  - {fileID: 8577952897459369514, guid: 5e438fc7ff7937e499b4ce392c8f3c95, type: 3}
   understoryShrubs:
   - {fileID: 8296291537626840966, guid: 7fa0a1f7d05e1e14f8c8d0d605762e7a, type: 3}
   - {fileID: 5480363470088664536, guid: 9c5446dedb4711c4388a9e7fd47f8649, type: 3}
+  - {fileID: 5659882178503362770, guid: 3de4d2577664fcd4abe9281436277837, type: 3}
   forestDebris:
   - {fileID: 1033497027569892601, guid: b19123b579f004c4baada945c62ae3d3, type: 3}
   - {fileID: 5061949735643706710, guid: ece2afdc21ed64148b58130c094dbccc, type: 3}
