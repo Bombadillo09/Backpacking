@@ -59,6 +59,7 @@ namespace Backpacking.Camp
         CampItem placing;
         string problem;
         MaterialPropertyBlock tint;
+        FirstPersonController player;
         Label hint;
 
         public bool IsPlacing => preview != null;
@@ -85,6 +86,7 @@ namespace Backpacking.Camp
         {
             interactAction = inputActions.FindActionMap("Player", true).FindAction("Interact", true);
             tint = new MaterialPropertyBlock();
+            player = GetComponent<FirstPersonController>();
         }
 
         /// <summary>Why the item can't be placed at all right now (not carried, not enough wood), or null.</summary>
@@ -144,7 +146,8 @@ namespace Backpacking.Camp
             position = default;
 
             // Triggers are included so the water surface stops the ray instead of the lake bed.
-            if (!Physics.Raycast(viewPoint.position, viewPoint.forward, out RaycastHit hit, maxDistance, ~0, QueryTriggerInteraction.Collide))
+            Vector3 origin = player != null ? player.AimOrigin : viewPoint.position;
+            if (!Physics.Raycast(origin, viewPoint.forward, out RaycastHit hit, maxDistance, ~0, QueryTriggerInteraction.Collide))
             {
                 preview.SetActive(false);
                 problem = "Too far away";

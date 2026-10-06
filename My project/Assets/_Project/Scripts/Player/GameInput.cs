@@ -10,7 +10,7 @@ namespace Backpacking.Player
     /// </summary>
     public static class GameInput
     {
-        static InputAction pause, cancel, backpack, map, compass, fastForward, journal;
+        static InputAction pause, cancel, backpack, map, compass, fastForward, journal, toggleView;
 
         public static void Initialize(InputActionAsset actions)
         {
@@ -22,6 +22,7 @@ namespace Backpacking.Player
             compass = player.FindAction("Compass");
             fastForward = player.FindAction("FastForward");
             journal = player.FindAction("Journal");
+            toggleView = player.FindAction("ToggleView");
             if (pause == null || cancel == null || backpack == null)
                 Debug.LogWarning("The Player action map is missing Pause, Cancel or Backpack; those buttons won't work.");
         }
@@ -38,12 +39,14 @@ namespace Backpacking.Player
         public static bool CompassPressed => Pressed(compass);
         /// <summary>J (on a gamepad, open it from the backpack).</summary>
         public static bool JournalPressed => Pressed(journal);
+        /// <summary>V or right bumper: first or third person.</summary>
+        public static bool ToggleViewPressed => Pressed(toggleView);
         /// <summary>T or left bumper, held.</summary>
         public static bool FastForwardHeld => fastForward != null && fastForward.IsPressed();
 
         static bool Pressed(InputAction action) => action != null && action.WasPressedThisFrame();
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() => pause = cancel = backpack = map = compass = fastForward = journal = null;
+        static void ResetStatics() => pause = cancel = backpack = map = compass = fastForward = journal = toggleView = null;
     }
 }

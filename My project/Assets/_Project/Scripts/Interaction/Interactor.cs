@@ -48,7 +48,13 @@ namespace Backpacking.Interaction
         public SaveSystem Saves => saves;
         public bool MenuOpen => menuTarget != null;
 
-        void Awake() => interactAction = inputActions.FindActionMap("Player", true).FindAction("Interact", true);
+        FirstPersonController player;
+
+        void Awake()
+        {
+            interactAction = inputActions.FindActionMap("Player", true).FindAction("Interact", true);
+            player = GetComponent<FirstPersonController>();
+        }
 
         void Update()
         {
@@ -77,7 +83,8 @@ namespace Backpacking.Interaction
         {
             // Triggers are included so water surfaces can be targeted. The ray starts inside our own
             // capsule, so it never hits the player.
-            if (!Physics.Raycast(viewPoint.position, viewPoint.forward, out RaycastHit hit, reach, ~0, QueryTriggerInteraction.Collide))
+            Vector3 origin = player != null ? player.AimOrigin : viewPoint.position;
+            if (!Physics.Raycast(origin, viewPoint.forward, out RaycastHit hit, reach, ~0, QueryTriggerInteraction.Collide))
                 return null;
             return hit.collider.GetComponentInParent<IInteractable>();
         }

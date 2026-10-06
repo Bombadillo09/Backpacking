@@ -105,7 +105,7 @@ namespace Backpacking.Camp
             if (!burning)
             {
                 string lightProblem = fuelHours <= 0f ? "Add firewood first" : backpack.Matches <= 0 ? "No matches left" : null;
-                float failChance = (weather != null ? weather.RainIntensity : 0f) * downpourLightFailChance;
+                float failChance = (weather != null ? weather.RainIntensity : 0f) * downpourLightFailChance * HikerTraits.FireFailFactor;
                 string odds = failChance > 0.05f ? $", {Mathf.RoundToInt(failChance * 100f)}% chance the rain wins" : "";
                 options.Add(new InteractionOption($"Light fire (1 match, {backpack.Matches} left{odds})", () =>
                     interactor.Activity.Begin("Lighting the fire", lightingMinutes, () =>

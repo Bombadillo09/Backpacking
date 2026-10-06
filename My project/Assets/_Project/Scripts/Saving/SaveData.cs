@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Backpacking.Camp;
+using Backpacking.Character;
 using Backpacking.Survival;
 using Backpacking.Trip;
 using Backpacking.World;
@@ -26,6 +27,7 @@ namespace Backpacking.Saving
         public BackpackState backpack;
         public WeatherState weather;
         public TripState trip;
+        public CharacterProfile character;
 
         public List<string> collectedPickups = new();
         public List<string> visitedPoints = new();

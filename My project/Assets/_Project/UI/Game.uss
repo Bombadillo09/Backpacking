@@ -427,6 +427,65 @@
     padding-right: 8px;
 }
 
+/* ---------- Character creation ---------- */
+
+.creator-preview {
+    width: 540px;
+    height: 780px;
+    margin-right: 24px;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: var(--edge);
+    -unity-background-scale-mode: scale-and-crop;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.creator-hint {
+    margin-bottom: 10px;
+}
+
+.creator-form {
+    width: 860px;
+}
+
+.creator-name {
+    font-size: 20px;
+}
+
+.creator-choice {
+    width: 160px;
+    -unity-text-align: middle-center;
+}
+
+.creator-wrap {
+    flex-wrap: wrap;
+}
+
+.creator-description {
+    min-height: 64px;
+    margin-top: 6px;
+}
+
+.layer .button.swatch {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    margin: 2px 4px 2px 0;
+    border-radius: 17px;
+    border-width: 2px;
+    border-color: rgba(0, 0, 0, 0.4);
+}
+
+.layer .button.selected {
+    border-color: var(--accent);
+    border-width: 3px;
+}
+
+.layer .button.swatch.selected {
+    border-color: rgb(255, 255, 255);
+}
+
 /* ---------- Map & compass ---------- */
 
 .map-paper {

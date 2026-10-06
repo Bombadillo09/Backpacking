@@ -53,6 +53,12 @@ namespace Backpacking.Player
         [Tooltip("How fast the capsule changes height, in m/s.")]
         [SerializeField] float crouchTransitionSpeed = 3f;
 
+        [Header("Third Person")]
+        [Tooltip("Camera position behind the player's eyes: right, up, back (metres).")]
+        [SerializeField] Vector3 thirdPersonOffset = new(0.45f, 0.25f, -2.6f);
+        [Tooltip("How close the camera may get when something is in the way.")]
+        [SerializeField] float thirdPersonMinDistance = 0.5f;
+
         [Header("Look")]
         [Tooltip("Degrees per pixel of mouse movement.")]
         [SerializeField] float mouseSensitivity = 0.1f;
@@ -66,6 +72,7 @@ namespace Backpacking.Player
         float verticalVelocity;
         float pitch;
         float eyeHeight = 1.68f;
+        float cameraDistance;
 
         bool cursorWasNeeded;
         bool invertY;
@@ -75,6 +82,13 @@ namespace Backpacking.Player
         public bool IsCrouching { get; private set; }
         public float HorizontalSpeed => horizontalVelocity.magnitude;
         public float VerticalVelocity => verticalVelocity;
+        /// <summary>Viewing the hiker from behind rather than through their eyes. Toggled with V (or RB).</summary>
+        public bool ThirdPerson { get; set; }
+        /// <summary>
+        /// Where aiming rays (interacting, placing gear) should start: the eyes in first person, or the point
+        /// level with the player in third person, so the reach is the same either way.
+        /// </summary>
+        public Vector3 AimOrigin => cameraPivot.position + cameraPivot.forward * (ThirdPerson ? cameraDistance : 0f);
         public float WalkSpeed => walkSpeed;
         public Transform CameraPivot => cameraPivot;
 
@@ -140,6 +154,8 @@ namespace Backpacking.Player
         void Update()
         {
             HandleCursor();
+            if (GameInput.ToggleViewPressed && !PlayerControlLock.CursorNeeded)
+                ThirdPerson = !ThirdPerson;
             bool locked = PlayerControlLock.MovementLocked;
             if (!locked && Cursor.lockState == CursorLockMode.Locked)
                 Look();
@@ -151,8 +167,27 @@ namespace Backpacking.Player
         // After everything that moves the view this frame (head bob, shivering) has had its say.
         void LateUpdate()
         {
-            cameraPivot.localPosition = new Vector3(0f, eyeHeight, 0f) + BobPosition;
-            cameraPivot.localRotation = Quaternion.Euler(pitch + ViewOffset.y + BobRotation.x, ViewOffset.x + BobRotation.y, ViewOffset.z + BobRotation.z);
+            Vector3 eye = new Vector3(0f, eyeHeight, 0f) + BobPosition;
+            Quaternion look = Quaternion.Euler(pitch + ViewOffset.y + BobRotation.x, ViewOffset.x + BobRotation.y, ViewOffset.z + BobRotation.z);
+            cameraPivot.localRotation = look;
+            cameraPivot.localPosition = ThirdPerson ? eye + look * ThirdPersonOffset(eye, look) : eye;
+            if (!ThirdPerson)
+                cameraDistance = 0f;
+        }
+
+        /// <summary>Pulls the camera in when trees, rocks or the ground come between it and the player.</summary>
+        Vector3 ThirdPersonOffset(Vector3 eye, Quaternion look)
+        {
+            float wanted = thirdPersonOffset.magnitude;
+            Vector3 direction = thirdPersonOffset / wanted;
+            Vector3 origin = transform.TransformPoint(eye);
+            Vector3 worldDirection = transform.rotation * (look * direction);
+            float allowed = wanted;
+            if (Physics.SphereCast(origin, 0.2f, worldDirection, out RaycastHit hit, wanted, ~0, QueryTriggerInteraction.Ignore))
+                allowed = Mathf.Max(thirdPersonMinDistance, hit.distance - 0.1f);
+            // Snap in quickly so nothing clips, ease back out.
+            cameraDistance = allowed < cameraDistance ? allowed : Mathf.MoveTowards(cameraDistance, allowed, 4f * Time.deltaTime);
+            return direction * cameraDistance;
         }
 
         void Look()

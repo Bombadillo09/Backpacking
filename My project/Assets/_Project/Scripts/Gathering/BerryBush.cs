@@ -44,7 +44,7 @@ namespace Backpacking.Gathering
             options.Add(new InteractionOption("Pick berries", () =>
                 interactor.Activity.Begin("Picking berries", pickMinutes, () =>
                 {
-                    interactor.Backpack.AddFood(FoodKind.Berries, Random.Range(minBerries, maxBerries + 1));
+                    interactor.Backpack.AddFood(FoodKind.Berries, Mathf.RoundToInt(Random.Range(minBerries, maxBerries + 1) * HikerTraits.ForageFactor));
                     pickedAtHour = timeOfDay.TotalHours;
                     TripLog.Tally(TripStat.BerryPicks);
                 }), HasBerries ? null : $"Already picked. More in about {Mathf.CeilToInt(regrowsIn)} h"));

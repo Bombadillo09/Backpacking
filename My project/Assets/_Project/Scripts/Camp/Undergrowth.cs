@@ -41,7 +41,11 @@ namespace Backpacking.Camp
         public static float Density { get; private set; }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() => Density = 0f;
+        static void ResetStatics()
+        {
+            Density = 0f;
+            Swung = null;
+        }
 
         void Awake()
         {
@@ -86,9 +90,13 @@ namespace Backpacking.Camp
                     : "Thick brush slows you down. Stick to the trail");
         }
 
+        /// <summary>Raised on every swing of the machete, hit or miss.</summary>
+        public static event System.Action Swung;
+
         void Swing()
         {
             nextSwing = Time.time + swingSeconds;
+            Swung?.Invoke();
             Vector3 ahead = player.transform.position + player.transform.forward * reach;
             int cut = clearing.Chop(ahead, vitals);
             source.pitch = Random.Range(0.9f, 1.1f);

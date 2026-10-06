@@ -44,6 +44,7 @@ namespace Backpacking.Survival
         public bool hasFishingKit, hasGoodRod, hasWaterFilter;
         // Saves from before the machete existed get one.
         public bool hasMachete = true;
+        public float packWeight = 1.3f;
         public int snares;
         public float waterCapacity, safeWater, untreatedWater;
         public string sleepingBagName;
@@ -277,6 +278,15 @@ namespace Backpacking.Survival
         public void SetWaterCapacity(float litres) => waterCapacity = Mathf.Max(waterCapacity, litres);
         public void AddWaterFilter() => hasWaterFilter = true;
 
+        public void RemoveFishingKit()
+        {
+            hasFishingKit = false;
+            hasGoodRod = false;
+        }
+
+        /// <summary>A lighter pack and smaller kit, e.g. for an ultralight hiker.</summary>
+        public void ReducePackWeight(float kilograms) => packWeight = Mathf.Max(0.3f, packWeight - kilograms);
+
         public void AddFishingRod()
         {
             hasFishingKit = true;
@@ -354,7 +364,7 @@ namespace Backpacking.Survival
 
             vitals.Eat(info.Satiety);
             vitals.Drink(info.Hydration);
-            if (Random.value < info.SicknessChance)
+            if (Random.value < info.SicknessChance * HikerTraits.SicknessFactor)
             {
                 vitals.MakeSick(sicknessHours);
                 Notifications.Post($"The {info.Name.ToLowerInvariant()} doesn't sit well. You feel sick.");
@@ -488,7 +498,7 @@ namespace Backpacking.Survival
         void DrinkUntreatedDirectly(float litres)
         {
             vitals.Drink(litres * hydrationPerLitre);
-            if (Random.value < untreatedSicknessChance)
+            if (Random.value < untreatedSicknessChance * HikerTraits.SicknessFactor)
             {
                 vitals.MakeSick(sicknessHours);
                 Notifications.Post("Your stomach doesn't feel right...");
@@ -513,6 +523,7 @@ namespace Backpacking.Survival
             hasGoodRod = hasGoodRod,
             hasWaterFilter = hasWaterFilter,
             hasMachete = hasMachete,
+            packWeight = packWeight,
             snares = snares,
             waterCapacity = waterCapacity,
             safeWater = safeWater,
@@ -540,6 +551,7 @@ namespace Backpacking.Survival
             hasGoodRod = state.hasGoodRod;
             hasWaterFilter = state.hasWaterFilter;
             hasMachete = state.hasMachete;
+            packWeight = state.packWeight;
             snares = state.snares;
             waterCapacity = state.waterCapacity;
             safeWater = state.safeWater;

@@ -1,6 +1,7 @@
 using System;
 using Backpacking.Audio;
 using Backpacking.Camp;
+using Backpacking.Character;
 using Backpacking.Gathering;
 using Backpacking.Interaction;
 using Backpacking.Player;
@@ -255,6 +256,23 @@ namespace Backpacking.EditorTools
 
             var menus = hud.AddComponent<GameMenus>();
             SetField(menus, "saves", saves);
+
+            // The hiker: a body you can see, built from the character chosen at the start of a trip.
+            CharacterLibrary library = CharacterSetup.GetOrCreateLibrary();
+            var avatarRoot = new GameObject("Avatar");
+            avatarRoot.transform.SetParent(go.transform, false);
+            var appearance = avatarRoot.AddComponent<CharacterAppearance>();
+            SetField(appearance, "library", library);
+            var avatar = go.AddComponent<PlayerAvatar>();
+            SetField(avatar, "appearance", appearance);
+            SetField(avatar, "player", player);
+            SetField(avatar, "activity", activity);
+            var creator = hud.AddComponent<CharacterCreator>();
+            SetField(creator, "library", library);
+            SetField(menus, "creator", creator);
+            SetField(menus, "avatar", avatar);
+            SetField(menus, "backpack", backpack);
+            SetField(saves, "avatar", avatar);
 
             var trip = go.AddComponent<TripLog>();
             SetField(trip, "timeOfDay", timeOfDay);

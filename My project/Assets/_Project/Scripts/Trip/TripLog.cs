@@ -76,6 +76,8 @@ namespace Backpacking.Trip
         public static event Action Finished;
 
         public static TripLog Current => current;
+        /// <summary>The hiker's name, for the journal and the summit register.</summary>
+        public static string HikerName { get; set; } = "";
         public IReadOnlyList<JournalEntry> Entries => state.entries;
         public bool IsFinished => state.finished;
         public float DistanceKm => state.distance / 1000f;
@@ -98,6 +100,7 @@ namespace Backpacking.Trip
         {
             current = null;
             Finished = null;
+            HikerName = "";
         }
 
         /// <summary>Writes a line in the journal, stamped with the current day and time.</summary>
@@ -164,9 +167,6 @@ namespace Backpacking.Trip
         {
             if (weather != null)
                 lastWeather = weather.Current;
-            // A loaded save replaces this straight after (the save system starts last).
-            if (state.entries.Count == 0)
-                Note($"Set out from Trailhead Outfitter, heading north along the route for {Destination}.");
         }
 
         void AddEntry(string text) => state.entries.Add(new JournalEntry { day = timeOfDay.Day, hour = timeOfDay.Hour, text = text });
@@ -322,7 +322,8 @@ namespace Backpacking.Trip
                 return;
             state.finished = true;
             state.finishedTotalHours = timeOfDay.TotalHours;
-            Note($"Signed the register at {Destination}. Thru-hike complete in {DaysOnTrail} days and {DistanceKm:0.0} km.");
+            string signature = string.IsNullOrEmpty(HikerName) ? "" : $" as {HikerName}";
+            Note($"Signed the register at {Destination}{signature}. Thru-hike complete in {DaysOnTrail} days and {DistanceKm:0.0} km.");
             Finished?.Invoke();
         }
 
@@ -343,6 +344,14 @@ namespace Backpacking.Trip
         }
 
         public TripState CaptureState() => JsonUtility.FromJson<TripState>(JsonUtility.ToJson(state));
+
+        /// <summary>Wipes the journal for a new trip and writes its first line.</summary>
+        public void BeginTrip(string firstLine)
+        {
+            state = new TripState { startTotalHours = timeOfDay.TotalHours };
+            lastPosition = player.transform.position;
+            Note(firstLine);
+        }
 
         public void RestoreState(TripState saved)
         {

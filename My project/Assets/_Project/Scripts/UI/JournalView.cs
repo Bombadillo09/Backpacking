@@ -160,7 +160,7 @@ namespace Backpacking.UI
             GameUI.CloseAllScreens();
 
             summaryTitle.text = log.IsFinished ? "THRU-HIKE COMPLETE" : TripLog.Destination.ToUpperInvariant();
-            summaryRating.text = log.TrailTitle();
+            summaryRating.text = string.IsNullOrEmpty(TripLog.HikerName) ? log.TrailTitle() : $"{TripLog.HikerName}  ·  {log.TrailTitle()}";
             summaryStats.Clear();
             foreach ((string label, string value) in Stats(log))
                 summaryStats.Add(UIBuild.Box("row", "spread").With(UIBuild.Text(label), UIBuild.Text(value, "money")));

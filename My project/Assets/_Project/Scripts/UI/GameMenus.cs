@@ -1,5 +1,7 @@
 using System;
+using Backpacking.Character;
 using Backpacking.Player;
+using Backpacking.Survival;
 using Backpacking.Saving;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -13,15 +15,18 @@ namespace Backpacking.UI
     public class GameMenus : MonoBehaviour
     {
         [SerializeField] SaveSystem saves;
+        [SerializeField] CharacterCreator creator;
+        [SerializeField] PlayerAvatar avatar;
+        [SerializeField] Backpack backpack;
 
         // Keyboard and mouse | gamepad | what it does.
         const string ControlsText =
             "WASD|Left stick|Walk\nMouse|Right stick|Look around\nShift|Left stick press|Sprint\n" +
             "C|Right stick press|Crouch\nSpace|A|Jump\nE|Y|Interact, place gear, hook a fish\n" +
-            "Tab|View|Backpack, leave a shop\nJ|Backpack > Journal|Trip journal\nM|D-pad up|Map\nQ|D-pad down|Compass\nHold T|Hold LB|Fast-forward time\n" +
+            "Tab|View|Backpack, leave a shop\nJ|Backpack > Journal|Trip journal\nV|RB|First or third person\nM|D-pad up|Map\nQ|D-pad down|Compass\nHold T|Hold LB|Fast-forward time\n" +
             "Right-click|B|Back, cancel placing, stop fishing\nEsc|Start|Close screen, pause\nF5 / F9|-|Quick-save / quick-load";
 
-        enum Page { None, Title, Pause, Settings, Controls, Confirm }
+        enum Page { None, Title, Pause, Settings, Controls, Confirm, Creator }
 
         Page page;
         Page returnPage;
@@ -181,7 +186,8 @@ namespace Backpacking.UI
                 returnPage = page;
             page = next;
 
-            screen.SetVisible(next != Page.None);
+            // The character creator draws its own screen.
+            screen.SetVisible(next is not Page.None and not Page.Creator);
             titlePage.SetVisible(next == Page.Title);
             pausePage.SetVisible(next == Page.Pause);
             settingsPage.SetVisible(next == Page.Settings);
@@ -222,6 +228,8 @@ namespace Backpacking.UI
                 if (!PlayerControlLock.CursorNeeded)
                     Pause();
             }
+            else if (page == Page.Creator)
+                creator.Back();
             else if (page != Page.Title)
                 Back();
         }
@@ -229,7 +237,9 @@ namespace Backpacking.UI
         /// <summary>Right-click / B steps back out of a menu page, but never pauses or leaves the title.</summary>
         void OnCancel()
         {
-            if (page is not Page.None and not Page.Title)
+            if (page == Page.Creator)
+                creator.Back();
+            else if (page is not Page.None and not Page.Title)
                 Back();
         }
 
@@ -275,11 +285,30 @@ namespace Backpacking.UI
             saves.ContinueSavedTrip();
         }
 
+        /// <summary>Make a hiker first; the trip starts when they're ready.</summary>
         void NewTrip()
         {
+            if (creator == null)
+            {
+                BeginTrip(avatar != null ? avatar.Profile : new CharacterProfile());
+                return;
+            }
+            ShowPage(Page.Creator);
+            creator.Open(BeginTrip, () => ShowPage(Page.Title));
+        }
+
+        void BeginTrip(CharacterProfile hiker)
+        {
             HideAll();
+            if (avatar != null)
+                avatar.Apply(hiker);
+            if (backpack != null)
+                Backgrounds.ApplyStartingKit(hiker.background, backpack);
+            if (Trip.TripLog.Current != null)
+                Trip.TripLog.Current.BeginTrip($"{hiker.name} set out from Trailhead Outfitter as a {Backgrounds.Name(hiker.background)}, "
+                                               + $"heading north along the route for {Trip.TripLog.Destination}.");
             string replaces = saves.HasSave ? " Your next save replaces the old trip." : "";
-            Notifications.Post($"Your goal: hike north along the route to {Trip.TripLog.Destination} and sign the summit register. "
+            Notifications.Post($"Your goal, {hiker.name}: hike north along the route to {Trip.TripLog.Destination} and sign the summit register. "
                                + $"Check your map (M).{replaces}", 12f);
         }
 

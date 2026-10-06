@@ -108,14 +108,14 @@ namespace Backpacking.Gathering
                 else if (timer <= 0f)
                 {
                     state = State.Bite;
-                    timer = backpack.HasGoodRod ? goodRodBiteWindow : biteWindow;
+                    timer = (backpack.HasGoodRod ? goodRodBiteWindow : biteWindow) * HikerTraits.BiteWindowFactor;
                 }
             }
             else if (state == State.Bite)
             {
                 if (hook)
                 {
-                    if (Random.value < (backpack.HasGoodRod ? goodRodLandChance : landChance))
+                    if (Random.value < (backpack.HasGoodRod ? goodRodLandChance : landChance) + HikerTraits.LandChanceBonus)
                     {
                         backpack.AddFood(FoodKind.RawFish);
                         TripLog.Tally(TripStat.Fish);
