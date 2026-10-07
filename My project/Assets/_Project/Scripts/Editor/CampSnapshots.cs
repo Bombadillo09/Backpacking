@@ -68,8 +68,8 @@ namespace Backpacking.EditorTools
         {
             Directory.CreateDirectory(Folder);
             var tentPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/_Project/Prefabs/Camp/Tent (staged).prefab");
-            var packPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/_Project/Prefabs/Camp/Ground Pack.prefab");
-            var bagPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/_Project/Prefabs/Camp/Tent Bag.prefab");
+            var packPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/_Project/Prefabs/Camp/Ground Pack (detailed).prefab");
+            var bagPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/_Project/Prefabs/Camp/Tent Bag (detailed).prefab");
             if (tentPrefab == null)
                 return "Tent (staged) prefab not found; rebuild the scene first.";
             TentMaterials materials = tentPrefab.GetComponent<Tent>().Materials;
@@ -116,7 +116,13 @@ namespace Backpacking.EditorTools
                         preview.AddSingleGO(copy);
                     }
                 }
-                foreach ((GameObject prefab, Vector3 at) in new[] { (packPrefab, new Vector3(3.6f, 0f, 0.4f)), (bagPrefab, new Vector3(3.6f, 0f, -0.6f)) })
+                var stovePrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/_Project/Prefabs/Camp/Camp Stove (detailed).prefab");
+                var snarePrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/_Project/Prefabs/Camp/Snare (detailed).prefab");
+                foreach ((GameObject prefab, Vector3 at) in new[]
+                         {
+                             (packPrefab, new Vector3(3.6f, 0f, 0.4f)), (bagPrefab, new Vector3(3.6f, 0f, -0.6f)),
+                             (stovePrefab, new Vector3(4.2f, 0f, 0.1f)), (snarePrefab, new Vector3(4.2f, 0f, -0.5f)),
+                         })
                 {
                     if (prefab == null)
                         continue;
@@ -155,7 +161,9 @@ namespace Backpacking.EditorTools
                 Shot("pitched-4s", new Vector3(4.4f, 1.7f, 0f), new Vector3(2.4f, 0.45f, -3.4f), 900, 700);
                 Shot("poles-2p", new Vector3(1.6f, 1.9f, 2.6f), new Vector3(0f, 0.3f, 0f), 900, 700);
                 Shot("chair", new Vector3(-3.6f, 1.1f, 0.6f), new Vector3(-3.1f, 0.3f, 2.6f), 900, 600);
-                Shot("gear", new Vector3(4.9f, 0.9f, 1.4f), new Vector3(3.6f, 0.2f, -0.1f), 900, 700);
+                Shot("gear", new Vector3(5.2f, 0.9f, 1.4f), new Vector3(3.9f, 0.2f, -0.1f), 900, 700);
+                Shot("stove", new Vector3(4.55f, 0.35f, 0.45f), new Vector3(4.2f, 0.14f, 0.1f), 700, 700);
+                Shot("snare", new Vector3(4.6f, 0.35f, -0.15f), new Vector3(4.2f, 0.12f, -0.45f), 700, 700);
                 return "Rendered to Temp/CampSnapshots.";
             }
             finally

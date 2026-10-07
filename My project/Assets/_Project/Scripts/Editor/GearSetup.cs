@@ -40,6 +40,15 @@ namespace Backpacking.EditorTools
                 gearFabric = Fabric("GearFabric", "stretch_poplin", Color.white, keepColour: false),
             };
             library.aluminium = Plain("Aluminium", new Color(0.7f, 0.71f, 0.73f), 0.6f, 1f);
+            library.canisterPaint = Plain("CanisterPaint", new Color(0.12f, 0.33f, 0.62f), 0.55f, 0.3f);
+
+            library.canister = SaveMesh(GearDesign.Canister());
+            library.burner = SaveMesh(GearDesign.Burner());
+            library.pot = SaveMesh(GearDesign.Pot());
+            library.stuffSack = SaveMesh(GearDesign.StuffSack(0.4f, 0.075f, out Mesh straps));
+            library.stuffSackStraps = SaveMesh(straps);
+            library.stake = SaveMesh(GearDesign.Stake());
+            library.noose = SaveMesh(GearDesign.Noose());
 
             var held = AssetDatabase.LoadAssetAtPath<HeldItemLibrary>("Assets/_Project/Settings/HeldItemLibrary.asset");
             if (held != null)
@@ -50,6 +59,25 @@ namespace Backpacking.EditorTools
             EditorUtility.SetDirty(library);
             AssetDatabase.SaveAssets();
             return library;
+        }
+
+        /// <summary>Saves a generated mesh as an asset (updating it in place if it exists), so prefabs can use it.</summary>
+        static Mesh SaveMesh(Mesh mesh)
+        {
+            const string folder = MaterialFolder + "/Meshes";
+            if (!AssetDatabase.IsValidFolder(folder))
+                AssetDatabase.CreateFolder(MaterialFolder, "Meshes");
+            string path = $"{folder}/{mesh.name}.asset";
+            var existing = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+            if (existing == null)
+            {
+                AssetDatabase.CreateAsset(mesh, path);
+                return mesh;
+            }
+            EditorUtility.CopySerialized(mesh, existing);
+            Object.DestroyImmediate(mesh);
+            EditorUtility.SetDirty(existing);
+            return existing;
         }
 
         static Texture2D Texture(string fabric, string kind) =>

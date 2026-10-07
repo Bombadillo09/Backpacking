@@ -369,12 +369,13 @@ namespace Backpacking.EditorTools
                 Tent = GetOrCreatePrefab("Tent (staged)", BuildTent),
                 // Renamed when the pack became a detailed model, so the old block-built prefab isn't reused.
                 GroundPack = GetOrCreatePrefab("Ground Pack (detailed)", BuildGroundPack),
-                TentBag = GetOrCreatePrefab("Tent Bag", BuildTentBag),
+                TentBag = GetOrCreatePrefab("Tent Bag (detailed)", BuildTentBag),
                 Chair = GetOrCreatePrefab("Camp Chair", BuildChair),
                 FireRing = GetOrCreatePrefab("Fire Ring", BuildFireRing),
-                Stove = GetOrCreatePrefab("Camp Stove", BuildStove),
+                // Renamed when the gear got detailed models, so the old primitive-built prefabs aren't reused.
+                Stove = GetOrCreatePrefab("Camp Stove (detailed)", BuildStove),
                 Firewood = GetOrCreatePrefab("Firewood", BuildFirewood),
-                Snare = GetOrCreatePrefab("Snare", BuildSnare),
+                Snare = GetOrCreatePrefab("Snare (detailed)", BuildSnare),
                 BerryBush = GetOrCreatePrefab("Berry Bush", BuildBerryBush),
                 TradingPost = GetOrCreatePrefab("Trading Post", BuildTradingPost),
                 ClearingMarker = GetOrCreatePrefab("Clearing Marker", BuildClearingMarker),
@@ -401,11 +402,11 @@ namespace Backpacking.EditorTools
             collider.size = new Vector3(0.45f, 0.3f, 0.45f);
 
             Material wood = GetOrCreateMaterial("Wood", new Color(0.33f, 0.22f, 0.13f));
-            Material metal = GetOrCreateMaterial("Metal", new Color(0.6f, 0.6f, 0.62f), 0.6f);
+            Material brass = GetOrCreateMaterial("BrassWire", new Color(0.72f, 0.56f, 0.28f), 0.7f);
             Material fur = GetOrCreateMaterial("RabbitFur", new Color(0.45f, 0.38f, 0.3f));
-
-            AddVisual(PrimitiveType.Cylinder, root, new Vector3(0f, 0.15f, 0f), Quaternion.identity, new Vector3(0.025f, 0.15f, 0.025f), wood);
-            AddVisual(PrimitiveType.Cylinder, root, new Vector3(0f, 0.12f, 0.1f), Quaternion.Euler(90f, 0f, 0f), new Vector3(0.16f, 0.004f, 0.16f), metal);
+            GearLibrary gear = GearSetup.GetOrCreateLibrary();
+            MeshVisual("Stake", root, gear.stake, wood, Vector3.zero);
+            MeshVisual("Noose", root, gear.noose, brass, Vector3.zero);
 
             var caught = new GameObject("Caught");
             caught.transform.SetParent(root.transform, false);
@@ -515,13 +516,21 @@ namespace Backpacking.EditorTools
             var collider = root.AddComponent<BoxCollider>();
             collider.center = new Vector3(0f, 0.09f, 0f);
             collider.size = new Vector3(0.5f, 0.18f, 0.22f);
-            // The sack is tinted to the tent's fly colour at runtime.
-            Material sack = GetOrCreateMaterial("TentSack", Color.white, 0.3f);
-            Material cord = GetOrCreateMaterial("Cord", new Color(0.1f, 0.1f, 0.11f), 0.2f);
-            NamedVisual("Sack", PrimitiveType.Capsule, root, new Vector3(0f, 0.085f, 0f), Quaternion.Euler(0f, 0f, 90f), new Vector3(0.17f, 0.25f, 0.17f), sack);
-            NamedVisual("Cinch", PrimitiveType.Cylinder, root, new Vector3(0.26f, 0.085f, 0f), Quaternion.Euler(0f, 0f, 90f), new Vector3(0.06f, 0.025f, 0.06f), cord);
-            NamedVisual("Pole Bag", PrimitiveType.Cylinder, root, new Vector3(0.02f, 0.05f, 0.11f), Quaternion.Euler(0f, 0f, 90f), new Vector3(0.05f, 0.24f, 0.05f), cord);
+            // The sack is tinted to the tent's fly colour at runtime (renderers named "Sack...").
+            GearLibrary gear = GearSetup.GetOrCreateLibrary();
+            MeshVisual("Sack", root, gear.stuffSack, gear.pack.gearFabric, Vector3.zero);
+            MeshVisual("Straps", root, gear.stuffSackStraps, gear.pack.webbing, Vector3.zero);
             return root;
+        }
+
+        /// <summary>A generated mesh as a visual part (no collider; the root's collider covers the piece).</summary>
+        static void MeshVisual(string name, GameObject parent, Mesh mesh, Material material, Vector3 position)
+        {
+            var part = new GameObject(name);
+            part.transform.SetParent(parent.transform, false);
+            part.transform.localPosition = position;
+            part.AddComponent<MeshFilter>().sharedMesh = mesh;
+            part.AddComponent<MeshRenderer>().sharedMaterial = material;
         }
 
         static void NamedVisual(string name, PrimitiveType type, GameObject parent, Vector3 position, Quaternion rotation, Vector3 scale, Material material)
@@ -639,12 +648,11 @@ namespace Backpacking.EditorTools
             collider.center = new Vector3(0f, 0.13f, 0f);
             collider.size = new Vector3(0.3f, 0.26f, 0.3f);
 
-            Material canister = GetOrCreateMaterial("GasCanister", new Color(0.15f, 0.3f, 0.55f), 0.5f);
-            Material metal = GetOrCreateMaterial("Metal", new Color(0.6f, 0.6f, 0.62f), 0.6f);
-
-            AddVisual(PrimitiveType.Cylinder, root, new Vector3(0f, 0.05f, 0f), Quaternion.identity, new Vector3(0.11f, 0.05f, 0.11f), canister);
-            AddVisual(PrimitiveType.Cylinder, root, new Vector3(0f, 0.13f, 0f), Quaternion.identity, new Vector3(0.05f, 0.03f, 0.05f), metal);
-            AddVisual(PrimitiveType.Cylinder, root, new Vector3(0f, 0.22f, 0f), Quaternion.identity, new Vector3(0.15f, 0.06f, 0.15f), metal);
+            GearLibrary gear = GearSetup.GetOrCreateLibrary();
+            MeshVisual("Canister", root, gear.canister, gear.canisterPaint, Vector3.zero);
+            MeshVisual("Burner", root, gear.burner, gear.aluminium, Vector3.zero);
+            // The pot sits on the supports, ready to cook in.
+            MeshVisual("Pot", root, gear.pot, gear.aluminium, new Vector3(0f, 0.154f, 0f));
             return root;
         }
 

@@ -22,3 +22,11 @@ MonoBehaviour:
   bottle: {fileID: 6373683499227699496, guid: 7ad7860f4879dc84796fce7d91b9f7a7, type: 3}
   machete: {fileID: 5865071540805038893, guid: 01a0a474adb75574ea32f449c57789a0, type: 3}
   aluminium: {fileID: 2100000, guid: 746b78e3d574d1a4092ade457f08e12f, type: 2}
+  canisterPaint: {fileID: 2100000, guid: e63784017d27de84a8ca7d1929ce41fa, type: 2}
+  canister: {fileID: 4300000, guid: cfa3b9707166f2849add7e4d5ef39669, type: 2}
+  burner: {fileID: 4300000, guid: 1aa322b3cabdff240ab51e814a395864, type: 2}
+  pot: {fileID: 4300000, guid: a9bd732306f1ca64593efb6bca220741, type: 2}
+  stuffSack: {fileID: 4300000, guid: c17a8e8992452554d9cdfd3ab37ead3b, type: 2}
+  stuffSackStraps: {fileID: 4300000, guid: 29a2e88a882f1cf49ab2b6ea7750563c, type: 2}
+  stake: {fileID: 4300000, guid: e674d182e808d3444957a0ad62617b0e, type: 2}
+  noose: {fileID: 4300000, guid: 79778852430027f44b56912aae8d8c01, type: 2}
