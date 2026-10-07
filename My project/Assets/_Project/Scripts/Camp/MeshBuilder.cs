@@ -124,6 +124,28 @@ namespace Backpacking.Camp
             }
         }
 
+        /// <summary>A smooth ellipsoid (rounded body part), turned by <paramref name="rotation"/>.</summary>
+        public void Ellipsoid(Vector3 centre, Vector3 radii, Quaternion rotation, int segments = 16)
+        {
+            var rings = new List<Vector3[]>();
+            int stacks = Mathf.Max(4, segments / 2);
+            for (int j = 1; j < stacks; j++)
+            {
+                float lat = Mathf.Lerp(-Mathf.PI / 2f, Mathf.PI / 2f, j / (float)stacks);
+                var ring = new Vector3[segments];
+                for (int i = 0; i < segments; i++)
+                {
+                    float lon = i / (float)segments * Mathf.PI * 2f;
+                    var unit = new Vector3(Mathf.Cos(lat) * Mathf.Cos(lon), Mathf.Sin(lat), Mathf.Cos(lat) * Mathf.Sin(lon));
+                    ring[i] = centre + rotation * Vector3.Scale(unit, radii);
+                }
+                rings.Add(ring);
+            }
+            Loft(rings, closed: true);
+            Cap(rings[0], rotation * new Vector3(0f, -radii.y * 0.07f, 0f), flip: true);
+            Cap(rings[^1], rotation * new Vector3(0f, radii.y * 0.07f, 0f));
+        }
+
         /// <summary>
         /// A flat strap (webbing or padding) along a path, its face turned toward <paramref name="outward"/> at each
         /// point; a box in section, <paramref name="width"/> by <paramref name="thickness"/>.

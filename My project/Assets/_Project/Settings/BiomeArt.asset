@@ -57,6 +57,15 @@ MonoBehaviour:
   rabbitModel: {fileID: 0}
   deerModel: {fileID: 6835260351911759011, guid: 04a080194a9ac6942939949af1dbdab7, type: 3}
   birdModel: {fileID: 0}
+  songbirdModels:
+  - {fileID: 2247116672212973650, guid: 39f812b39d27a3044ad7bb279abc1806, type: 3}
+  - {fileID: 2456723534242780150, guid: 4a6ad3e852a35de4a8e98c925e2e3d37, type: 3}
+  - {fileID: 8701130071579649487, guid: 9cc1522f0529eec448211c86111583d7, type: 3}
+  - {fileID: 7297806152190461372, guid: afff188388d4b22498e2bca1e57c0d04, type: 3}
+  - {fileID: 537138009017772493, guid: 04972db0293a9b14aa22882767a4b696, type: 3}
+  - {fileID: 5702597531272472927, guid: 7af5a2bda4601c147b910490e07f181c, type: 3}
+  squirrelModel: {fileID: 7877409450122652276, guid: d0aa6038af23a5f42b7a7945fd655427, type: 3}
+  butterflyModel: {fileID: 209897670798731474, guid: 6ff07ccbaae83e548aa7bbc771bf2321, type: 3}
   forestFloorPlants:
   - {fileID: 397059435589770102, guid: 76ee08f7967fd544697fa11525ca8d8f, type: 3}
   meadowPlants:

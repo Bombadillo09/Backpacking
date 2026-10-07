@@ -8,13 +8,16 @@ using Object = UnityEngine.Object;
 namespace Backpacking.EditorTools
 {
     /// <summary>
-    /// Wires three free Asset Store packs into the biome art settings, each only if it's been imported:
+    /// Wires free Asset Store packs into the biome art settings, each only if it's been imported:
     /// <list type="bullet">
     /// <item>"Grass Flowers FREE" (ALP): its grass and flower textures become the terrain grass and meadow wildflowers.</item>
     /// <item>"Free 3D Vegetation" (ZNS3D): its HDRP materials are converted to URP, and its grass clumps and
     /// shrub join the ground plants.</item>
     /// <item>"Animals FREE" (ithappy): a clean copy of its deer, without the demo's player-control scripts,
     /// replaces the placeholder deer.</item>
+    /// <item>"Living Birds": its songbirds, without their own bird controller and physics, driven by
+    /// <see cref="Wildlife.BirdFlock"/> instead, with a <see cref="Wildlife.Songbird"/> holding each one's songs.</item>
+    /// <item>"Furry Squirrel" and "Butterfly (Animated)": clean, life-size copies.</item>
     /// </list>
     /// Like the nature pack, these stay out of git (Asset Store license); without them the builder uses placeholders.
     /// </summary>
@@ -27,6 +30,19 @@ namespace Backpacking.EditorTools
         const string VegetationOutput = "Assets/ZNS3D/BackpackingVariants";
         const string AnimalsFolder = "Assets/ithappy/Animals_FREE";
         const string AnimalsOutput = "Assets/ithappy/BackpackingVariants";
+        const string BirdsFolder = "Assets/living birds/resources";
+        const string BirdsOutput = "Assets/living birds/BackpackingVariants";
+        const string SquirrelPrefab = "Assets/Furry Squirrel/Prefab/Squirrel_URP.prefab";
+        const string SquirrelOutput = "Assets/Furry Squirrel/BackpackingVariants";
+        const string ButterflyPrefab = "Assets/Butterfly (Animated)/Prefab/Butterfly.prefab";
+        const string ButterflyOutput = "Assets/Butterfly (Animated)/BackpackingVariants";
+
+        /// <summary>The Living Birds kinds used, with each one's real length (beak to tail) in metres.</summary>
+        static readonly (string prefab, float length)[] Songbirds =
+        {
+            ("lb_robin", 0.25f), ("lb_blueJay", 0.28f), ("lb_cardinal", 0.22f),
+            ("lb_chickadee", 0.13f), ("lb_sparrow", 0.15f), ("lb_goldFinch", 0.12f),
+        };
 
         static readonly string[] VegetationGrass = { "Grass_1", "Grass_2", "Grass_3", "Grass_4" };
         static readonly string[] VegetationShrubs = { "Shrub" };
@@ -137,6 +153,57 @@ namespace Backpacking.EditorTools
         /// The pack ships HDRP materials, which draw pink in URP. Switches them to URP Lit, keeping their textures.
         /// Also repairs materials an earlier version of this converted without their textures.
         /// </summary>
+        /// <summary>
+        /// Converts materials made for the built-in render pipeline (Standard, Diffuse, Cutout...) in
+        /// <paramref name="folder"/> to URP Lit, which this project renders with; otherwise they draw magenta.
+        /// Keeps the texture, colour and normal map, and alpha cut-outs (feather and wing edges).
+        /// </summary>
+        static int ConvertBuiltInMaterials(string folder)
+        {
+            Shader urpLit = Shader.Find("Universal Render Pipeline/Lit");
+            int count = 0;
+            foreach (string guid in AssetDatabase.FindAssets("t:Material", new[] { folder }))
+            {
+                var material = AssetDatabase.LoadAssetAtPath<Material>(AssetDatabase.GUIDToAssetPath(guid));
+                if (material == null || material.shader == urpLit || material.shader.name.StartsWith("Universal Render Pipeline"))
+                    continue;
+                string shaderName = material.shader.name;
+                var saved = new SerializedObject(material).FindProperty("m_SavedProperties");
+                Texture baseMap = SavedTexture(saved, "_MainTex");
+                Texture normalMap = SavedTexture(saved, "_BumpMap");
+                Color colour = SavedColour(saved, "_Color") ?? Color.white;
+                // Standard's rendering mode: 1 cutout, 2 fade, 3 transparent. Legacy shaders say so in their names.
+                float mode = SavedFloat(saved, "_Mode") ?? 0f;
+                bool cutout = mode >= 1f || shaderName.Contains("Cutout") || shaderName.Contains("Transparent");
+                float cutoff = SavedFloat(saved, "_Cutoff") ?? 0.5f;
+
+                material.shader = urpLit;
+                if (baseMap != null)
+                    material.SetTexture("_BaseMap", baseMap);
+                colour.a = 1f;
+                material.SetColor("_BaseColor", colour);
+                material.SetFloat("_Smoothness", 0.15f);
+                if (normalMap != null)
+                {
+                    material.SetTexture("_BumpMap", normalMap);
+                    material.EnableKeyword("_NORMALMAP");
+                }
+                if (cutout)
+                {
+                    material.SetFloat("_AlphaClip", 1f);
+                    material.SetFloat("_Cutoff", Mathf.Clamp(cutoff, 0.3f, 0.6f));
+                    material.EnableKeyword("_ALPHATEST_ON");
+                    material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.AlphaTest;
+                    // Wings and feather cards are single sheets.
+                    material.SetFloat("_Cull", 0f);
+                }
+                material.enableInstancing = true;
+                EditorUtility.SetDirty(material);
+                count++;
+            }
+            return count;
+        }
+
         static int ConvertHdrpMaterials(string folder)
         {
             Shader urpLit = Shader.Find("Universal Render Pipeline/Lit");
@@ -284,20 +351,125 @@ namespace Backpacking.EditorTools
         {
             var deer = AssetDatabase.LoadAssetAtPath<GameObject>($"{AnimalsFolder}/Prefabs/Deer_001.prefab");
             if (deer == null)
-            {
                 report.Add("Animals FREE: not imported, skipped.");
-                return;
+            else
+            {
+                EnsureFolder(AnimalsOutput);
+                art.deerModel = WildCopy(deer, "Deer");
+                report.Add("Animals FREE: animated deer.");
             }
-            EnsureFolder(AnimalsOutput);
-            art.deerModel = WildCopy(deer, "Deer");
-            report.Add("Animals FREE: animated deer (the pack has no rabbit or birds, so those stay placeholders).");
+            SetUpSongbirds(art, report);
+            SetUpSquirrelAndButterfly(art, report);
+        }
+
+        static void SetUpSongbirds(BiomeArtSettings art, List<string> report)
+        {
+            if (AssetDatabase.IsValidFolder("Assets/living birds/Materials-Textures"))
+                ConvertBuiltInMaterials("Assets/living birds/Materials-Textures");
+            var birds = new List<GameObject>();
+            foreach ((string prefab, float length) in Songbirds)
+            {
+                var source = AssetDatabase.LoadAssetAtPath<GameObject>($"{BirdsFolder}/{prefab}.prefab");
+                if (source == null)
+                    continue;
+                EnsureFolder(BirdsOutput);
+                birds.Add(SongbirdCopy(source, prefab.Substring(3), length));
+            }
+            art.songbirdModels = birds.ToArray();
+            report.Add(birds.Count > 0 ? $"Living Birds: {birds.Count} songbirds." : "Living Birds: not imported, skipped.");
+        }
+
+        /// <summary>
+        /// A copy of a Living Birds bird with its model, Animator and voice, but in place of the pack's own bird script
+        /// (which needs its controller, tags and physics) a Songbird holding its songs, at its real size.
+        /// </summary>
+        static GameObject SongbirdCopy(GameObject source, string birdName, float length)
+        {
+            var instance = (GameObject)PrefabUtility.InstantiatePrefab(source);
+            try
+            {
+                PrefabUtility.UnpackPrefabInstance(instance, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
+                var songs = new List<AudioClip>();
+                var takeOff = new List<AudioClip>();
+                foreach (MonoBehaviour script in instance.GetComponentsInChildren<MonoBehaviour>(true))
+                {
+                    var serialized = new SerializedObject(script);
+                    foreach (string field in new[] { "song1", "song2" })
+                        if (serialized.FindProperty(field)?.objectReferenceValue is AudioClip clip)
+                            songs.Add(clip);
+                    foreach (string field in new[] { "flyAway1", "flyAway2" })
+                        if (serialized.FindProperty(field)?.objectReferenceValue is AudioClip clip)
+                            takeOff.Add(clip);
+                    Object.DestroyImmediate(script);
+                }
+                foreach (Collider collider in instance.GetComponentsInChildren<Collider>(true))
+                    Object.DestroyImmediate(collider);
+                foreach (Rigidbody body in instance.GetComponentsInChildren<Rigidbody>(true))
+                    Object.DestroyImmediate(body);
+                var songbird = instance.AddComponent<Wildlife.Songbird>();
+                songbird.songs = songs.ToArray();
+                songbird.takeOff = takeOff.ToArray();
+                ScaleTo(instance, length, birdName, lengthwise: true);
+                instance.name = birdName;
+                return PrefabUtility.SaveAsPrefabAsset(instance, $"{BirdsOutput}/{birdName}.prefab");
+            }
+            finally
+            {
+                Object.DestroyImmediate(instance);
+            }
+        }
+
+        static void SetUpSquirrelAndButterfly(BiomeArtSettings art, List<string> report)
+        {
+            var squirrel = AssetDatabase.LoadAssetAtPath<GameObject>(SquirrelPrefab);
+            if (squirrel != null)
+            {
+                EnsureFolder(SquirrelOutput);
+                // A red squirrel is about 40 cm nose to tail tip.
+                art.squirrelModel = WildCopy(squirrel, "Squirrel", SquirrelOutput, 0.4f);
+                report.Add("Furry Squirrel: animated squirrel.");
+            }
+            else
+                report.Add("Furry Squirrel: not imported, skipped.");
+
+            var butterfly = AssetDatabase.LoadAssetAtPath<GameObject>(ButterflyPrefab);
+            if (butterfly != null)
+            {
+                ConvertBuiltInMaterials("Assets/Butterfly (Animated)");
+                EnsureFolder(ButterflyOutput);
+                // About a 7 cm wingspan.
+                // The model faces along +X.
+                art.butterflyModel = WildCopy(butterfly, "Butterfly", ButterflyOutput, 0.07f, turn: -90f);
+                report.Add("Butterfly (Animated): animated butterfly.");
+            }
+            else
+                report.Add("Butterfly (Animated): not imported, skipped.");
+        }
+
+        /// <summary>
+        /// Scales a model so its largest horizontal size (or, <paramref name="lengthwise"/>, its length front to back)
+        /// is <paramref name="size"/> metres (packs are modelled at all sorts of scales), and logs what it measured.
+        /// </summary>
+        static void ScaleTo(GameObject instance, float size, string label, bool lengthwise = false)
+        {
+            Renderer[] renderers = instance.GetComponentsInChildren<Renderer>(true);
+            if (renderers.Length == 0)
+                return;
+            Bounds bounds = renderers[0].bounds;
+            foreach (Renderer renderer in renderers)
+                bounds.Encapsulate(renderer.bounds);
+            float measured = lengthwise ? bounds.size.z : Mathf.Max(bounds.size.x, bounds.size.z);
+            if (measured <= 1e-4f)
+                return;
+            instance.transform.localScale *= size / measured;
+            Debug.Log($"[Wildlife] {label}: measured {bounds.size} m, scaled by {size / measured:0.###} to {size} m.");
         }
 
         /// <summary>
         /// A copy of a pack animal with only its model and Animator: the demo's player-control scripts read the
         /// old Input Manager (which this project doesn't use) and its CharacterController would block the player.
         /// </summary>
-        static GameObject WildCopy(GameObject source, string animalName)
+        static GameObject WildCopy(GameObject source, string animalName, string folder = AnimalsOutput, float size = 0f, float turn = 0f)
         {
             var instance = (GameObject)PrefabUtility.InstantiatePrefab(source);
             try
@@ -312,8 +484,22 @@ namespace Backpacking.EditorTools
                     Object.DestroyImmediate(body);
                 if (instance.TryGetComponent(out Animator animator))
                     animator.applyRootMotion = false;
+                if (size > 0f)
+                {
+                    // Scaled on a new parent: an animation that keys the model's own root (the butterfly's) would
+                    // undo a scale set there.
+                    var holder = new GameObject(animalName);
+                    // Turned to face forward (+Z), as the game moves animals; on a node of its own, since the
+                    // model's animation may key its root's rotation, and the game turns the holder.
+                    var facing = new GameObject("Facing").transform;
+                    facing.SetParent(holder.transform, false);
+                    facing.localRotation = Quaternion.Euler(0f, turn, 0f);
+                    instance.transform.SetParent(facing, false);
+                    ScaleTo(holder, size, animalName);
+                    instance = holder;
+                }
                 instance.name = animalName;
-                return PrefabUtility.SaveAsPrefabAsset(instance, $"{AnimalsOutput}/{animalName}.prefab");
+                return PrefabUtility.SaveAsPrefabAsset(instance, $"{folder}/{animalName}.prefab");
             }
             finally
             {

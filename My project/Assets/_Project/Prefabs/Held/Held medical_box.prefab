@@ -90,7 +90,7 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!1 &4479853824285433463
+--- !u!1 &2486864693449383844
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -98,9 +98,9 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 8170198431055547027}
-  - component: {fileID: 1789934122397416466}
-  - component: {fileID: 3627752022357973108}
+  - component: {fileID: 1523845568415015966}
+  - component: {fileID: 4550117655395026009}
+  - component: {fileID: 6041770391903579800}
   m_Layer: 0
   m_Name: medical_box
   m_TagString: Untagged
@@ -108,13 +108,13 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &8170198431055547027
+--- !u!4 &1523845568415015966
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4479853824285433463}
+  m_GameObject: {fileID: 2486864693449383844}
   serializedVersion: 2
   m_LocalRotation: {x: 0.7071068, y: 0, z: 0, w: 0.7071068}
   m_LocalPosition: {x: -0.000000007450581, y: 0, z: 0.000000007450581}
@@ -123,21 +123,21 @@ Transform:
   m_Children: []
   m_Father: {fileID: 3560209659135951737}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!33 &1789934122397416466
+--- !u!33 &4550117655395026009
 MeshFilter:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4479853824285433463}
+  m_GameObject: {fileID: 2486864693449383844}
   m_Mesh: {fileID: 1636902613613481466, guid: ccb84ccf025fe5e4a83afef8e69fbfda, type: 3}
---- !u!23 &3627752022357973108
+--- !u!23 &6041770391903579800
 MeshRenderer:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4479853824285433463}
+  m_GameObject: {fileID: 2486864693449383844}
   m_Enabled: 1
   m_CastShadows: 1
   m_ReceiveShadows: 1
@@ -209,7 +209,7 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 8170198431055547027}
+  - {fileID: 1523845568415015966}
   - {fileID: 93591392904322967}
   - {fileID: 9007116272249420342}
   - {fileID: 6768627105873664917}

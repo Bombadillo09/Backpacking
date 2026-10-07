@@ -60,6 +60,10 @@ namespace Backpacking.EditorTools
         public GameObject rabbitModel;
         public GameObject deerModel;
         public GameObject birdModel;
+        [Tooltip("Animated songbirds (Living Birds), each with a Songbird component.")]
+        public GameObject[] songbirdModels;
+        public GameObject squirrelModel;
+        public GameObject butterflyModel;
 
         [Header("Ground Plants (optional; prefabs with a MeshFilter and MeshRenderer on the root)")]
         [Tooltip("Painted under the trees, e.g. fallen leaves.")]

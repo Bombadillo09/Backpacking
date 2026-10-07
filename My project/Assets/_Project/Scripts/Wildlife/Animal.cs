@@ -44,9 +44,9 @@ namespace Backpacking.Wildlife
     }
 
     /// <summary>
-    /// A ground animal that grazes and wanders, and bolts when the player gets too close. Walk softly
-    /// (crouch) to get near; sprinting scares it from further away. Follows the terrain and avoids
-    /// cliffs and lakes.
+    /// A ground animal that grazes and wanders, and bolts when the player gets too close. A little further off it
+    /// freezes and watches (a rabbit sits up, ears pricked). Walk softly (crouch) to get near; sprinting scares it
+    /// from further away. Follows the terrain and avoids cliffs and lakes.
     /// </summary>
     public class Animal : MonoBehaviour
     {
@@ -55,6 +55,7 @@ namespace Backpacking.Wildlife
         AnimalProfile profile;
         FirstPersonController player;
         Transform body, head;
+        SmallAnimalRig rig;
         Animator animator;
         int moveHash, runHash;
         AudioSource voice;
@@ -69,6 +70,7 @@ namespace Backpacking.Wildlife
         float noiseSeed;
         float nextProbeTime;
         bool pathBlocked;
+        bool watching;
 
         /// <summary>Called by the spawner straight after creating the animal.</summary>
         public void Initialise(AnimalProfile animalProfile, FirstPersonController watcher, AudioClip alarmSound)
@@ -76,7 +78,10 @@ namespace Backpacking.Wildlife
             profile = animalProfile;
             player = watcher;
             animator = GetComponentInChildren<Animator>();
-            if (animator != null)
+            rig = GetComponent<SmallAnimalRig>();
+            if (rig != null)
+                animator = null;
+            else if (animator != null)
             {
                 moveHash = HasFloat(animator, profile.moveParameter) ? Animator.StringToHash(profile.moveParameter) : 0;
                 runHash = HasFloat(animator, profile.runParameter) ? Animator.StringToHash(profile.runParameter) : 0;
@@ -124,6 +129,8 @@ namespace Backpacking.Wildlife
             }
             else if (state == State.Fleeing && distance > profile.calmDistance)
                 Enter(State.Wandering);
+            // Not quite close enough to bolt: it freezes and watches.
+            watching = state != State.Fleeing && distance < alert * 1.8f;
 
             stateTimer -= Time.deltaTime;
             float targetSpeed = 0f;
@@ -147,6 +154,8 @@ namespace Backpacking.Wildlife
                     break;
             }
 
+            if (watching)
+                targetSpeed = 0f;
             speed = Mathf.MoveTowards(speed, targetSpeed, (state == State.Fleeing ? 25f : 3f) * Time.deltaTime);
             Move();
             Animate();
@@ -221,6 +230,13 @@ namespace Backpacking.Wildlife
             if (animator != null)
             {
                 AnimateModel();
+                return;
+            }
+            if (rig != null)
+            {
+                gaitPhase += speed * Time.deltaTime / Mathf.Max(0.05f, profile.strideLength) * Mathf.PI;
+                float hop = Mathf.Abs(Mathf.Sin(gaitPhase)) * profile.gaitHeight * Mathf.Clamp01(speed / Mathf.Max(0.1f, profile.walkSpeed));
+                rig.Pose(speed, gaitPhase, hop, state == State.Grazing, watching);
                 return;
             }
             if (body != null)

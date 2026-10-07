@@ -122,6 +122,13 @@ namespace Backpacking.EditorTools
             SetField(wildlife, "rabbitPrefab", art.rabbitModel);
             SetField(wildlife, "deerPrefab", art.deerModel);
             SetField(wildlife, "birdPrefab", art.birdModel);
+            SetField(wildlife, "weather", weather);
+            SetField(wildlife, "temperature", temperature);
+            // The built-in rabbit's fur is made from a plain lit material.
+            SetField(wildlife, "rabbitMaterial", GetOrCreateMaterial("Animal Fur", Color.white, 0.1f));
+            SetObjectArray(wildlife, "songbirdPrefabs", art.songbirdModels ?? new GameObject[0]);
+            SetField(wildlife, "squirrelPrefab", art.squirrelModel);
+            SetField(wildlife, "butterflyPrefab", art.butterflyModel);
             ScatterGatherables(terrain, route, player.transform.position, prefabs, art);
             ScatterBoulders(terrain, route, art);
             ScatterFallenLogs(terrain, route, art);
@@ -461,6 +468,14 @@ namespace Backpacking.EditorTools
 
         static void SetField(Object target, string fieldName, Object value) =>
             Modify(target, fieldName, property => property.objectReferenceValue = value);
+
+        static void SetObjectArray(Object target, string fieldName, Object[] values) =>
+            Modify(target, fieldName, property =>
+            {
+                property.arraySize = values.Length;
+                for (int i = 0; i < values.Length; i++)
+                    property.GetArrayElementAtIndex(i).objectReferenceValue = values[i];
+            });
 
         static void SetString(Object target, string fieldName, string value) =>
             Modify(target, fieldName, property => property.stringValue = value);

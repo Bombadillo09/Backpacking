@@ -164,6 +164,30 @@ namespace Backpacking.Audio
             return Clip($"Bird{variant}", Normalise(samples, 0.8f));
         });
 
+        /// <summary>A red squirrel scolding from a tree: a fast, harsh run of chips, then a rattle.</summary>
+        public static AudioClip Chatter() => Cached("Chatter", () =>
+        {
+            var random = new Random(97);
+            var samples = new float[(int)(1.6f * SampleRate)];
+            float time = 0.02f;
+            // A run of sharp chips, quickening, then a dry rattle.
+            for (int chip = 0; chip < 16; chip++)
+            {
+                float length = Range(random, 0.018f, 0.03f);
+                float pitch = Range(random, 3800f, 5200f);
+                AddTone(samples, time, length, pitch, pitch * Range(random, 0.55f, 0.75f), Range(random, 0.7f, 1f), vibrato: 0f);
+                AddGrain(samples, random, (int)(time * SampleRate), length * 0.6f, 0.35f, 2500f);
+                time += length + Mathf.Lerp(0.07f, 0.035f, chip / 15f);
+            }
+            for (int tick = 0; tick < 22 && time < 1.55f; tick++)
+            {
+                AddGrain(samples, random, (int)(time * SampleRate), 0.008f, 0.6f, 3000f);
+                time += 0.022f;
+            }
+            Array.Resize(ref samples, Mathf.Min(samples.Length, (int)((time + 0.05f) * SampleRate)));
+            return Clip("Chatter", Normalise(samples, 0.75f));
+        });
+
         public const int BirdVariants = 6;
         public const int FootstepVariants = 4;
 

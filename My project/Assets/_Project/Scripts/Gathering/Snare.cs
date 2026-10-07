@@ -3,13 +3,15 @@ using Backpacking.Interaction;
 using Backpacking.Survival;
 using Backpacking.World;
 using Backpacking.Trip;
+using Backpacking.Wildlife;
 using UnityEngine;
 
 namespace Backpacking.Gathering
 {
     /// <summary>
     /// A wire snare. Over game time it may catch a rabbit, but only while the player is far enough away
-    /// that animals aren't scared off. Set it, leave, and come back to check it.
+    /// that animals aren't scared off. Set it, leave, and come back to check it. Set where rabbits live
+    /// (grassy clearings, with rabbits seen about) it catches far more often than in the deep woods.
     /// </summary>
     public class Snare : MonoBehaviour, IInteractable
     {
@@ -56,7 +58,7 @@ namespace Backpacking.Gathering
             float hours = Time.deltaTime * timeOfDay.HoursPerSecond;
             float hour = timeOfDay.Hour;
             bool lowLight = hour < 8f || hour > 18f;
-            float chancePerHour = Mathf.Clamp01(catchChancePerHour * (lowLight ? lowLightMultiplier : 1f));
+            float chancePerHour = Mathf.Clamp01(catchChancePerHour * (lowLight ? lowLightMultiplier : 1f) * SpotQuality());
             // Chance of at least one catch over this frame's slice of game time.
             float chance = 1f - Mathf.Pow(1f - chancePerHour, hours);
             if (Random.value < chance)
@@ -64,6 +66,22 @@ namespace Backpacking.Gathering
                 caught = true;
                 caughtVisual.SetActive(true);
             }
+        }
+
+        /// <summary>
+        /// How good a spot this is, as a multiple of the base catch chance: the kind of ground (rabbits live in
+        /// grassy clearings) and how many rabbits are about.
+        /// </summary>
+        float SpotQuality() =>
+            0.3f + 1.2f * WildlifeSpawner.RabbitHabitat(transform.position)
+                 + 0.35f * Mathf.Min(4, WildlifeSpawner.RabbitsNear(transform.position, 60f));
+
+        string SpotDescription()
+        {
+            float quality = SpotQuality();
+            return quality >= 1.8f ? "Good spot: rabbits are about"
+                : quality >= 1f ? "Leave the area and come back later"
+                : "Few rabbits live here; grassy clearings are better";
         }
 
         public void GetOptions(Interactor interactor, List<InteractionOption> options)
@@ -80,7 +98,7 @@ namespace Backpacking.Gathering
                 }));
             }
             else
-                options.Add(new InteractionOption("Nothing caught yet", () => { }, "Leave the area and come back later"));
+                options.Add(new InteractionOption("Nothing caught yet", () => { }, SpotDescription()));
 
             options.Add(new InteractionOption(caught ? "Take the rabbit and pick up the snare" : "Pick up snare", () =>
             {

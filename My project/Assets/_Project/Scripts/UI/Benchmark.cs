@@ -25,6 +25,51 @@ namespace Backpacking.UI
         /// <summary>Where the editor keeps the project's own run-in-background setting during a run.</summary>
         public const string RunInBackgroundKey = "Backpacking.Benchmark.RunInBackground";
 
+        /// <summary>
+        /// Logs how many of each animal are about, and renders the one nearest the player of each kind (with a
+        /// camera of its own, a couple of metres off) to Temp/shot-wildlife-*.png.
+        /// </summary>
+        static void ShootWildlife()
+        {
+            Transform player = FindAnyObjectByType<FirstPersonController>().transform;
+            var report = new StringBuilder("Wildlife:");
+            void Shoot<T>(string kind, float distance) where T : Component
+            {
+                T[] all = FindObjectsByType<T>(FindObjectsSortMode.None);
+                report.Append($" {kind} {all.Length},");
+                T nearest = all.OrderBy(a => (a.transform.position - player.position).sqrMagnitude).FirstOrDefault();
+                if (nearest == null)
+                    return;
+                Vector3 target = nearest.transform.position + Vector3.up * distance * 0.12f;
+                var go = new GameObject("Wildlife Camera");
+                var camera = go.AddComponent<Camera>();
+                camera.nearClipPlane = 0.02f;
+                camera.fieldOfView = 35f;
+                Vector3 side = nearest.transform.right;
+                go.transform.position = target + (side * 0.8f + nearest.transform.forward * 0.6f + Vector3.up * 0.35f).normalized * distance;
+                go.transform.LookAt(target);
+                var texture = new RenderTexture(900, 600, 24);
+                camera.targetTexture = texture;
+                camera.Render();
+                RenderTexture.active = texture;
+                var image = new Texture2D(900, 600, TextureFormat.RGB24, false);
+                image.ReadPixels(new Rect(0, 0, 900, 600), 0, 0);
+                RenderTexture.active = null;
+                File.WriteAllBytes($"Temp/shot-wildlife-{kind}.png", image.EncodeToPNG());
+                camera.targetTexture = null;
+                Destroy(texture);
+                Destroy(image);
+                Destroy(go);
+                report.Append($" (nearest {Vector3.Distance(nearest.transform.position, player.position):0} m)");
+            }
+            Shoot<Wildlife.SmallAnimalRig>("rabbit", 1.4f);
+            Shoot<Wildlife.Squirrel>("squirrel", 1.4f);
+            Shoot<Wildlife.Songbird>("bird", 1.2f);
+            Shoot<Wildlife.Butterfly>("butterfly", 0.5f);
+            Shoot<Wildlife.BirdFlock>("flock", 6f);
+            Debug.Log(report.ToString());
+        }
+
         /// <summary>Puts the project's run-in-background setting back and leaves Play mode.</summary>
         static void Finish()
         {
@@ -80,6 +125,16 @@ namespace Backpacking.UI
                     yield return null;
                 if (label.Contains("backpack"))
                     FindAnyObjectByType<BackpackView>().Show();
+                if (label.Contains("wildlife"))
+                {
+                    // Let them get on with things for a while, then photograph the nearest of each kind.
+                    float until = Time.realtimeSinceStartup + 6f;
+                    while (Time.realtimeSinceStartup < until)
+                        yield return null;
+                    ShootWildlife();
+                    Finish();
+                    yield break;
+                }
                 for (int i = 0; i < 10; i++)
                     yield return null;
                 ScreenCapture.CaptureScreenshot($"Temp/{label.Replace(' ', '-')}.png");
