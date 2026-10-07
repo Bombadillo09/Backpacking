@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 46dd39acc1c2607408de1ea8bf406b71, type: 3}
+  m_Name: GearLibrary
+  m_EditorClassIdentifier: Assembly-CSharp::Backpacking.Camp.GearLibrary
+  pack:
+    fabric: {fileID: 2100000, guid: d7d9122217af9df4d90b284dbfc5a346, type: 2}
+    mesh: {fileID: 2100000, guid: 655f8a380e6dcf34b9cc837f74e6cc1c, type: 2}
+    webbing: {fileID: 2100000, guid: e56d0d29d840cb04fa2d7679fcae7295, type: 2}
+    patch: {fileID: 2100000, guid: 0d59862dadab38a47a963fa66962e295, type: 2}
+    plastic: {fileID: 2100000, guid: 5da654d508e81634cab693dcf9afb9c5, type: 2}
+    gearFabric: {fileID: 2100000, guid: f292cdeee6db1e5428ecae2a1a79fe44, type: 2}
+  bottle: {fileID: 6373683499227699496, guid: 7ad7860f4879dc84796fce7d91b9f7a7, type: 3}
+  machete: {fileID: 5865071540805038893, guid: 01a0a474adb75574ea32f449c57789a0, type: 3}
+  aluminium: {fileID: 2100000, guid: 746b78e3d574d1a4092ade457f08e12f, type: 2}

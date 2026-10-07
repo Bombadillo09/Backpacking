@@ -42,6 +42,8 @@ namespace Backpacking.Character
         public Material socks;
 
         public RuntimeAnimatorController animator;
+        [Tooltip("What the backpack and the gear on it are made of.")]
+        public Camp.GearLibrary gear;
 
         /// <summary>The hiker with this id, or the first one if it's unknown (e.g. a save from before the roster).</summary>
         public Hiker Find(string id)

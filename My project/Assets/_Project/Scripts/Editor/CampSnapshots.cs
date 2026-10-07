@@ -14,6 +14,56 @@ namespace Backpacking.EditorTools
     {
         const string Folder = "Temp/CampSnapshots";
 
+        /// <summary>The backpack on its own, with all its strapped-on gear, from four sides (pack-*.png).</summary>
+        public static string RenderPack()
+        {
+            Directory.CreateDirectory(Folder);
+            GearLibrary gear = GearSetup.GetOrCreateLibrary();
+            var preview = new PreviewRenderUtility();
+            var root = new GameObject("Pack");
+            try
+            {
+                PackVisual visual = PackDesign.Build(root.transform, gear.pack, harness: true, gear.bottle, gear.machete);
+                visual.Show(true, true, true, true, true);
+                visual.Tint(TentDesign.Of(TentModel.OnePerson).Fly);
+                var block = new MaterialPropertyBlock();
+                block.SetColor("_BaseColor", new Color(0.18f, 0.32f, 0.42f));
+                foreach (Renderer part in root.GetComponentsInChildren<Renderer>())
+                    if (part.name.StartsWith("Bag"))
+                        part.SetPropertyBlock(block);
+                preview.AddSingleGO(root);
+                preview.camera.fieldOfView = 30f;
+                preview.camera.nearClipPlane = 0.05f;
+                preview.camera.clearFlags = CameraClearFlags.SolidColor;
+                preview.camera.backgroundColor = new Color(0.58f, 0.68f, 0.78f);
+                preview.lights[0].intensity = 1.3f;
+                preview.lights[0].transform.rotation = Quaternion.Euler(40f, -40f, 0f);
+                preview.lights[1].intensity = 0.6f;
+                preview.ambientColor = new Color(0.4f, 0.4f, 0.43f);
+                var centre = new Vector3(0f, 0.3f, 0.1f);
+                foreach ((string name, Vector3 from) in new[]
+                         {
+                             ("front", new Vector3(0.9f, 0.6f, 1.7f)), ("side", new Vector3(1.8f, 0.45f, 0.1f)),
+                             ("back", new Vector3(-0.8f, 0.6f, -1.6f)), ("top", new Vector3(0.4f, 1.8f, 0.9f)),
+                         })
+                {
+                    preview.BeginStaticPreview(new Rect(0, 0, 700, 700));
+                    preview.camera.transform.position = centre + from;
+                    preview.camera.transform.LookAt(centre);
+                    preview.Render(true);
+                    Texture2D texture = preview.EndStaticPreview();
+                    File.WriteAllBytes($"{Folder}/pack-{name}.png", texture.EncodeToPNG());
+                    Object.DestroyImmediate(texture);
+                }
+                return "Rendered pack-*.png";
+            }
+            finally
+            {
+                preview.Cleanup();
+                Object.DestroyImmediate(root);
+            }
+        }
+
         public static string Render()
         {
             Directory.CreateDirectory(Folder);

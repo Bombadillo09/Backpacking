@@ -166,6 +166,8 @@ namespace Backpacking.Camp
         {
             if (Pack == null || backpack.IsWorn)
                 return;
+            Survival.HotbarSlot held = Player.Hotbar.Current != null ? Player.Hotbar.Current.Held : default;
+            Pack.ShowGear(backpack, held.kind == Survival.HotbarKind.Water, held.kind == Survival.HotbarKind.Machete);
             float distance = DistanceTo(Pack.transform);
             if (!warnedForgotten && distance > forgottenDistance)
             {

@@ -112,6 +112,7 @@ namespace Backpacking.EditorTools
             library.pack = GetOrCreateMaterial("Pack", null, null, 0.2f);
             library.socks = GetOrCreateMaterial("Socks", null, null, 0.05f);
             library.animator = BuildAnimator();
+            library.gear = GearSetup.GetOrCreateLibrary();
 
             EditorUtility.SetDirty(library);
             AssetDatabase.SaveAssets();

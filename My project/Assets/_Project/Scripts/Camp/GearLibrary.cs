@@ -1,0 +1,20 @@
+using UnityEngine;
+
+namespace Backpacking.Camp
+{
+    /// <summary>
+    /// What camp gear is made of: the backpack's materials (fabrics from Poly Haven, CC0), and the bottle and machete
+    /// models carried on it. Built by the editor's gear setup.
+    /// </summary>
+    [CreateAssetMenu(menuName = "Backpacking/Gear Library", fileName = "GearLibrary")]
+    public class GearLibrary : ScriptableObject
+    {
+        public PackMaterials pack;
+        [Tooltip("The water bottle as it sits in the pack's side pocket.")]
+        public GameObject bottle;
+        [Tooltip("The machete as it's carried behind the pack's compression straps.")]
+        public GameObject machete;
+        [Tooltip("Brushed aluminium, for the stove, pot and pegs.")]
+        public Material aluminium;
+    }
+}

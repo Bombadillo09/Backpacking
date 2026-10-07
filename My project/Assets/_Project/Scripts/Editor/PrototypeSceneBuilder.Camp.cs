@@ -367,7 +367,8 @@ namespace Backpacking.EditorTools
             {
                 // Renamed when the tent became staged, so the old single-piece prefab isn't reused.
                 Tent = GetOrCreatePrefab("Tent (staged)", BuildTent),
-                GroundPack = GetOrCreatePrefab("Ground Pack", BuildGroundPack),
+                // Renamed when the pack became a detailed model, so the old block-built prefab isn't reused.
+                GroundPack = GetOrCreatePrefab("Ground Pack (detailed)", BuildGroundPack),
                 TentBag = GetOrCreatePrefab("Tent Bag", BuildTentBag),
                 Chair = GetOrCreatePrefab("Camp Chair", BuildChair),
                 FireRing = GetOrCreatePrefab("Fire Ring", BuildFireRing),
@@ -494,25 +495,15 @@ namespace Backpacking.EditorTools
             return root;
         }
 
-        /// <summary>Your backpack standing on the ground: bag, lid, front pocket, shoulder straps, sleeping roll on top.</summary>
+        /// <summary>Your backpack standing on the ground: the trekking pack from PackDesign, built when it appears.</summary>
         static GameObject BuildGroundPack()
         {
             var root = new GameObject();
-            root.AddComponent<GroundPack>();
+            var pack = root.AddComponent<GroundPack>();
+            SetField(pack, "gear", GearSetup.GetOrCreateLibrary());
             var collider = root.AddComponent<BoxCollider>();
-            collider.center = new Vector3(0f, 0.32f, 0f);
-            collider.size = new Vector3(0.38f, 0.64f, 0.3f);
-            // Bag panels are tinted to the hiker's pack colour at runtime.
-            Material bag = GetOrCreateMaterial("PackFabric", Color.white, 0.2f);
-            Material webbing = GetOrCreateMaterial("PackWebbing", new Color(0.1f, 0.1f, 0.11f), 0.2f);
-            Material roll = GetOrCreateMaterial("SleepingRoll", new Color(0.25f, 0.27f, 0.22f), 0.15f);
-            NamedVisual("Bag Main", PrimitiveType.Cube, root, new Vector3(0f, 0.27f, 0f), Quaternion.Euler(-4f, 0f, 0f), new Vector3(0.34f, 0.5f, 0.22f), bag);
-            NamedVisual("Bag Lid", PrimitiveType.Cube, root, new Vector3(0f, 0.54f, -0.01f), Quaternion.Euler(-4f, 0f, 0f), new Vector3(0.36f, 0.08f, 0.25f), bag);
-            NamedVisual("Bag Pocket", PrimitiveType.Cube, root, new Vector3(0f, 0.2f, 0.12f), Quaternion.Euler(-4f, 0f, 0f), new Vector3(0.24f, 0.22f, 0.05f), bag);
-            NamedVisual("Strap L", PrimitiveType.Cube, root, new Vector3(-0.09f, 0.33f, -0.12f), Quaternion.Euler(-8f, 0f, 0f), new Vector3(0.05f, 0.4f, 0.015f), webbing);
-            NamedVisual("Strap R", PrimitiveType.Cube, root, new Vector3(0.09f, 0.33f, -0.12f), Quaternion.Euler(-8f, 0f, 0f), new Vector3(0.05f, 0.4f, 0.015f), webbing);
-            NamedVisual("Hip Belt", PrimitiveType.Cube, root, new Vector3(0f, 0.06f, -0.1f), Quaternion.identity, new Vector3(0.42f, 0.07f, 0.06f), webbing);
-            NamedVisual("Sleeping Roll", PrimitiveType.Cylinder, root, new Vector3(0f, 0.66f, 0f), Quaternion.Euler(0f, 0f, 90f), new Vector3(0.16f, 0.2f, 0.16f), roll);
+            collider.center = new Vector3(0f, 0.33f, 0.09f);
+            collider.size = new Vector3(0.42f, 0.68f, 0.34f);
             return root;
         }
 
@@ -526,7 +517,7 @@ namespace Backpacking.EditorTools
             collider.size = new Vector3(0.5f, 0.18f, 0.22f);
             // The sack is tinted to the tent's fly colour at runtime.
             Material sack = GetOrCreateMaterial("TentSack", Color.white, 0.3f);
-            Material cord = GetOrCreateMaterial("PackWebbing", new Color(0.1f, 0.1f, 0.11f), 0.2f);
+            Material cord = GetOrCreateMaterial("Cord", new Color(0.1f, 0.1f, 0.11f), 0.2f);
             NamedVisual("Sack", PrimitiveType.Capsule, root, new Vector3(0f, 0.085f, 0f), Quaternion.Euler(0f, 0f, 90f), new Vector3(0.17f, 0.25f, 0.17f), sack);
             NamedVisual("Cinch", PrimitiveType.Cylinder, root, new Vector3(0.26f, 0.085f, 0f), Quaternion.Euler(0f, 0f, 90f), new Vector3(0.06f, 0.025f, 0.06f), cord);
             NamedVisual("Pole Bag", PrimitiveType.Cylinder, root, new Vector3(0.02f, 0.05f, 0.11f), Quaternion.Euler(0f, 0f, 90f), new Vector3(0.05f, 0.24f, 0.05f), cord);

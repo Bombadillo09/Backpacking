@@ -44,6 +44,8 @@ namespace Backpacking.Character
         /// <summary>Overall height of the posed hiker, in the model's own scale.</summary>
         public float Height { get; private set; } = 1.8f;
         public bool IsBuilt => model != null;
+        /// <summary>The gear strapped on the worn pack, to show and hide as it goes in and out.</summary>
+        public Camp.PackVisual PackGear { get; private set; }
         /// <summary>The body's vertices as measured standing, in this object's space (for editor diagnostics).</summary>
         public IReadOnlyList<Vector3> MeasuredVertices => posed;
         /// <summary>The humanoid bone that moves each vertex (for editor diagnostics).</summary>
@@ -63,6 +65,7 @@ namespace Backpacking.Character
                 Discard(model);
             ClearOwned();
             Body = shadowBody = bareFeet = null;
+            PackGear = null;
             packParts.Clear();
             firstPerson = false;
             bootsOn = true;
@@ -113,8 +116,9 @@ namespace Backpacking.Character
             owners = Owners(Body);
             Transform neck = Animator.GetBoneTransform(HumanBodyBones.Neck);
             neckHeight = neck != null ? transform.InverseTransformPoint(neck.position).y : float.MaxValue;
-            Material bag = Tinted(library.pack, profile.packColour);
-            Material webbing = Tinted(library.pack, Color.Lerp(profile.packColour, Color.black, 0.55f));
+            Camp.GearLibrary gear = library.gear;
+            Material bag = Tinted(gear != null ? gear.pack.fabric : library.pack, profile.packColour);
+            Material webbing = gear != null && gear.pack.webbing != null ? gear.pack.webbing : Tinted(library.pack, Color.Lerp(profile.packColour, Color.black, 0.55f));
             AddPack(bag, webbing);
             AddBareFeet();
             leftShoe = ShoeMesh(LeftLeg, HumanBodyBones.LeftFoot, HumanBodyBones.LeftToes);
@@ -549,12 +553,22 @@ namespace Backpacking.Character
 
             Transform pack = Holder("Backpack");
             float backZ = Surface(posed, torso, 0f, chestY - 0.1f, false);
-            Vector3 back = new(0f, chestY - 0.12f, (float.IsNaN(backZ) ? -0.12f : backZ) - 0.105f);
-            Part(pack, PrimitiveType.Cube, back, Quaternion.identity, new Vector3(0.34f, 0.5f, 0.2f), bag);
-            Part(pack, PrimitiveType.Cube, back + new Vector3(0f, 0.27f, 0.01f), Quaternion.identity, new Vector3(0.36f, 0.08f, 0.23f), bag);
-            Part(pack, PrimitiveType.Cube, back + new Vector3(0f, -0.08f, -0.11f), Quaternion.identity, new Vector3(0.24f, 0.22f, 0.05f), bag);
-            Part(pack, PrimitiveType.Cylinder, back + new Vector3(0f, -0.33f, 0.02f), Quaternion.Euler(0f, 0f, 90f), new Vector3(0.16f, 0.2f, 0.16f),
-                Tinted(library.pack, new Color(0.25f, 0.27f, 0.22f)));
+            Camp.GearLibrary gear = library.gear;
+            if (gear != null)
+            {
+                // The trekking pack (see PackDesign), its back panel against the hiker's back, facing away.
+                var body = new GameObject("Pack").transform;
+                body.SetParent(pack, false);
+                body.SetLocalPositionAndRotation(new Vector3(0f, chestY - 0.4f, (float.IsNaN(backZ) ? -0.12f : backZ) - 0.012f), Quaternion.Euler(0f, 180f, 0f));
+                Camp.PackMaterials materials = gear.pack;
+                materials.fabric = bag;
+                PackGear = Camp.PackDesign.Build(body, materials, harness: false, gear.bottle, gear.machete);
+            }
+            else
+            {
+                Vector3 back = new(0f, chestY - 0.12f, (float.IsNaN(backZ) ? -0.12f : backZ) - 0.105f);
+                Part(pack, PrimitiveType.Cube, back, Quaternion.identity, new Vector3(0.34f, 0.5f, 0.2f), bag);
+            }
 
             // Shoulder straps: from inside the pack, over each shoulder, down the chest and out towards the armpit.
             var sternum = new Vector3[2];

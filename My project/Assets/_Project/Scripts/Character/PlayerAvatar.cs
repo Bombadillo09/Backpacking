@@ -1,6 +1,7 @@
 using Backpacking.Camp;
 using Backpacking.Interaction;
 using Backpacking.Player;
+using Backpacking.Survival;
 using Backpacking.Trip;
 using UnityEngine;
 
@@ -95,7 +96,16 @@ namespace Backpacking.Character
             if (backpack == null)
                 backpack = GetComponent<Survival.Backpack>();
             if (backpack != null)
+            {
                 appearance.SetPackWorn(backpack.IsWorn);
+                if (appearance.PackGear != null && backpack.IsWorn)
+                {
+                    HotbarSlot held = Hotbar.Current != null ? Hotbar.Current.Held : default;
+                    appearance.PackGear.Show(backpack.HasMat && backpack.MatRecovery < 1.4f, backpack.HasTent, backpack.HasChair && backpack.ChairInPack,
+                        held.kind != HotbarKind.Water, backpack.HasMachete && held.kind != HotbarKind.Machete);
+                    appearance.PackGear.Tint(Camp.TentDesign.Of(backpack.TentModel).Fly);
+                }
+            }
         }
 
         void UpdatePose()
