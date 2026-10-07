@@ -70,12 +70,8 @@ namespace Backpacking.UI
             Debug.Log(report.ToString());
         }
 
-        /// <summary>Puts the project's run-in-background setting back and leaves Play mode.</summary>
-        static void Finish()
-        {
-            UnityEditor.PlayerSettings.runInBackground = UnityEditor.EditorPrefs.GetBool(RunInBackgroundKey, false);
-            UnityEditor.EditorApplication.ExitPlaymode();
-        }
+        /// <summary>Leaves Play mode (the editor then puts the project's run-in-background setting back).</summary>
+        static void Finish() => UnityEditor.EditorApplication.ExitPlaymode();
         const float WarmupSeconds = 2.5f, TurnSeconds = 8f;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
