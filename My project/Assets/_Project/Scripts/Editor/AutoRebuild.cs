@@ -105,6 +105,7 @@ namespace Backpacking.EditorTools
                 Log(GroundTextureSetup.Apply(interactive: false));
                 Log(NaturePackSetup.Apply(interactive: false));
                 Log(ImportedPacksSetup.Apply(interactive: false));
+                Log(WindShaderSetup.Apply());
                 PrototypeSceneBuilder.Build(interactive: false);
                 Log("SUCCEEDED: scene rebuilt.");
                 return true;

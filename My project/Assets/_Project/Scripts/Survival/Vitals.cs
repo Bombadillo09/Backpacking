@@ -238,6 +238,8 @@ namespace Backpacking.Survival
         public void Eat(float amount) => satiety = Mathf.Min(Max, satiety + amount);
         public void Drink(float amount) => hydration = Mathf.Min(Max, hydration + amount);
         public void MakeSick(float hours) => sickHours = Mathf.Max(sickHours, hours);
+        /// <summary>A sudden injury (a lightning strike nearby): takes <paramref name="amount"/> health straight away.</summary>
+        public void Hurt(float amount) => health = Mathf.Max(0f, health - amount);
 
         /// <summary>Hard physical work, like chopping: costs energy and makes you thirsty.</summary>
         public void Exert(float energyCost)

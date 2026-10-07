@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Backpacking.Camp;
 using Backpacking.Survival;
 using Backpacking.World;
@@ -7,7 +8,7 @@ namespace Backpacking.Audio
 {
     /// <summary>
     /// The sound of the world around the player: wind that follows the weather, rain (muffled inside the
-    /// tent), birds by day with a dawn chorus, crickets on mild evenings, thunder in storms and water
+    /// tent), birds by day with a dawn chorus, crickets on mild evenings, thunder after each lightning strike and water
     /// lapping at lakes. Leave any clip empty to use a generated placeholder.
     /// </summary>
     public class AmbienceAudio : MonoBehaviour
@@ -38,14 +39,18 @@ namespace Backpacking.Audio
         [SerializeField] float birdCallsPerMinute = 8f;
         [Tooltip("Air temperature (°C) range over which crickets go from silent to full song.")]
         [SerializeField] Vector2 cricketTemperature = new(4f, 11f);
-        [Tooltip("Real seconds between thunderclaps during a storm.")]
-        [SerializeField] Vector2 thunderInterval = new(12f, 40f);
+        [Tooltip("Speed of sound, m/s: thunder arrives this long after the flash.")]
+        [SerializeField] float speedOfSound = 343f;
 
-        AudioSource wind, rain, crickets, thunder;
+        AudioSource wind, rain, crickets;
         AudioLowPassFilter rainMuffle;
         AudioSource[] birds;
         int nextBird;
-        float nextThunderTime;
+        // Two thunder voices, so a new clap can start while the last still rolls.
+        readonly AudioSource[] thunder = new AudioSource[2];
+        readonly AudioLowPassFilter[] thunderMuffle = new AudioLowPassFilter[2];
+        int nextThunder;
+        readonly List<(float time, float distance)> pendingThunder = new();
 
         void Start()
         {
@@ -53,7 +58,11 @@ namespace Backpacking.Audio
             rain = CreateLoop("Rain", rainClip != null ? rainClip : SoundSynth.Rain());
             rainMuffle = rain.gameObject.AddComponent<AudioLowPassFilter>();
             crickets = CreateLoop("Crickets", cricketsClip != null ? cricketsClip : SoundSynth.Crickets());
-            thunder = CreateSource("Thunder", transform);
+            for (int i = 0; i < thunder.Length; i++)
+            {
+                thunder[i] = CreateSource($"Thunder {i}", transform);
+                thunderMuffle[i] = thunder[i].gameObject.AddComponent<AudioLowPassFilter>();
+            }
 
             // Birds call from out in the trees, so they get positioned sources that live in the world.
             var birdRoot = new GameObject("Bird Calls").transform;
@@ -67,8 +76,6 @@ namespace Backpacking.Audio
             AudioClip water = waterClip != null ? waterClip : SoundSynth.Water();
             foreach (WaterSource lake in FindObjectsByType<WaterSource>())
                 AddLakeSound(lake, water);
-
-            nextThunderTime = Time.time + Random.Range(thunderInterval.x, thunderInterval.y);
         }
 
         void Update()
@@ -118,13 +125,25 @@ namespace Backpacking.Audio
             return SoundSynth.BirdCall(Random.Range(0, SoundSynth.BirdVariants));
         }
 
+        /// <summary>A lightning strike <paramref name="distance"/> metres away: its thunder follows once the sound arrives.</summary>
+        public void HearThunder(float distance) => pendingThunder.Add((Time.time + distance / speedOfSound, distance));
+
         void UpdateThunder()
         {
-            if (weather == null || weather.Current != WeatherKind.Storm || Time.time < nextThunderTime)
-                return;
-            nextThunderTime = Time.time + Random.Range(thunderInterval.x, thunderInterval.y);
-            thunder.pitch = Random.Range(0.75f, 1.1f);
-            thunder.PlayOneShot(thunderClip != null ? thunderClip : SoundSynth.Thunder(), thunderVolume * Random.Range(0.4f, 1f));
+            for (int i = pendingThunder.Count - 1; i >= 0; i--)
+            {
+                (float time, float distance) = pendingThunder[i];
+                if (Time.time < time)
+                    continue;
+                pendingThunder.RemoveAt(i);
+                // Close by: a loud, sharp crack. Far off: a low, quiet rumble with the high notes lost on the way.
+                float far = Mathf.InverseLerp(150f, 5000f, distance);
+                AudioSource voice = thunder[nextThunder];
+                thunderMuffle[nextThunder].cutoffFrequency = Mathf.Lerp(12000f, 700f, Mathf.Sqrt(far));
+                nextThunder = (nextThunder + 1) % thunder.Length;
+                voice.pitch = Mathf.Lerp(1.2f, 0.7f, far) * Random.Range(0.92f, 1.08f);
+                voice.PlayOneShot(thunderClip != null ? thunderClip : SoundSynth.Thunder(), thunderVolume * Mathf.Lerp(1f, 0.3f, far));
+            }
         }
 
         void AddLakeSound(WaterSource lake, AudioClip clip)

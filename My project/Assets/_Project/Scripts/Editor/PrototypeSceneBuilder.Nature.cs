@@ -911,6 +911,193 @@ namespace Backpacking.EditorTools
         // ---------- Rain ----------
 
         /// <summary>Rain falling around the player. It follows them, but drops fall in world space.</summary>
+        /// <summary>Snowflakes drifting down around the player, fluttering as they fall. The weather sets how many.</summary>
+        static ParticleSystem CreateSnow(Transform player)
+        {
+            var go = new GameObject("Snow");
+            go.transform.SetParent(player, false);
+            go.transform.localPosition = new Vector3(0f, 10f, 0f);
+            go.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+
+            var snow = go.AddComponent<ParticleSystem>();
+            snow.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            ParticleSystem.MainModule main = snow.main;
+            main.loop = true;
+            main.playOnAwake = true;
+            main.startLifetime = 9f;
+            main.startSpeed = new ParticleSystem.MinMaxCurve(0.9f, 1.6f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.04f, 0.09f);
+            main.startColor = new Color(1f, 1f, 1f, 0.9f);
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.maxParticles = 6000;
+            ParticleSystem.EmissionModule emission = snow.emission;
+            emission.rateOverTime = 0f;
+            ParticleSystem.ShapeModule shape = snow.shape;
+            shape.shapeType = ParticleSystemShapeType.Box;
+            shape.scale = new Vector3(44f, 44f, 0.5f);
+            ParticleSystem.VelocityOverLifetimeModule drift = snow.velocityOverLifetime;
+            drift.enabled = true;
+            drift.space = ParticleSystemSimulationSpace.World;
+            drift.x = new ParticleSystem.MinMaxCurve(0f);
+            drift.y = new ParticleSystem.MinMaxCurve(0f);
+            drift.z = new ParticleSystem.MinMaxCurve(0f);
+            // Flakes flutter and swirl rather than falling straight.
+            ParticleSystem.NoiseModule flutter = snow.noise;
+            flutter.enabled = true;
+            flutter.strength = 0.6f;
+            flutter.frequency = 0.4f;
+            flutter.scrollSpeed = 0.3f;
+            flutter.quality = ParticleSystemNoiseQuality.Low;
+            var particleRenderer = go.GetComponent<ParticleSystemRenderer>();
+            particleRenderer.renderMode = ParticleSystemRenderMode.Billboard;
+            particleRenderer.shadowCastingMode = ShadowCastingMode.Off;
+            if (GraphicsSettings.currentRenderPipeline != null)
+                particleRenderer.sharedMaterial = GraphicsSettings.currentRenderPipeline.defaultParticleMaterial;
+            return snow;
+        }
+
+        /// <summary>Big, soft wisps of fog drifting past the player in thick fog or cloud.</summary>
+        static ParticleSystem CreateFogWisps(Transform player)
+        {
+            var go = new GameObject("Fog Wisps");
+            go.transform.SetParent(player, false);
+            go.transform.localPosition = new Vector3(0f, 2.5f, 0f);
+
+            var wisps = go.AddComponent<ParticleSystem>();
+            wisps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            ParticleSystem.MainModule main = wisps.main;
+            main.loop = true;
+            main.playOnAwake = true;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(10f, 16f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(0.05f, 0.3f);
+            main.startSize = new ParticleSystem.MinMaxCurve(10f, 22f);
+            main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+            main.startColor = new Color(1f, 1f, 1f, 0.16f);
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.maxParticles = 120;
+            ParticleSystem.EmissionModule emission = wisps.emission;
+            emission.rateOverTime = 0f;
+            ParticleSystem.ShapeModule shape = wisps.shape;
+            shape.shapeType = ParticleSystemShapeType.Box;
+            shape.scale = new Vector3(70f, 3f, 70f);
+            ParticleSystem.VelocityOverLifetimeModule drift = wisps.velocityOverLifetime;
+            drift.enabled = true;
+            drift.space = ParticleSystemSimulationSpace.World;
+            drift.x = new ParticleSystem.MinMaxCurve(0f);
+            drift.y = new ParticleSystem.MinMaxCurve(0f);
+            drift.z = new ParticleSystem.MinMaxCurve(0f);
+            ParticleSystem.RotationOverLifetimeModule turn = wisps.rotationOverLifetime;
+            turn.enabled = true;
+            turn.z = new ParticleSystem.MinMaxCurve(-0.05f, 0.05f);
+            // Fade in and out, so wisps never pop.
+            ParticleSystem.ColorOverLifetimeModule fade = wisps.colorOverLifetime;
+            fade.enabled = true;
+            var gradient = new Gradient();
+            gradient.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.3f), new GradientAlphaKey(1f, 0.7f), new GradientAlphaKey(0f, 1f) });
+            fade.color = gradient;
+            var particleRenderer = go.GetComponent<ParticleSystemRenderer>();
+            particleRenderer.renderMode = ParticleSystemRenderMode.Billboard;
+            particleRenderer.shadowCastingMode = ShadowCastingMode.Off;
+            particleRenderer.receiveShadows = false;
+            particleRenderer.sharedMaterial = GetOrCreateFogWispMaterial();
+            return wisps;
+        }
+
+        static Material GetOrCreateFogWispMaterial()
+        {
+            string path = $"{GeneratedFolder}/Fog Wisp.mat";
+            var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material == null)
+            {
+                material = new Material(Shader.Find("Universal Render Pipeline/Particles/Unlit"));
+                AssetDatabase.CreateAsset(material, path);
+            }
+            material.SetTexture("_BaseMap", GetOrCreateFogWispTexture());
+            material.SetColor("_BaseColor", Color.white);
+            // Transparent, alpha blended, not writing depth.
+            material.SetFloat("_Surface", 1f);
+            material.SetFloat("_Blend", 0f);
+            material.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+            material.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+            material.SetFloat("_ZWrite", 0f);
+            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            material.renderQueue = (int)RenderQueue.Transparent;
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
+        /// <summary>A soft, cloudy blob: a round falloff broken up by layered noise.</summary>
+        static Texture2D GetOrCreateFogWispTexture()
+        {
+            string path = $"{GeneratedFolder}/FogWisp.png";
+            var existing = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+            if (existing != null)
+                return existing;
+            const int size = 128;
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float u = x / (float)size, v = y / (float)size;
+                float r = Vector2.Distance(new Vector2(u, v), new Vector2(0.5f, 0.5f)) * 2f;
+                float noise = 0f, amplitude = 0.5f, frequency = 3f;
+                for (int octave = 0; octave < 4; octave++)
+                {
+                    noise += Mathf.PerlinNoise(u * frequency + 11f, v * frequency + 7f) * amplitude;
+                    amplitude *= 0.5f;
+                    frequency *= 2f;
+                }
+                float alpha = Mathf.Clamp01(1f - r) * Mathf.Clamp01(noise * 1.6f - 0.25f);
+                texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha * alpha * (3f - 2f * alpha)));
+            }
+            texture.Apply();
+            File.WriteAllBytes(path, texture.EncodeToPNG());
+            Object.DestroyImmediate(texture);
+            AssetDatabase.ImportAsset(path);
+            var importer = (TextureImporter)AssetImporter.GetAtPath(path);
+            importer.alphaIsTransparency = true;
+            importer.wrapMode = TextureWrapMode.Clamp;
+            importer.SaveAndReimport();
+            return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+        }
+
+        /// <summary>Transparent, unlit, fogged, seen from inside: the fog gives the cloud dome its colour.</summary>
+        static Material GetOrCreateCloudDomeMaterial()
+        {
+            string path = $"{GeneratedFolder}/Cloud Dome.mat";
+            var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material == null)
+            {
+                material = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+                AssetDatabase.CreateAsset(material, path);
+            }
+            material.SetColor("_BaseColor", new Color(1f, 1f, 1f, 0f));
+            material.SetFloat("_Surface", 1f);
+            material.SetFloat("_Blend", 0f);
+            material.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+            material.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+            material.SetFloat("_ZWrite", 0f);
+            material.SetFloat("_Cull", (float)CullMode.Off);
+            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            // Behind every other see-through thing (rain, snow, fog wisps).
+            material.renderQueue = (int)RenderQueue.Transparent - 1;
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
+        static Material GetOrCreateLightningMaterial()
+        {
+            string path = $"{GeneratedFolder}/Lightning Bolt.mat";
+            var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material != null)
+                return material;
+            material = new Material(Shader.Find("Backpacking/Lightning"));
+            material.SetFloat("_Intensity", 14f);
+            AssetDatabase.CreateAsset(material, path);
+            return material;
+        }
+
         static ParticleSystem CreateRain(Transform player)
         {
             var go = new GameObject("Rain");

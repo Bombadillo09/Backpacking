@@ -93,6 +93,17 @@ namespace Backpacking.EditorTools
             var weather = world.AddComponent<WeatherSystem>();
             SetField(weather, "timeOfDay", timeOfDay);
             SetField(weather, "rainEffect", CreateRain(player.transform));
+            SetField(weather, "snowEffect", CreateSnow(player.transform));
+            SetField(weather, "fogWisps", CreateFogWisps(player.transform));
+            SetField(weather, "temperature", temperature);
+            SetField(weather, "player", player.transform);
+            var cloudDome = world.AddComponent<CloudDome>();
+            SetField(cloudDome, "timeOfDay", timeOfDay);
+            SetField(cloudDome, "material", GetOrCreateCloudDomeMaterial());
+            var treeWind = world.AddComponent<TreeWind>();
+            SetField(treeWind, "weather", weather);
+            var snowCover = world.AddComponent<SnowCover>();
+            SetField(snowCover, "weather", weather);
             SetField(temperature, "weather", weather);
 
             var atmosphere = world.AddComponent<ForestAtmosphere>();
@@ -116,6 +127,14 @@ namespace Backpacking.EditorTools
             SetField(hud, "weather", weather);
 
             AddSurvivalSystems(player, timeOfDay, temperature, weather, hud.gameObject, prefabs);
+            var lightning = world.AddComponent<LightningStorm>();
+            SetField(lightning, "weather", weather);
+            SetField(lightning, "timeOfDay", timeOfDay);
+            SetField(lightning, "atmosphere", atmosphere);
+            SetField(lightning, "ambience", Object.FindAnyObjectByType<Backpacking.Audio.AmbienceAudio>());
+            SetField(lightning, "vitals", Object.FindAnyObjectByType<Backpacking.Survival.Vitals>());
+            SetField(lightning, "player", player.transform);
+            SetField(lightning, "boltMaterial", GetOrCreateLightningMaterial());
             var wildlife = world.AddComponent<WildlifeSpawner>();
             SetField(wildlife, "player", player);
             SetField(wildlife, "timeOfDay", timeOfDay);

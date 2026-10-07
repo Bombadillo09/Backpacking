@@ -109,7 +109,7 @@ namespace Backpacking.UI
         {
             if (weather == null)
                 return "";
-            string kind = WeatherSystem.Describe(weather.Current);
+            string kind = weather.DescribeHere();
             string snap = weather.IsColdSnap ? " · cold snap" : "";
             return $"{char.ToUpperInvariant(kind[0])}{kind.Substring(1)} · wind {weather.WindKmh:0} km/h{snap}";
         }

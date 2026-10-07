@@ -125,6 +125,41 @@ namespace Backpacking.UI
                     yield return null;
                 if (label.Contains("backpack"))
                     FindAnyObjectByType<BackpackView>().Show();
+                if (label.Contains("storm") || label.Contains("fog") || label.Contains("snow"))
+                {
+                    var weather = FindAnyObjectByType<World.WeatherSystem>();
+                    if (label.Contains("storm"))
+                        weather.Force(World.WeatherKind.Storm);
+                    else if (label.Contains("fog"))
+                        weather.Force(World.WeatherKind.Fog);
+                    else
+                        weather.Force(World.WeatherKind.Rain, coldSnap: true, snowMetres: 700f);
+                    // Let the light, fog and snow settle (the snow repaints over many frames).
+                    float settle = Time.realtimeSinceStartup + 8f;
+                    while (Time.realtimeSinceStartup < settle)
+                        yield return null;
+                    if (label.Contains("storm") && !label.Contains("wind"))
+                    {
+                        FindAnyObjectByType<World.LightningStorm>().StrikeNow(600f);
+                        // Into the brightest blink of the flicker.
+                        float flash = Time.realtimeSinceStartup + 0.13f;
+                        while (Time.realtimeSinceStartup < flash)
+                            yield return null;
+                    }
+                    ScreenCapture.CaptureScreenshot($"Temp/{label.Replace(' ', '-')}.png");
+                    if (label.Contains("wind"))
+                    {
+                        // A second frame a moment later: the trees should have moved between the two.
+                        float later = Time.realtimeSinceStartup + 0.6f;
+                        while (Time.realtimeSinceStartup < later)
+                            yield return null;
+                        ScreenCapture.CaptureScreenshot($"Temp/{label.Replace(' ', '-')}-later.png");
+                    }
+                    for (int i = 0; i < 5; i++)
+                        yield return null;
+                    Finish();
+                    yield break;
+                }
                 if (label.Contains("wildlife"))
                 {
                     // Let them get on with things for a while, then photograph the nearest of each kind.

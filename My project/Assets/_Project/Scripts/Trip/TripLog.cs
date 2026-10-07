@@ -236,7 +236,8 @@ namespace Backpacking.Trip
             string line = lastWeather switch
             {
                 WeatherKind.Storm => "A storm rolled in.",
-                WeatherKind.Rain => "It started to rain.",
+                WeatherKind.Rain => weather.IsSnowing ? "It started to snow." : "It started to rain.",
+                WeatherKind.Fog => "Fog came down.",
                 _ => null,
             };
             if (line != null)

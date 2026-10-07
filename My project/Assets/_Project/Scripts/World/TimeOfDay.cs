@@ -101,6 +101,10 @@ namespace Backpacking.World
         public float CanopyShade { get; set; }
         /// <summary>Ground mist, 0–1, e.g. at dawn. Thickens and pales the fog.</summary>
         public float Mist { get; set; }
+        /// <summary>Thick weather fog, 0–1: a foggy spell, or being up in the cloud on high ground. Set by the weather.</summary>
+        public float WeatherFog { get; set; }
+        /// <summary>A lightning flash lighting everything up, 0–1. Set by the storm.</summary>
+        public float Flash { get; set; }
 
         [Header("Forest & Mist")]
         [Tooltip("Sky and bounce light kept under a full canopy.")]
@@ -119,6 +123,10 @@ namespace Backpacking.World
         [SerializeField] Color overcastFog = new(0.5f, 0.53f, 0.56f);
         [Tooltip("Fog density is multiplied by up to this much under full cloud.")]
         [SerializeField] float overcastFogMultiplier = 3f;
+        [Tooltip("Fog density is multiplied by up to this much in thick fog (about 70 m to see).")]
+        [SerializeField] float thickFogMultiplier = 11f;
+        [SerializeField] Color thickFogColour = new(0.7f, 0.72f, 0.74f);
+        [SerializeField] Color flashColour = new(0.75f, 0.8f, 1f);
 
         float clearFogDensity;
         Material skybox;
@@ -200,20 +208,35 @@ namespace Backpacking.World
             RenderSettings.ambientSkyColor = Color.Lerp(nightSky, daySkyNow, Daylight) * shade;
             RenderSettings.ambientEquatorColor = Color.Lerp(nightHorizon, dayHorizonNow, Daylight) * Mathf.Lerp(1f, shade, 0.8f);
             RenderSettings.ambientGroundColor = Color.Lerp(nightGround, dayGround * (1f - 0.3f * Overcast), Daylight) * Mathf.Lerp(1f, shade, 0.6f);
+            if (Flash > 0f)
+            {
+                // Lightning: a blue-white blink of light from the whole sky.
+                RenderSettings.ambientSkyColor += flashColour * Flash * 1.6f;
+                RenderSettings.ambientEquatorColor += flashColour * Flash * 1.1f;
+                RenderSettings.ambientGroundColor += flashColour * Flash * 0.4f;
+            }
 
             Color fog = Color.Lerp(nightFog, Color.Lerp(dayFog, overcastFog, Overcast), Daylight);
             // Green-grey haze among the trees, pale mist in the open; both fade into the night colour after dark.
             fog = Color.Lerp(fog, Color.Lerp(nightFog, forestFog, Daylight), CanopyShade * 0.6f);
             fog = Color.Lerp(fog, Color.Lerp(nightFog, mistColour, Daylight), Mist * 0.5f);
+            // Thick fog is a flat white-grey wall by day (dark at night, and less green under the trees).
+            fog = Color.Lerp(fog, Color.Lerp(nightFog * 1.5f, thickFogColour * (1f - 0.35f * Overcast), Daylight), WeatherFog * 0.85f);
+            fog += flashColour * Flash * 0.5f;
             RenderSettings.fogColor = fog;
 
             if (clearFogDensity > 0f)
-                RenderSettings.fogDensity = clearFogDensity * Mathf.Lerp(1f, overcastFogMultiplier, Overcast)
-                                            * Mathf.Lerp(1f, canopyFog, CanopyShade) * Mathf.Lerp(1f, mistFog, Mist);
+            {
+                float density = clearFogDensity * Mathf.Lerp(1f, overcastFogMultiplier, Overcast)
+                                * Mathf.Lerp(1f, canopyFog, CanopyShade) * Mathf.Lerp(1f, mistFog, Mist);
+                // In thick fog the canopy and cloud don't add more; the fog itself sets how far you see.
+                RenderSettings.fogDensity = Mathf.Max(density, Mathf.Lerp(density, clearFogDensity * thickFogMultiplier, WeatherFog));
+            }
             if (skybox != null)
             {
-                skybox.SetFloat(ExposureId, clearSkyExposure * (1f - 0.55f * Overcast));
-                skybox.SetFloat(AtmosphereId, clearAtmosphere + 1.2f * Overcast);
+                skybox.SetFloat(ExposureId, clearSkyExposure * (1f - 0.55f * Overcast) + Flash * 1.5f);
+                // (A thick atmosphere turns the sky yellow; the cloud dome does the grey.)
+                skybox.SetFloat(AtmosphereId, clearAtmosphere + 0.3f * Overcast);
             }
         }
 
