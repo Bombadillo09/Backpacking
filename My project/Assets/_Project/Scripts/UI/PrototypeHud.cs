@@ -67,6 +67,8 @@ namespace Backpacking.UI
             bannerHideTime = Time.unscaledTime + seconds;
         }
 
+        float nextRefresh;
+
         void Update()
         {
             bool fastForward = GameInput.FastForwardHeld && !PlayerControlLock.CursorNeeded;
@@ -75,8 +77,10 @@ namespace Backpacking.UI
             else
                 timeOfDay.ClearSpeed(this);
 
-            if (info == null)
+            if (info == null || Time.unscaledTime < nextRefresh)
                 return;
+            // Ten times a second is instant to the eye, and saves rebuilding every label every frame.
+            nextRefresh = Time.unscaledTime + 0.1f;
             bindings.Refresh();
             help.SetVisible(GameSettings.ShowControlHints);
             if (banner.style.opacity.value > 0f && Time.unscaledTime >= bannerHideTime)

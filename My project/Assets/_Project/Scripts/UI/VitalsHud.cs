@@ -30,6 +30,8 @@ namespace Backpacking.UI
             built = true;
         }
 
+        float nextRefresh;
+
         void Update()
         {
             if (!built)
@@ -41,6 +43,10 @@ namespace Backpacking.UI
                 foreach (BodyCondition condition in BodyConditions.Evaluate(vitals, backpack))
                     worstCondition = Mathf.Max(worstCondition, condition.Severity);
             }
+            // Ten times a second is instant to the eye, and saves rebuilding every label every frame.
+            if (Time.unscaledTime < nextRefresh)
+                return;
+            nextRefresh = Time.unscaledTime + 0.1f;
             bindings.Refresh();
         }
 

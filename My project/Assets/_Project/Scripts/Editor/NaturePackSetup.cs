@@ -44,6 +44,77 @@ namespace Backpacking.EditorTools
         public static void Apply() => Apply(interactive: true);
 
         /// <summary>Without <paramref name="interactive"/>, shows no dialogs and doesn't offer to rebuild. Returns a summary.</summary>
+        /// <summary>
+        /// Terrain trees with LOD groups ignore the terrain's tree distance: they're culled only when their last LOD
+        /// shrinks below a fraction of the screen, and the pack's fractions are so small that a 30 m tree is drawn
+        /// kilometres away (measured: every one of the ~100k trees was processed each frame). This sets each tree's
+        /// cull point from a distance in metres, using its size, the camera's field of view and the LOD bias.
+        /// </summary>
+        static int LimitDrawDistance(float metres, params GameObject[][] groups)
+        {
+            const float fieldOfView = 60f;
+            int changed = 0;
+            foreach (GameObject[] group in groups)
+            {
+                if (group == null)
+                    continue;
+                foreach (GameObject prefab in group)
+                {
+                    if (prefab == null || prefab.GetComponent<LODGroup>() == null)
+                        continue;
+                    string path = AssetDatabase.GetAssetPath(prefab);
+                    GameObject contents = PrefabUtility.LoadPrefabContents(path);
+                    try
+                    {
+                        var lodGroup = contents.GetComponent<LODGroup>();
+                        LOD[] lods = lodGroup.GetLODs();
+                        // Screen height of the tree at that distance, as LOD groups measure it (they scale by the LOD bias).
+                        float size = lodGroup.size * Mathf.Max(contents.transform.lossyScale.x, contents.transform.lossyScale.y);
+                        float cull = size * QualitySettings.lodBias / (2f * metres * Mathf.Tan(fieldOfView * 0.5f * Mathf.Deg2Rad));
+                        LOD last = lods[^1];
+                        // Never cull before the previous level has finished.
+                        float previous = lods.Length > 1 ? lods[^2].screenRelativeTransitionHeight : 1f;
+                        last.screenRelativeTransitionHeight = Mathf.Min(cull, previous * 0.9f);
+                        lods[^1] = last;
+                        lodGroup.SetLODs(lods);
+                        PrefabUtility.SaveAsPrefabAsset(contents, path);
+                        changed++;
+                    }
+                    finally
+                    {
+                        PrefabUtility.UnloadPrefabContents(contents);
+                    }
+                }
+            }
+            return changed;
+        }
+
+        /// <summary>Turns on GPU instancing for every material on these prefabs. Returns how many it changed.</summary>
+        static int EnableInstancing(params GameObject[][] groups)
+        {
+            int changed = 0;
+            foreach (GameObject[] group in groups)
+            {
+                if (group == null)
+                    continue;
+                foreach (GameObject prefab in group)
+                {
+                    if (prefab == null)
+                        continue;
+                    foreach (Renderer renderer in prefab.GetComponentsInChildren<Renderer>(true))
+                    foreach (Material material in renderer.sharedMaterials)
+                    {
+                        if (material == null || material.enableInstancing)
+                            continue;
+                        material.enableInstancing = true;
+                        EditorUtility.SetDirty(material);
+                        changed++;
+                    }
+                }
+            }
+            return changed;
+        }
+
         public static string Apply(bool interactive)
         {
             if (!AssetDatabase.IsValidFolder(PackPrefabs))
@@ -82,6 +153,15 @@ namespace Backpacking.EditorTools
             Assign(ref art.forestDebris, Collect(FirewoodModels, DetailCopy, report, problems));
             Assign(ref art.forestStones, Collect(ForestStones, DetailCopy, report, problems));
             art.treeScale = TreeScale;
+
+            // The forest is drawn as tens of thousands of instances of a handful of meshes. The pack's materials
+            // ship with GPU instancing off, so every tree was its own draw call; with it on, Unity draws each kind
+            // in a few batches (measured: the trees were half of each frame's time and caused the stutters).
+            int instanced = EnableInstancing(art.conifers, art.lowlandTrees, art.valleyTrees, art.forestFloorPlants, art.meadowPlants,
+                art.understoryShrubs, art.boulders, art.firewoodModels, art.forestDebris, art.forestStones);
+            report.Add($"GPU instancing on for {instanced} materials");
+            int limited = LimitDrawDistance(art.treeDrawDistance, art.conifers, art.lowlandTrees, art.valleyTrees);
+            report.Add($"trees culled beyond {art.treeDrawDistance:0} m ({limited} kinds)");
 
             EditorUtility.SetDirty(art);
             AssetDatabase.SaveAssets();

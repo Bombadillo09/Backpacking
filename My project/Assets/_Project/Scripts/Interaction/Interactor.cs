@@ -82,6 +82,11 @@ namespace Backpacking.Interaction
                 OpenMenu(target);
         }
 
+        Collider lastHit;
+        float nextOptionsCheck;
+        IInteractable cachedTarget;
+        string cachedPrompt = "";
+
         IInteractable FindTarget()
         {
             // Triggers are included so water surfaces can be targeted. The ray starts inside our own
@@ -90,13 +95,24 @@ namespace Backpacking.Interaction
             if (!Physics.Raycast(origin, viewPoint.forward, out RaycastHit hit, reach, ~0, QueryTriggerInteraction.Collide))
                 return null;
             AimPoint = hit.point;
+            // Options can be costly to work out (reading the terrain for sticks, say), so they're re-read only
+            // when the aim moves to another thing, or a few times a second.
+            if (hit.collider == lastHit && Time.unscaledTime < nextOptionsCheck)
+                return cachedTarget;
+            lastHit = hit.collider;
+            nextOptionsCheck = Time.unscaledTime + 0.15f;
             var found = hit.collider.GetComponentInParent<IInteractable>();
+            cachedTarget = null;
             if (found == null)
                 return null;
             // Something with nothing to do right now (bare ground, say) isn't a target.
             options.Clear();
             found.GetOptions(this, options);
-            return options.Count > 0 ? found : null;
+            if (options.Count == 0)
+                return null;
+            cachedTarget = found;
+            cachedPrompt = PromptFor(found);
+            return found;
         }
 
         void OpenMenu(IInteractable menuFor)
@@ -149,18 +165,17 @@ namespace Backpacking.Interaction
             crosshair.SetVisible(showHud);
             prompt.SetVisible(showHud && target != null);
             if (showHud && target != null)
-                prompt.SetText(PromptText());
+                prompt.SetText(cachedPrompt);
 
             menu.SetVisible(MenuOpen);
             if (MenuOpen)
                 RefreshMenu();
         }
 
-        string PromptText()
+        /// <summary>The prompt for a target, from the options just read into <see cref="options"/>.</summary>
+        string PromptFor(IInteractable thing)
         {
-            options.Clear();
-            target.GetOptions(this, options);
-            string action = options.Count == 1 ? options[0].Label : target.DisplayName;
+            string action = options.Count == 1 ? options[0].Label : thing.DisplayName;
             return options.Count == 1 && !options[0].Enabled
                 ? $"{action}  ({options[0].DisabledReason})"
                 : $"<color=#E07B39><b>[E]</b></color>  {action}";

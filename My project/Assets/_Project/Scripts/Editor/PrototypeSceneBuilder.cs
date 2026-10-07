@@ -160,6 +160,8 @@ namespace Backpacking.EditorTools
             if (GraphicsSettings.currentRenderPipeline != null)
                 terrain.materialTemplate = GraphicsSettings.currentRenderPipeline.defaultTerrainMaterial;
             terrain.heightmapPixelError = 3f;
+            // Draws the terrain's patches with GPU instancing: far fewer draw calls for the ground.
+            terrain.drawInstanced = true;
             terrain.basemapDistance = 400f;
             ApplyNatureDrawSettings(terrain, art);
             return terrain;

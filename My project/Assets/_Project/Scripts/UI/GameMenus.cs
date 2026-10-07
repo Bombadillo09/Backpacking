@@ -309,6 +309,14 @@ namespace Backpacking.UI
             creator.Open(BeginTrip, () => ShowPage(Page.Title));
         }
 
+        /// <summary>For the editor's benchmark: straight into a trip with the default hiker and no tutorial.</summary>
+        public void BeginBenchmarkTrip()
+        {
+            BeginTrip(new CharacterProfile());
+            if (tutorial != null)
+                tutorial.Stop();
+        }
+
         void BeginTrip(CharacterProfile hiker)
         {
             HideAll();

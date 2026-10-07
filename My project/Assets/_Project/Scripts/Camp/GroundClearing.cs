@@ -64,11 +64,27 @@ namespace Backpacking.Camp
             if (terrain == null || deadfallLayers == null)
                 return 0;
             TerrainData data = terrain.terrainData;
+            // One read per layer for the square around the spot, rather than one per cell.
+            Vector3 local = position - terrain.transform.position;
+            float cellX = data.size.x / data.detailWidth, cellZ = data.size.z / data.detailHeight;
+            int reach = Mathf.CeilToInt(within / Mathf.Min(cellX, cellZ));
+            int x0 = Mathf.Clamp(Mathf.FloorToInt(local.x / cellX) - reach, 0, data.detailWidth - 1);
+            int z0 = Mathf.Clamp(Mathf.FloorToInt(local.z / cellZ) - reach, 0, data.detailHeight - 1);
+            int width = Mathf.Min(reach * 2 + 1, data.detailWidth - x0), height = Mathf.Min(reach * 2 + 1, data.detailHeight - z0);
             int sticks = 0;
-            foreach ((int x, int z) in CellsWithin(position, within))
-                foreach (int layer in deadfallLayers)
-                    if (layer < detailLayerCount)
-                        sticks += data.GetDetailLayer(x, z, 1, 1, layer)[0, 0];
+            foreach (int layer in deadfallLayers)
+            {
+                if (layer >= detailLayerCount)
+                    continue;
+                int[,] patch = data.GetDetailLayer(x0, z0, width, height, layer);
+                for (int z = 0; z < height; z++)
+                for (int x = 0; x < width; x++)
+                {
+                    float dx = (x0 + x + 0.5f) * cellX - local.x, dz = (z0 + z + 0.5f) * cellZ - local.z;
+                    if (dx * dx + dz * dz <= within * within)
+                        sticks += patch[z, x];
+                }
+            }
             return sticks;
         }
 

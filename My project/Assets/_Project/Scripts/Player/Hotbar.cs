@@ -185,10 +185,18 @@ namespace Backpacking.Player
             _ => "",
         };
 
+        float nextRefresh;
+        int shownSelection = -2;
+
         void Refresh()
         {
             if (bar == null)
                 return;
+            // Counts change slowly: ten times a second, or straight away when the selection changes.
+            if (Selected == shownSelection && Time.unscaledTime < nextRefresh)
+                return;
+            shownSelection = Selected;
+            nextRefresh = Time.unscaledTime + 0.1f;
             // Hidden with menus open, while busy or asleep.
             bar.SetVisible(!activity.IsBusy && UnityEngine.Cursor.lockState == CursorLockMode.Locked);
             for (int i = 0; i < Backpack.HotbarSize; i++)
