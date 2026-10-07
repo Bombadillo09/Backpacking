@@ -192,6 +192,37 @@ namespace Backpacking.EditorTools
             }
         }
 
+        /// <summary>How far each foot points down (toes below the ankle, degrees): at rest, and in the idle animation.</summary>
+        public static string FootAngles()
+        {
+            var library = AssetDatabase.LoadAssetAtPath<CharacterLibrary>("Assets/_Project/Settings/CharacterLibrary.asset");
+            var report = new StringBuilder();
+            foreach (CharacterLibrary.Hiker hiker in library.hikers)
+            {
+                float Angle(Animator animator, HumanBodyBones foot, HumanBodyBones toes)
+                {
+                    Vector3 d = animator.GetBoneTransform(toes).position - animator.GetBoneTransform(foot).position;
+                    return Mathf.Atan2(-d.y, new Vector2(d.x, d.z).magnitude) * Mathf.Rad2Deg;
+                }
+                GameObject raw = Object.Instantiate(hiker.model);
+                var rest = raw.GetComponent<Animator>();
+                float restLeft = Angle(rest, HumanBodyBones.LeftFoot, HumanBodyBones.LeftToes);
+                Object.DestroyImmediate(raw);
+
+                var root = new GameObject("Measure");
+                var appearance = root.AddComponent<CharacterAppearance>();
+                appearance.Library = library;
+                appearance.Build(new CharacterProfile { hiker = hiker.id });
+                Animator animator = appearance.Animator;
+                animator.Rebind();
+                for (int k = 0; k < 20; k++)
+                    animator.Update(0.05f);
+                report.AppendLine($"{hiker.id}: rest {restLeft:0} deg, idle L {Angle(animator, HumanBodyBones.LeftFoot, HumanBodyBones.LeftToes):0} R {Angle(animator, HumanBodyBones.RightFoot, HumanBodyBones.RightToes):0}");
+                Object.DestroyImmediate(root);
+            }
+            return report.ToString();
+        }
+
         public static string Render() => RenderHiker("Male_Adult_05", false);
 
         /// <summary>The same shots of a hiker in knee boots, the hardest case for bare feet.</summary>
@@ -299,6 +330,7 @@ namespace Backpacking.EditorTools
                 appearance.transform.localPosition = Vector3.zero;
                 Shot("1b-idle-back", new Vector3(-1.4f, 1.6f, -2.6f), new Vector3(0f, 1.1f, 0f));
                 Shot("1c-boots", new Vector3(0.5f, 0.45f, 1.1f), new Vector3(0f, 0.1f, 0.05f));
+                Shot("1d-feet-side", new Vector3(1.2f, 0.12f, 0.05f), new Vector3(0f, 0.1f, 0.05f));
                 Pose(2.2f, false, 1.35f);
                 Shot("2-walk", new Vector3(3.4f, 1.2f, 0.6f), new Vector3(0f, 0.9f, 0f));
                 Pose(4.6f, false, 1.1f);

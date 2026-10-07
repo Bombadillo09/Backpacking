@@ -66,6 +66,7 @@ namespace Backpacking.Character
             }
 
             HoldOut();
+            StraightenToes();
 
             float seated = Mathf.SmoothStep(0f, 1f, Seated);
             if (seated > 0f)
@@ -74,6 +75,18 @@ namespace Backpacking.Character
                 PlantFeet(scale);
             else
                 lowerBody = 0f;
+        }
+
+        /// <summary>
+        /// The animation library curls the toes down (its feet are posed for its own rig), which folds the front of
+        /// the shoes under on these bodies. The toes keep the model's own rest angle in every pose.
+        /// </summary>
+        void StraightenToes()
+        {
+            if (animator.GetBoneTransform(HumanBodyBones.LeftToes) != null)
+                animator.SetBoneLocalRotation(HumanBodyBones.LeftToes, leftToesRest);
+            if (animator.GetBoneTransform(HumanBodyBones.RightToes) != null)
+                animator.SetBoneLocalRotation(HumanBodyBones.RightToes, rightToesRest);
         }
 
         /// <summary>Raises the right hand to hold an item, the elbow out and down behind it.</summary>
@@ -145,16 +158,6 @@ namespace Backpacking.Character
                 // Knees a little bent and pointing up.
                 animator.SetIKHintPositionWeight(knee, weight);
                 animator.SetIKHintPosition(knee, seat + forward * legs * 0.5f + right * side * 0.14f * scale + up * 0.35f * scale);
-            }
-
-            // The sitting clip curls the toes, as if the feet were flat on the floor in front of a chair; with the
-            // legs stretched out that folds the front of the foot (and shoe) down under itself.
-            if (weight > 0.5f)
-            {
-                if (animator.GetBoneTransform(HumanBodyBones.LeftToes) != null)
-                    animator.SetBoneLocalRotation(HumanBodyBones.LeftToes, leftToesRest);
-                if (animator.GetBoneTransform(HumanBodyBones.RightToes) != null)
-                    animator.SetBoneLocalRotation(HumanBodyBones.RightToes, rightToesRest);
             }
 
             foreach ((AvatarIKGoal goal, float side) in new[] { (AvatarIKGoal.LeftHand, -1f), (AvatarIKGoal.RightHand, 1f) })
