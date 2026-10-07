@@ -1,0 +1,87 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 10b9553e29894dc4b9c0fd4260f80283, type: 3}
+  m_Name: ItemIconLibrary
+  m_EditorClassIdentifier: Assembly-CSharp::Backpacking.UI.ItemIconLibrary
+  entries:
+  - key: water
+    icon: {fileID: 2800000, guid: 427f71a672d2fef4a8c9615114f871db, type: 3}
+  - key: machete
+    icon: {fileID: 2800000, guid: 5ee8b53cd84cbda4f82e7d22f4f08544, type: 3}
+  - key: bandage
+    icon: {fileID: 2800000, guid: 1107449493214ee46976993acaa94e26, type: 3}
+  - key: antibiotics
+    icon: {fileID: 2800000, guid: ebfcb76ae7acb5c4fa93865bd9480de1, type: 3}
+  - key: tent
+    icon: {fileID: 2800000, guid: b29ef2eeaf5f7824999cfdea1e290047, type: 3}
+  - key: sleepingbag
+    icon: {fileID: 2800000, guid: ca01a5bd36bceea49b37952717f7a51d, type: 3}
+  - key: mat
+    icon: {fileID: 2800000, guid: 772aa0377ec3d2e43bb2fa994603f4ff, type: 3}
+  - key: airmat
+    icon: {fileID: 2800000, guid: bcb0c77bdd365d046817665da227fc40, type: 3}
+  - key: stove
+    icon: {fileID: 2800000, guid: f4bc495542382f544b183ca134b8b2cc, type: 3}
+  - key: gas
+    icon: {fileID: 2800000, guid: 03a7f3036df5d9543b643daf63f4c675, type: 3}
+  - key: snare
+    icon: {fileID: 2800000, guid: 0c1f80d2b27fb094a87322f8b0eb7e3f, type: 3}
+  - key: chair
+    icon: {fileID: 2800000, guid: b1598eed5021e834a828aabc37c3215f, type: 3}
+  - key: firewood
+    icon: {fileID: 2800000, guid: 1fb0a43ffd8714149a4c6c64a1105a27, type: 3}
+  - key: matches
+    icon: {fileID: 2800000, guid: a062d531a5f5ff649b522a891b491396, type: 3}
+  - key: fishing
+    icon: {fileID: 2800000, guid: 829d106fde5fc9143bfa59563b8e8e73, type: 3}
+  - key: rod
+    icon: {fileID: 2800000, guid: eb8dc2e9bbdda1c4d9f2e4744b8b71bd, type: 3}
+  - key: filter
+    icon: {fileID: 2800000, guid: bddf0f72f431e934f86ce834d49fa0e5, type: 3}
+  - key: pelt
+    icon: {fileID: 2800000, guid: 0262917a904bc6f40b26e621094e8c04, type: 3}
+  - key: boots
+    icon: {fileID: 2800000, guid: 7580ec10d51e33b498238985cafd8200, type: 3}
+  - key: money
+    icon: {fileID: 2800000, guid: 1d1c1494cd693264daedc9522a22cdbe, type: 3}
+  - key: food-TrailMix
+    icon: {fileID: 2800000, guid: 8cdbf84626e9ca74a9b3d443227e35a7, type: 3}
+  - key: food-TrailMeal
+    icon: {fileID: 2800000, guid: f71e6d8dd6d27cd47a678eddfbfd54dc, type: 3}
+  - key: food-Berries
+    icon: {fileID: 2800000, guid: 1a657be9c17f472489dc89952ac3b82d, type: 3}
+  - key: food-RawFish
+    icon: {fileID: 2800000, guid: 7275ccd5f611cdf48b600a31163f10d0, type: 3}
+  - key: food-CookedFish
+    icon: {fileID: 2800000, guid: 650d8c86bbd30b04db21802b28ed0257, type: 3}
+  - key: food-SmokedFish
+    icon: {fileID: 2800000, guid: 84fb3c3c7d6ea3f46b8b97b3a076dfd4, type: 3}
+  - key: food-RabbitCarcass
+    icon: {fileID: 2800000, guid: 4c43a9bf66fd18b49869e780fd41d242, type: 3}
+  - key: food-RawMeat
+    icon: {fileID: 2800000, guid: 4e5072910629f1f45afd9d4dab89e561, type: 3}
+  - key: food-CookedMeat
+    icon: {fileID: 2800000, guid: a48ce9745b9732e44a0aab5a66ee32a7, type: 3}
+  - key: food-Jerky
+    icon: {fileID: 2800000, guid: 2da9fa3d54aa5c6439e0f82b7584ecbb, type: 3}
+  - key: garment-base
+    icon: {fileID: 2800000, guid: 0d2ce08ca96bb954eb667842d0ca49ce, type: 3}
+  - key: garment-fleece
+    icon: {fileID: 2800000, guid: 927ccbc2cc5aed24faed6d71805af4ef, type: 3}
+  - key: garment-shell
+    icon: {fileID: 2800000, guid: 32fb78bb048704c4c82af53a7d7c277f, type: 3}
+  - key: garment-down
+    icon: {fileID: 2800000, guid: d7bf08b051377c348802ecf19f2dabad, type: 3}
+  - key: garment-pants
+    icon: {fileID: 2800000, guid: 099bea9f86fd80c4ca3c1b7d45fc4a6e, type: 3}
+  - key: garment-hat
+    icon: {fileID: 2800000, guid: 822a6526a4979984ebcdfd66277fcfcc, type: 3}

@@ -347,6 +347,10 @@ namespace Backpacking.EditorTools
             SetField(backpackView, "placer", placer);
             SetField(backpackView, "activity", activity);
             SetField(backpackView, "packHandling", go.GetComponent<PackHandling>());
+            // Pictures of every item, rendered from their models (needs the gear prefabs, made above).
+            ItemIconLibrary icons = ItemIcons.GetOrCreateLibrary();
+            SetField(backpackView, "icons", icons);
+            SetField(go.GetComponent<Hotbar>(), "icons", icons);
         }
 
         // ---------- Prefabs ----------

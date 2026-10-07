@@ -606,7 +606,7 @@
 
 .hotbar-slot {
     width: 104px;
-    height: 58px;
+    height: 76px;
     margin: 0 4px;
     padding: 4px 6px;
     background-color: rgba(10, 12, 10, 0.55);
@@ -627,7 +627,12 @@
 }
 
 .hotbar-name {
-    font-size: 13px;
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    bottom: 2px;
+    font-size: 11px;
+    -unity-text-align: lower-center;
     white-space: normal;
 }
 
@@ -637,4 +642,140 @@
     position: absolute;
     right: 6px;
     top: 4px;
+}
+
+/* ---------- Backpack inventory ---------- */
+
+.inventory-scroll {
+    flex-grow: 1;
+    height: 470px;
+}
+
+.inventory-section {
+    margin-top: 8px;
+    margin-bottom: 2px;
+}
+
+.inventory-row {
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+/* Tiles match the background of the item pictures, so each picture sits seamlessly in its tile. */
+.item-tile {
+    width: 112px;
+    height: 132px;
+    margin: 3px;
+    padding: 4px;
+    background-color: rgb(27, 29, 27);
+    border-width: 2px;
+    border-color: rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+.item-tile:hover {
+    border-color: rgba(224, 123, 57, 0.5);
+}
+
+.item-tile.selected {
+    border-color: var(--accent);
+}
+
+.item-icon {
+    width: 96px;
+    height: 96px;
+    -unity-background-scale-mode: scale-to-fit;
+}
+
+.item-name {
+    font-size: 12px;
+    white-space: normal;
+    -unity-text-align: upper-center;
+}
+
+.item-count {
+    position: absolute;
+    right: 6px;
+    top: 4px;
+    font-size: 12px;
+    color: var(--ink-dim);
+}
+
+.item-badge {
+    position: absolute;
+    left: 6px;
+    top: 4px;
+    font-size: 11px;
+    color: var(--accent);
+    -unity-font-style: bold;
+}
+
+.inventory-detail {
+    width: 330px;
+    margin-left: 18px;
+    padding: 10px 14px;
+    background-color: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+}
+
+.detail-icon {
+    width: 200px;
+    height: 200px;
+    align-self: center;
+    background-color: rgb(27, 29, 27);
+    border-radius: 6px;
+    -unity-background-scale-mode: scale-to-fit;
+}
+
+.detail-name {
+    margin-top: 8px;
+    white-space: normal;
+}
+
+.detail-text {
+    white-space: normal;
+    margin: 6px 0 10px 0;
+}
+
+.detail-actions .button {
+    margin: 2px 0;
+}
+
+.inventory-bottom {
+    flex-direction: row;
+    border-top-width: 1px;
+    border-color: var(--edge);
+    margin-top: 8px;
+    padding-top: 4px;
+}
+
+.hotbar-tile {
+    width: 64px;
+    height: 64px;
+    margin: 2px;
+    padding: 0;
+    background-color: rgb(27, 29, 27);
+    border-radius: 6px;
+}
+
+.hotbar-tile-icon {
+    position: absolute;
+    left: 2px;
+    right: 2px;
+    top: 2px;
+    bottom: 2px;
+    -unity-background-scale-mode: scale-to-fit;
+}
+
+.hotbar-icon {
+    position: absolute;
+    left: 20px;
+    right: 20px;
+    top: 4px;
+    bottom: 16px;
+    -unity-background-scale-mode: scale-to-fit;
+    opacity: 0.95;
 }

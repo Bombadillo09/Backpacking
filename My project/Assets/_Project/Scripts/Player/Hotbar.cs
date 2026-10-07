@@ -20,6 +20,7 @@ namespace Backpacking.Player
         [SerializeField] Vitals vitals;
         [SerializeField] PlayerActivity activity;
         [SerializeField] CampPlacer placer;
+        [SerializeField] ItemIconLibrary icons;
         [Tooltip("Game minutes to clean and wrap a cut.")]
         [SerializeField] float bandageMinutes = 3f;
 
@@ -30,6 +31,8 @@ namespace Backpacking.Player
         readonly Label[] names = new Label[Backpack.HotbarSize];
         readonly Label[] counts = new Label[Backpack.HotbarSize];
         readonly VisualElement[] slots = new VisualElement[Backpack.HotbarSize];
+        readonly VisualElement[] pictures = new VisualElement[Backpack.HotbarSize];
+        readonly string[] shownIcons = new string[Backpack.HotbarSize];
 
         /// <summary>The slot in hand, or −1 for empty hands.</summary>
         public int Selected { get; private set; } = -1;
@@ -70,7 +73,8 @@ namespace Backpacking.Player
             {
                 names[i] = UIBuild.Text("", "hotbar-name");
                 counts[i] = UIBuild.Text("", "hotbar-count");
-                slots[i] = UIBuild.Box("hotbar-slot").With(UIBuild.Text((i + 1).ToString(), "hotbar-key"), names[i], counts[i]);
+                pictures[i] = UIBuild.Box("hotbar-icon");
+                slots[i] = UIBuild.Box("hotbar-slot").With(pictures[i], UIBuild.Text((i + 1).ToString(), "hotbar-key"), names[i], counts[i]);
                 bar.Add(slots[i]);
             }
             GameUI.Current.Hud.Add(bar.IgnoreMouse());
@@ -203,6 +207,13 @@ namespace Backpacking.Player
             {
                 HotbarSlot slot = i < backpack.Hotbar.Count ? backpack.Hotbar[i] : new HotbarSlot(HotbarKind.Empty);
                 names[i].SetText(Describe(slot));
+                string icon = BackpackView.IconKey(slot);
+                if (icon != shownIcons[i])
+                {
+                    shownIcons[i] = icon;
+                    Texture2D picture = icons != null ? icons.Get(icon) : null;
+                    pictures[i].style.backgroundImage = picture != null ? Background.FromTexture2D(picture) : StyleKeyword.None;
+                }
                 counts[i].SetText(Count(slot));
                 if (i == Selected)
                     slots[i].AddToClassList("selected");

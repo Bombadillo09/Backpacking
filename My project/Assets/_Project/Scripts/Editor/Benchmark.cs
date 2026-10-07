@@ -18,6 +18,10 @@ namespace Backpacking.EditorTools
             File.WriteAllText(UI.Benchmark.RequestPath, label);
             // Lets the benchmark read CPU and GPU frame times separately.
             PlayerSettings.enableFrameTimingStats = true;
+            // Keep the game running while the editor isn't focused, from the very first frame; the run puts the
+            // setting back when it's done.
+            EditorPrefs.SetBool(UI.Benchmark.RunInBackgroundKey, PlayerSettings.runInBackground);
+            PlayerSettings.runInBackground = true;
             EditorApplication.EnterPlaymode();
             return $"Entering Play mode for benchmark \"{label}\"; results in {UI.Benchmark.LogPath}.";
         }

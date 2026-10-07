@@ -303,7 +303,7 @@ namespace Backpacking.Camp
 
         // ---------- Strapped-on gear ----------
 
-        static Mesh Roll(float radius, float length, string name)
+        public static Mesh Roll(float radius, float length, string name)
         {
             var b = new MeshBuilder { Tiling = 5f };
             var path = new List<Vector3>();
@@ -314,7 +314,7 @@ namespace Backpacking.Camp
             return b.Build(name);
         }
 
-        static Mesh RollStraps(float radius, float length, float apart)
+        public static Mesh RollStraps(float radius, float length, float apart)
         {
             var b = new MeshBuilder { Tiling = 8f };
             foreach (float x in new[] { -apart / 2f, apart / 2f })

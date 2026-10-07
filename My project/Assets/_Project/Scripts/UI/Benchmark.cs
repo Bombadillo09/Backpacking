@@ -22,6 +22,15 @@ namespace Backpacking.UI
     {
         public const string RequestPath = "Temp/backpacking-benchmark-request";
         public const string LogPath = "Logs/benchmark.log";
+        /// <summary>Where the editor keeps the project's own run-in-background setting during a run.</summary>
+        public const string RunInBackgroundKey = "Backpacking.Benchmark.RunInBackground";
+
+        /// <summary>Puts the project's run-in-background setting back and leaves Play mode.</summary>
+        static void Finish()
+        {
+            UnityEditor.PlayerSettings.runInBackground = UnityEditor.EditorPrefs.GetBool(RunInBackgroundKey, false);
+            UnityEditor.EditorApplication.ExitPlaymode();
+        }
         const float WarmupSeconds = 2.5f, TurnSeconds = 8f;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -63,6 +72,22 @@ namespace Backpacking.UI
             var menus = FindAnyObjectByType<GameMenus>();
             menus.BeginBenchmarkTrip();
             yield return null;
+
+            // "shot backpack": just open the backpack screen and capture the game view.
+            if (label.StartsWith("shot"))
+            {
+                for (int i = 0; i < 30; i++)
+                    yield return null;
+                if (label.Contains("backpack"))
+                    FindAnyObjectByType<BackpackView>().Show();
+                for (int i = 0; i < 10; i++)
+                    yield return null;
+                ScreenCapture.CaptureScreenshot($"Temp/{label.Replace(' ', '-')}.png");
+                for (int i = 0; i < 5; i++)
+                    yield return null;
+                Finish();
+                yield break;
+            }
 
             var player = FindAnyObjectByType<FirstPersonController>();
             var controller = player.GetComponent<CharacterController>();
@@ -129,7 +154,7 @@ namespace Backpacking.UI
             }
             File.AppendAllText(LogPath, report.ToString());
             Debug.Log(report.ToString());
-            UnityEditor.EditorApplication.ExitPlaymode();
+            Finish();
         }
     }
 }
