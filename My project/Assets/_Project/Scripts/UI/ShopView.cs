@@ -8,7 +8,7 @@ using UnityEngine.UIElements;
 
 namespace Backpacking.UI
 {
-    /// <summary>The trading screen: buy from the vendor's stock on the left, sell food and pelts on the right.</summary>
+    /// <summary>The trading screen: buy from the vendor's stock on the left, sell food, pelts and hides on the right.</summary>
     public class ShopView : MonoBehaviour
     {
         [SerializeField] Backpack backpack;
@@ -151,7 +151,7 @@ namespace Backpacking.UI
 
         string SellKey() =>
             string.Join(",", FoodCatalog.AllKinds.Where(kind => backpack.CountFood(kind) > 0 && FoodCatalog.Get(kind).Value > 0))
-            + (backpack.Pelts > 0 ? ",pelts" : "");
+            + (backpack.Pelts > 0 ? ",pelts" : "") + (backpack.Hides > 0 ? ",hides" : "");
 
         void BuildSellList()
         {
@@ -170,6 +170,9 @@ namespace Backpacking.UI
             if (backpack.Pelts > 0)
                 sellList.Add(SellRow(() => $"Rabbit pelt  ×{backpack.Pelts}", vendor.OfferFor(ShopCatalog.PeltValue),
                     () => backpack.Pelts, backpack.TryTakePelt));
+            if (backpack.Hides > 0)
+                sellList.Add(SellRow(() => $"Deer hide  ×{backpack.Hides}", vendor.OfferFor(ShopCatalog.HideValue),
+                    () => backpack.Hides, backpack.TryTakeHide));
 
             if (sellList.childCount == 0)
                 sellList.Add(UIBuild.Text("Nothing to sell. Smoked fish, jerky and pelts fetch the best prices.", "small"));

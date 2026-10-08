@@ -127,6 +127,20 @@ namespace Backpacking.EditorTools
                     (Built(b => GearDesign.Lathe(b, new[] { new Vector2(0.014f, 0.115f), new Vector2(0.014f, 0.16f), new Vector2(0.008f, 0.17f) }), "Filter"), Tint(plain, new Color(0.9f, 0.9f, 0.88f)), Vector3.zero, Vector3.zero, Vector3.one)), default),
                 ("pelt", () => Mesh((Built(b => GearDesign.Lathe(b, new[] { new Vector2(0f, 0f), new Vector2(0.09f, 0.008f), new Vector2(0.1f, 0.018f), new Vector2(0.07f, 0.03f), new Vector2(0f, 0.034f) }), "Pelt"), Tint(plain, new Color(0.5f, 0.42f, 0.33f)), Vector3.zero, Vector3.zero, new Vector3(1f, 1f, 0.7f))), new Vector3(0.3f, 1f, 0.6f)),
                 ("boots", () => Boots(plain, Tint), default),
+                ("bow", () =>
+                {
+                    // The bow in profile, with an arrow laid across it.
+                    GameObject bow = Hunting.BowDesign.Bow();
+                    GameObject arrow = Hunting.BowDesign.Arrow();
+                    arrow.transform.SetParent(bow.transform, false);
+                    arrow.transform.SetLocalPositionAndRotation(new Vector3(0.03f, 0.25f, 0.45f), Quaternion.Euler(35f, 0f, 0f));
+                    // Laid diagonally, so the long, slim bow fills the square picture.
+                    var root = new GameObject("Bow icon");
+                    bow.transform.SetParent(root.transform, false);
+                    bow.transform.localRotation = Quaternion.Euler(0f, 0f, -40f);
+                    return root;
+                }, new Vector3(0.75f, 0.05f, -1f)),
+                ("hide", () => Mesh((Built(b => GearDesign.Lathe(b, new[] { new Vector2(0f, 0f), new Vector2(0.2f, 0.012f), new Vector2(0.24f, 0.03f), new Vector2(0.17f, 0.05f), new Vector2(0f, 0.055f) }), "Hide"), Tint(plain, new Color(0.62f, 0.45f, 0.3f)), Vector3.zero, Vector3.zero, new Vector3(1f, 1f, 0.75f))), new Vector3(0.3f, 1f, 0.6f)),
                 ("money", () => Mesh((Built(b => GearDesign.Lathe(b, new[] { new Vector2(0f, 0f), new Vector2(0.012f, 0f), new Vector2(0.012f, 0.003f), new Vector2(0f, 0.003f) }), "Coin"), Tint(gear.aluminium, new Color(0.85f, 0.7f, 0.35f)), Vector3.zero, new Vector3(70f, 0f, 0f), Vector3.one)), default),
             };
             foreach (FoodKind food in FoodCatalog.AllKinds)

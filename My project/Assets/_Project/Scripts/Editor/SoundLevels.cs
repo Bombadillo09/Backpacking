@@ -21,6 +21,7 @@ namespace Backpacking.EditorTools
         {
             "Wind", "Rain", "Crickets", "Water", "Fire", "Thunder", "Birds", "Owl", "Flutter", "DeerAlarm", "Chatter",
             "Swish", "Chop", "Heartbeat", "StepSoft", "StepLeaves", "StepHard", "StepSnow", "StepWater",
+            "BowDraw", "BowRelease", "ArrowHit",
         };
 
         public static void Batch()

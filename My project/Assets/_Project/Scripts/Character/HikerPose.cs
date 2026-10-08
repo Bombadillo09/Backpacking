@@ -25,6 +25,11 @@ namespace Backpacking.Character
         public float HandWeight { get; set; }
         /// <summary>The held item's frame, for bending the elbow out and down naturally.</summary>
         public Quaternion HandFrame { get; set; } = Quaternion.identity;
+        /// <summary>Where the left hand reaches (holding a bow out), or null to leave the arm to the animation.</summary>
+        public Vector3? LeftHandTarget { get; set; }
+        public float LeftHandWeight { get; set; }
+        /// <summary>Which way the left fist grips: its +Y along what it holds, +Z ahead.</summary>
+        public Quaternion LeftHandFrame { get; set; } = Quaternion.identity;
 
         Animator animator;
         Transform ground;
@@ -66,6 +71,7 @@ namespace Backpacking.Character
             }
 
             HoldOut();
+            HoldOutLeft();
             StraightenToes();
 
             float seated = Mathf.SmoothStep(0f, 1f, Seated);
@@ -107,6 +113,31 @@ namespace Backpacking.Character
                 animator.SetIKHintPositionWeight(AvatarIKHint.RightElbow, weight);
                 animator.SetIKHintPosition(AvatarIKHint.RightElbow,
                     Vector3.Lerp(shoulder.position, HandTarget.Value, 0.5f) + HandFrame * new Vector3(0.25f, -0.3f, -0.1f));
+            }
+        }
+
+        /// <summary>Raises the left hand (the bow hand), the elbow turned out and down so the arm stays clear of a string.</summary>
+        void HoldOutLeft()
+        {
+            if (!LeftHandTarget.HasValue || LeftHandWeight <= 0f)
+            {
+                animator.SetIKPositionWeight(AvatarIKGoal.LeftHand, 0f);
+                animator.SetIKRotationWeight(AvatarIKGoal.LeftHand, 0f);
+                animator.SetIKHintPositionWeight(AvatarIKHint.LeftElbow, 0f);
+                return;
+            }
+            float weight = Mathf.SmoothStep(0f, 1f, LeftHandWeight);
+            animator.SetIKPositionWeight(AvatarIKGoal.LeftHand, weight);
+            animator.SetIKPosition(AvatarIKGoal.LeftHand, LeftHandTarget.Value);
+            animator.SetIKRotationWeight(AvatarIKGoal.LeftHand, weight);
+            // The fist wraps the grip: knuckles forward, thumb up along it.
+            animator.SetIKRotation(AvatarIKGoal.LeftHand, LeftHandFrame * Quaternion.Euler(0f, 90f, 90f));
+            Transform shoulder = animator.GetBoneTransform(HumanBodyBones.LeftUpperArm);
+            if (shoulder != null)
+            {
+                animator.SetIKHintPositionWeight(AvatarIKHint.LeftElbow, weight);
+                animator.SetIKHintPosition(AvatarIKHint.LeftElbow,
+                    Vector3.Lerp(shoulder.position, LeftHandTarget.Value, 0.5f) + LeftHandFrame * new Vector3(-0.3f, -0.25f, -0.05f));
             }
         }
 
@@ -164,6 +195,8 @@ namespace Backpacking.Character
             {
                 // A hand holding something stays up holding it.
                 if (goal == AvatarIKGoal.RightHand && HandTarget.HasValue && HandWeight > 0f)
+                    continue;
+                if (goal == AvatarIKGoal.LeftHand && LeftHandTarget.HasValue && LeftHandWeight > 0f)
                     continue;
                 Vector3 hand = seat - forward * 0.16f * scale + right * side * 0.3f * scale;
                 hand += up * (GroundRise(hand, scale, Vector3.zero) + 0.03f * scale);

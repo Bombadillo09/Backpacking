@@ -19,6 +19,9 @@ namespace Backpacking.Trip
         Collapses,
         Rescues,
         Sicknesses,
+        // New stats go at the end: saves store them by this number.
+        Deer,
+        ArrowsShot,
     }
 
     [Serializable]
@@ -125,6 +128,7 @@ namespace Backpacking.Trip
                     TripStat.Fish => "Caught my first trout of the trip.",
                     TripStat.Rabbits => "First rabbit in a snare. Dinner sorted.",
                     TripStat.BerryPicks => "Found berries and picked a handful.",
+                    TripStat.Deer => "Took my first deer. More meat than I could ever carry.",
                     _ => null,
                 };
                 if (firstTime != null)

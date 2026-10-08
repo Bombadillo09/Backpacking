@@ -108,6 +108,8 @@ namespace Backpacking.Player
         public float GroundSpeedMultiplier { get; set; } = 1f;
         /// <summary>Extra view rotation in degrees (x yaw, y pitch, z roll), e.g. shivering. Set by other systems.</summary>
         public Vector3 ViewOffset { get; set; }
+        /// <summary>Unsteady aim while drawing a bow, in degrees (yaw, pitch). The shot follows the view, so it follows this too.</summary>
+        public Vector2 AimSway { get; set; }
         /// <summary>How badly the hiker limps on sore feet, 0 to 1. Set by the vitals.</summary>
         public float Limp { get; set; }
         /// <summary>How heavy the pack is, 0 (light) to 1 (as much as you can carry). Set by the vitals.</summary>
@@ -179,7 +181,7 @@ namespace Backpacking.Player
         void LateUpdate()
         {
             Vector3 eye = new Vector3(0f, Mathf.Lerp(eyeHeight, SeatedEyeHeightNow, Mathf.SmoothStep(0f, 1f, seatedAmount)), 0f) + BobPosition;
-            Quaternion look = Quaternion.Euler(pitch + ViewOffset.y + BobRotation.x, ViewOffset.x + BobRotation.y, ViewOffset.z + BobRotation.z);
+            Quaternion look = Quaternion.Euler(pitch + ViewOffset.y + AimSway.y + BobRotation.x, ViewOffset.x + AimSway.x + BobRotation.y, ViewOffset.z + BobRotation.z);
             cameraPivot.localRotation = look;
             cameraPivot.localPosition = ThirdPerson ? eye + look * ThirdPersonOffset(eye, look) : eye;
             if (!ThirdPerson)

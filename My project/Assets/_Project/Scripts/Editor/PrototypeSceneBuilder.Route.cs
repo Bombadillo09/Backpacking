@@ -57,6 +57,7 @@ namespace Backpacking.EditorTools
                 (ShopItemId.WaterBladder, 1), (ShopItemId.WaterFilter, 1), (ShopItemId.FishingRod, 1), (ShopItemId.WoolHatAndGloves, 1),
                 (ShopItemId.LeatherBoots, 1), (ShopItemId.FoamMat, 3), (ShopItemId.InflatableMat, 1),
                 (ShopItemId.Bandages, Unlimited), (ShopItemId.CampChair, 1),
+                (ShopItemId.HuntingBow, 1), (ShopItemId.Arrows, Unlimited),
             },
         };
 
@@ -71,6 +72,7 @@ namespace Backpacking.EditorTools
                 (ShopItemId.InsulatedPants, 1), (ShopItemId.WinterSleepingBag, 1), (ShopItemId.LeatherBoots, 1),
                 (ShopItemId.TwoPersonTent, 1), (ShopItemId.FoamMat, 2), (ShopItemId.InflatableMat, 1),
                 (ShopItemId.Bandages, 6), (ShopItemId.CampChair, 1),
+                (ShopItemId.HuntingBow, 1), (ShopItemId.Arrows, 18),
             },
         };
 
@@ -83,6 +85,7 @@ namespace Backpacking.EditorTools
                 (ShopItemId.GasCanister, 2), (ShopItemId.Matches, 4), (ShopItemId.DehydratedMeal, 4), (ShopItemId.Antibiotics, 2),
                 (ShopItemId.WoolHatAndGloves, 1), (ShopItemId.WinterSleepingBag, 1), (ShopItemId.FourSeasonTent, 1),
                 (ShopItemId.MountaineeringBoots, 1), (ShopItemId.InflatableMat, 1), (ShopItemId.Bandages, 3),
+                (ShopItemId.Arrows, 6),
             },
         };
 

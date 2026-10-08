@@ -78,6 +78,7 @@ namespace Backpacking.Player
                     break;
                 }
                 case FoodKind.Jerky:
+                case FoodKind.VenisonJerky:
                 {
                     Material jerky = Tint(new Color(0.32f, 0.14f, 0.08f), 0.3f);
                     for (int i = 0; i < 3; i++)
@@ -87,9 +88,10 @@ namespace Backpacking.Player
                 default:
                 {
                     // Meat: a rough chunk, raw red or cooked brown. A rabbit carcass is a bigger, paler one.
-                    Color colour = food == FoodKind.CookedMeat ? new Color(0.45f, 0.25f, 0.12f) : food == FoodKind.RabbitCarcass ? new Color(0.6f, 0.45f, 0.38f) : new Color(0.6f, 0.15f, 0.12f);
-                    float size = food == FoodKind.RabbitCarcass ? 1.8f : 1f;
-                    Material meat = Tint(colour, food == FoodKind.CookedMeat ? 0.35f : 0.6f);
+                    bool cooked = food is FoodKind.CookedMeat or FoodKind.CookedVenison;
+                    Color colour = cooked ? new Color(0.45f, 0.25f, 0.12f) : food == FoodKind.RabbitCarcass ? new Color(0.6f, 0.45f, 0.38f) : new Color(0.6f, 0.15f, 0.12f);
+                    float size = food == FoodKind.RabbitCarcass ? 1.8f : food is FoodKind.RawVenison or FoodKind.CookedVenison ? 1.5f : 1f;
+                    Material meat = Tint(colour, cooked ? 0.35f : 0.6f);
                     Part(PrimitiveType.Sphere, new Vector3(0f, 0.045f * size, 0f), new Vector3(0f, 20f, 10f), new Vector3(0.07f, 0.09f, 0.04f) * size, meat);
                     Part(PrimitiveType.Sphere, new Vector3(0.015f, 0.08f * size, 0.005f), new Vector3(0f, -10f, 0f), new Vector3(0.05f, 0.05f, 0.035f) * size, meat);
                     break;

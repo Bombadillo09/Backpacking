@@ -192,6 +192,98 @@ namespace Backpacking.EditorTools
             }
         }
 
+        /// <summary>The hiker with the bow: lowered, raised and at full draw, from outside and through the eyes (bow-*.png).</summary>
+        public static string RenderBow()
+        {
+            var library = AssetDatabase.LoadAssetAtPath<CharacterLibrary>("Assets/_Project/Settings/CharacterLibrary.asset");
+            Directory.CreateDirectory(Folder);
+            var report = new StringBuilder();
+            var preview = new PreviewRenderUtility();
+            var root = new GameObject("Snapshot Hiker");
+            GameObject bow = null;
+            try
+            {
+                var appearance = root.AddComponent<CharacterAppearance>();
+                appearance.Library = library;
+                appearance.Build(new CharacterProfile { hiker = "Male_Adult_05" });
+                float eyes = appearance.EyeHeight;
+                root.transform.localScale = Vector3.one * (eyes > 0.5f ? 1.68f / eyes : 1f);
+                preview.AddSingleGO(root);
+                preview.camera.nearClipPlane = 0.02f;
+                preview.camera.clearFlags = CameraClearFlags.SolidColor;
+                preview.camera.backgroundColor = new Color(0.55f, 0.65f, 0.75f);
+                preview.lights[0].intensity = 1.3f;
+                preview.lights[0].transform.rotation = Quaternion.Euler(40f, -30f, 0f);
+                preview.lights[1].intensity = 0.5f;
+                preview.ambientColor = new Color(0.4f, 0.4f, 0.42f);
+                Animator animator = appearance.Animator;
+
+                bow = Hunting.BowDesign.Bow();
+                GameObject arrow = Hunting.BowDesign.Arrow();
+                arrow.transform.SetParent(bow.transform, false);
+                preview.AddSingleGO(bow);
+
+                Vector3 eye = new(0f, 1.68f, 0f);
+                Quaternion look = Quaternion.Euler(4f, 0f, 0f);
+                void Pose(bool firstPerson, float aim, float draw)
+                {
+                    appearance.SetFirstPerson(firstPerson);
+                    root.transform.position = new Vector3(0f, 0f, firstPerson ? -0.12f : 0f);
+                    Hunting.Bow.Hold(eye, look, Quaternion.identity, aim, draw, out Vector3 grip, out Quaternion frame, out Vector3 drawHand);
+                    HikerPose pose = appearance.Pose;
+                    pose.LeftHandTarget = grip;
+                    pose.LeftHandWeight = 1f;
+                    pose.LeftHandFrame = frame;
+                    pose.HandTarget = aim > 0.01f ? drawHand : null;
+                    pose.HandWeight = aim;
+                    pose.HandFrame = frame;
+                    animator.Rebind();
+                    for (int k = 0; k < 20; k++)
+                        animator.Update(0.05f);
+                    Vector3 nock = Hunting.BowDesign.SetDraw(bow, draw);
+                    arrow.transform.SetLocalPositionAndRotation(nock + Vector3.forward * Hunting.BowDesign.ArrowLength, Quaternion.identity);
+                    // As in the game: the bow sits in the left fist wherever the hand got to.
+                    Transform hand = animator.GetBoneTransform(HumanBodyBones.LeftHand);
+                    Transform middle = animator.GetBoneTransform(HumanBodyBones.LeftMiddleProximal);
+                    Vector3 fingers = middle != null ? (middle.position - hand.position).normalized : frame * Vector3.forward;
+                    bow.transform.SetPositionAndRotation(hand.position + fingers * 0.045f, frame);
+                    foreach (SkinnedMeshRenderer skin in root.GetComponentsInChildren<SkinnedMeshRenderer>())
+                        skin.forceMatrixRecalculationPerRender = true;
+                    report.AppendLine($"aim {aim} draw {draw}: grip target {grip:F2}, left hand {hand.position:F2} (off {Vector3.Distance(grip, hand.position):F2} m), " +
+                                      $"right hand {animator.GetBoneTransform(HumanBodyBones.RightHand).position:F2} vs {drawHand:F2}");
+                }
+                void Shot(string file, Vector3 camera, Vector3 target, float fov)
+                {
+                    preview.camera.fieldOfView = fov;
+                    preview.BeginStaticPreview(new Rect(0, 0, 640, 640));
+                    preview.camera.transform.position = camera;
+                    preview.camera.transform.LookAt(target);
+                    preview.Render(true);
+                    Texture2D texture = preview.EndStaticPreview();
+                    File.WriteAllBytes($"{Folder}/bow-{file}.png", texture.EncodeToPNG());
+                    Object.DestroyImmediate(texture);
+                }
+
+                foreach ((string name, float aim, float draw) in new[] { ("rest", 0f, 0f), ("raised", 1f, 0f), ("full", 1f, 1f) })
+                {
+                    Pose(false, aim, draw);
+                    Shot($"{name}-side", new Vector3(-2.2f, 1.5f, 0.6f), new Vector3(0f, 1.3f, 0.3f), 40f);
+                    Shot($"{name}-front", new Vector3(0.9f, 1.7f, 2.3f), new Vector3(0f, 1.3f, 0.2f), 40f);
+                    Shot($"{name}-above", new Vector3(0.1f, 3.4f, 0.3f), new Vector3(0f, 1.4f, 0.3f), 40f);
+                    Pose(true, aim, draw);
+                    Shot($"{name}-eyes", eye, eye + look * Vector3.forward, 70f);
+                }
+                return report.ToString();
+            }
+            finally
+            {
+                preview.Cleanup();
+                Object.DestroyImmediate(root);
+                if (bow != null)
+                    Object.DestroyImmediate(bow);
+            }
+        }
+
         /// <summary>How far each foot points down (toes below the ankle, degrees): at rest, and in the idle animation.</summary>
         public static string FootAngles()
         {

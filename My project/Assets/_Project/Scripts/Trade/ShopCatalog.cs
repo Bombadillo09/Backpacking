@@ -27,6 +27,8 @@ namespace Backpacking.Trade
         InflatableMat,
         Bandages,
         CampChair,
+        HuntingBow,
+        Arrows,
     }
 
     /// <summary>Something a trading post can sell: what it costs and what it does to the backpack.</summary>
@@ -91,6 +93,17 @@ namespace Backpacking.Trade
                 "Folds into a sack the size of a water bottle. Poles first, then the seat. Sitting in it, your feet rest 60% faster than on the ground. 0.9 kg.", 40, true,
                 backpack => backpack.AddChair(),
                 backpack => backpack.HasChair ? "Already owned" : null),
+            [ShopItemId.Arrows] = new ShopItem("Arrows", "Six carbon arrows with broadheads. Arrows can be found and shot again, but they break on rock.", 9, false,
+                backpack => backpack.AddArrows(6),
+                backpack => backpack.HasBow ? null : "You need a bow first"),
+            [ShopItemId.HuntingBow] = new ShopItem("Takedown recurve bow",
+                "For hunting deer and rabbits. Hold to draw, aim, release to shoot; arrows drop over distance. Comes with 6 arrows. 0.9 kg.", 70, true,
+                backpack =>
+                {
+                    backpack.AddBow();
+                    backpack.AddArrows(6);
+                },
+                backpack => backpack.HasBow ? "Already owned" : null),
             [ShopItemId.Antibiotics] = new ShopItem("Antibiotics", "One course. Clears an infection in a few hours.", 25, false,
                 backpack => backpack.AddAntibiotics()),
 
@@ -144,5 +157,6 @@ namespace Backpacking.Trade
         static string TentAwayProblem(Backpack backpack) => backpack.HasTent ? null : "Pack your tent away first";
 
         public const int PeltValue = 10;
+        public const int HideValue = 40;
     }
 }

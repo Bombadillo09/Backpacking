@@ -15,6 +15,10 @@ namespace Backpacking.Survival
         RawMeat,
         CookedMeat,
         Jerky,
+        // New kinds go at the end: saves store food by this number.
+        RawVenison,
+        CookedVenison,
+        VenisonJerky,
     }
 
     /// <summary>What a kind of food does when eaten, how long it keeps, and what it becomes when prepared.</summary>
@@ -77,6 +81,12 @@ namespace Backpacking.Survival
             [FoodKind.CookedMeat] = new FoodInfo("Cooked rabbit", 0.35f, satiety: 25f, hydration: 2f, spoilHours: 24f,
                 smokesInto: FoodKind.Jerky, value: 4),
             [FoodKind.Jerky] = new FoodInfo("Rabbit jerky", 0.12f, satiety: 20f, spoilHours: 240f, value: 8),
+            // A deer is butchered into kilogram cuts; smoked, a cut dries to a light strip that keeps for weeks.
+            [FoodKind.RawVenison] = new FoodInfo("Raw venison (1 kg)", 1f, satiety: 15f, spoilHours: 18f, sicknessChance: 0.5f,
+                cooksInto: FoodKind.CookedVenison, smokesInto: FoodKind.VenisonJerky, value: 5),
+            [FoodKind.CookedVenison] = new FoodInfo("Cooked venison", 0.75f, satiety: 45f, hydration: 3f, spoilHours: 30f,
+                smokesInto: FoodKind.VenisonJerky, value: 6),
+            [FoodKind.VenisonJerky] = new FoodInfo("Venison jerky", 0.3f, satiety: 40f, spoilHours: 336f, value: 14),
         };
 
         public static FoodInfo Get(FoodKind kind) => table[kind];

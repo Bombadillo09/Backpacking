@@ -253,8 +253,20 @@ namespace Backpacking.UI
                 wood.Actions.Add((() => "Build a fire ring", () => Place(CampItem.FireRing), () => placer.RequirementProblem(CampItem.FireRing)));
                 wood.Actions.Add((() => "Drop one", () => backpack.TryUseFirewood(1), null));
             }
+            if (backpack.HasBow)
+                Add("TOOLS & FUEL", "bow", "bow", () => "Recurve bow", () => $"{backpack.Arrows} arrows",
+                    () => "Hold it (hotbar), then hold the mouse button (or X) to draw and let go to shoot. Arrows drop over distance: " +
+                          "aim a little high when the animal's far. Crouch to get close. Shoot just behind the shoulder; a poor hit " +
+                          "leaves a wounded animal you'll have to track by its blood. Pick your arrows up again after.",
+                    new HotbarSlot(HotbarKind.Bow));
             if (backpack.Pelts > 0)
                 Add("TOOLS & FUEL", "pelts", "pelt", () => "Rabbit pelts", () => $"×{backpack.Pelts}", () => "Trading posts buy them.");
+            if (backpack.Hides > 0)
+            {
+                Item hides = Add("TOOLS & FUEL", "hides", "hide", () => "Deer hides", () => $"×{backpack.Hides}",
+                    () => $"Trading posts pay well for them, but each weighs {backpack.HideWeight:0.#} kg.");
+                hides.Actions.Add((() => "Drop one", () => backpack.TryTakeHide(), null));
+            }
 
             // Clothing.
             foreach (Garment garment in backpack.Clothing)
@@ -429,6 +441,7 @@ namespace Backpacking.UI
             HotbarKind.Food => $"food-{slot.food}",
             HotbarKind.Antibiotics => "antibiotics",
             HotbarKind.Bandage => "bandage",
+            HotbarKind.Bow => "bow",
             _ => null,
         };
 

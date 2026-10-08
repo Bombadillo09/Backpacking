@@ -47,6 +47,9 @@ namespace Backpacking.Player
         /// <summary>The machete is in hand: clicking swings it (handled by <see cref="Undergrowth"/>).</summary>
         public static bool HoldingMachete => current != null && current.Held.kind == HotbarKind.Machete && current.backpack.HasMachete;
 
+        /// <summary>The bow is in hand: holding the button draws it (handled by <see cref="Hunting.Bow"/>).</summary>
+        public static bool HoldingBow => current != null && current.Held.kind == HotbarKind.Bow && current.backpack.HasBow;
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
         {
@@ -97,7 +100,7 @@ namespace Backpacking.Player
                 if (Gamepad.current != null && Gamepad.current.dpad.right.wasPressedThisFrame)
                     Select(Selected + 1 >= Backpack.HotbarSize ? -1 : Selected + 1);
 
-                // The machete's swing is the brush code's job; everything else is used here.
+                // The machete's swing is the brush code's job and the bow shoots itself; everything else is used here.
                 if (attack.WasPressedThisFrame() && !RestMode.SeatedNow)
                     UseHeld();
             }
@@ -177,6 +180,7 @@ namespace Backpacking.Player
             HotbarKind.Food => FoodCatalog.Get(slot.food).Name,
             HotbarKind.Antibiotics => "Antibiotics",
             HotbarKind.Bandage => "Bandages",
+            HotbarKind.Bow => "Bow",
             _ => "",
         };
 
@@ -186,6 +190,7 @@ namespace Backpacking.Player
             HotbarKind.Food => $"×{backpack.CountFood(slot.food)}",
             HotbarKind.Antibiotics => $"×{backpack.Antibiotics}",
             HotbarKind.Bandage => $"×{backpack.Bandages}",
+            HotbarKind.Bow => $"×{backpack.Arrows}",
             _ => "",
         };
 

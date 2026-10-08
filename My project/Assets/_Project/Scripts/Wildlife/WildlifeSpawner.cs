@@ -156,6 +156,9 @@ namespace Backpacking.Wildlife
                 }
                 Vector3 offset = animal.transform.position - here;
                 offset.y = 0f;
+                // A wounded or dead animal stays put for tracking and butchering, unless the player's left the area.
+                if (animal.TryGetComponent(out Animal hunted) && hunted.KeepAround && offset.magnitude < 900f)
+                    continue;
                 if (offset.magnitude > limit)
                 {
                     Destroy(animal);
@@ -252,7 +255,8 @@ namespace Backpacking.Wildlife
             animal.transform.position = position;
             // A little size variety.
             animal.transform.localScale *= Random.Range(0.85f, 1.15f);
-            animal.AddComponent<Animal>().Initialise(isRabbit ? rabbit : deer, player, isRabbit ? null : Sounds.DeerAlarm());
+            animal.AddComponent<Animal>().Initialise(isRabbit ? rabbit : deer, isRabbit ? AnimalKind.Rabbit : AnimalKind.Deer, player, timeOfDay,
+                isRabbit ? null : Sounds.DeerAlarm());
             return animal;
         }
 

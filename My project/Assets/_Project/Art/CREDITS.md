@@ -65,3 +65,10 @@ From [Freesound](https://freesound.org); the file names are the sound IDs, e.g. 
 | StepLeaves | Walking on leaves (Brezzo di Bedero, Italy) (679104) | IlMotografo |
 | StepSnow | Footsteps_Mountain_Boots_Snow_Walk_Mono (613849) | Nox_Sound |
 | StepWater | Splashing Footsteps Shallow Water (861369) | ChristopherJngs |
+| BowRelease | Bow_release (263675) | PorkMuncher |
+| BowRelease | Bow Release (Bow and Arrow) 4 (384917) | Ali_6868 |
+| BowDraw | Bow Drawn (490556) | Paveroux |
+| ArrowHit | ARROW_WOOD_IMPACT_SINGLE_ARCHERY_01 (534956) | JoeDinesSound |
+| ArrowHit | Arrow Impact (205938) | Twisted_Euphoria |
+| ArrowHit | Arrow_Hit_1 (708223) | Mythmazter |
+| ArrowHit | Arrow Impact (521552) | omerbhatti34 |

@@ -40,6 +40,8 @@ namespace Backpacking.Survival
         Food,
         Antibiotics,
         Bandage,
+        // New kinds go at the end: saves store the hotbar by this number.
+        Bow,
     }
 
     /// <summary>One of the five hotbar slots: a kind of item, and for food, which food.</summary>
@@ -62,7 +64,7 @@ namespace Backpacking.Survival
     [Serializable]
     public class BackpackState
     {
-        public int money, pelts;
+        public int money, pelts, hides;
         public string tentName;
         public float tentShelter, tentWeight;
         // Saves from before tent models are treated as the 2-person tent they had.
@@ -85,6 +87,8 @@ namespace Backpacking.Survival
         /// <summary>Empty in saves from before the hotbar: the default slots are used.</summary>
         public List<HotbarSlot> hotbar = new();
         public int snares;
+        public bool hasBow;
+        public int arrows;
         public float waterCapacity, safeWater, untreatedWater;
         public string sleepingBagName;
         public float sleepingBagComfort, sleepingBagWeight;
@@ -105,6 +109,8 @@ namespace Backpacking.Survival
         [Header("Money & Trade Goods")]
         [SerializeField, Min(0)] int money = 80;
         [SerializeField, Min(0)] int pelts;
+        [Tooltip("Deer hides: heavy, but trading posts pay well for them.")]
+        [SerializeField, Min(0)] int hides;
 
         [Header("Shelter & Cooking")]
         [SerializeField] string tentName = "1-person tunnel tent";
@@ -124,6 +130,9 @@ namespace Backpacking.Survival
         [Tooltip("A proper rod: longer to react to bites and fewer fish lost.")]
         [SerializeField] bool hasGoodRod;
         [SerializeField, Min(0)] int snares = 3;
+        [Tooltip("A takedown recurve bow, for hunting (bought at a trading post).")]
+        [SerializeField] bool hasBow;
+        [SerializeField, Min(0)] int arrows;
         [Tooltip("With a filter, water from lakes and streams is safe straight away.")]
         [SerializeField] bool hasWaterFilter;
         [Header("Boots")]
@@ -218,6 +227,9 @@ namespace Backpacking.Survival
         [SerializeField] float filterWeight = 0.1f;
         [SerializeField] float macheteWeight = 0.5f;
         [SerializeField] float peltWeight = 0.3f;
+        [SerializeField] float hideWeight = 3.5f;
+        [SerializeField] float bowWeight = 0.9f;
+        [SerializeField] float arrowWeight = 0.03f;
         [Tooltip("Up to this weight you move freely.")]
         [SerializeField] float comfortableLoad = 15f;
         [Tooltip("Above this you're overloaded: very slow and unable to sprint.")]
@@ -232,6 +244,9 @@ namespace Backpacking.Survival
 
         public int Money => money;
         public int Pelts => pelts;
+        public int Hides => hides;
+        public bool HasBow => hasBow;
+        public int Arrows => arrows;
         public string TentName => tentName;
         public Camp.TentModel TentModel => tentModel;
         public float TentShelter => tentShelter;
@@ -312,7 +327,10 @@ namespace Backpacking.Survival
                     weight += gasGrams / 1000f + Mathf.Ceil(gasGrams / 230f) * canisterWeight;
                 if (hasChair && chairInPack)
                     weight += chairWeight;
-                weight += antibiotics * 0.03f + bandages * 0.01f + matches * 0.002f + firewood * firewoodWeight + snares * snareWeight + pelts * peltWeight;
+                weight += antibiotics * 0.03f + bandages * 0.01f + matches * 0.002f + firewood * firewoodWeight + snares * snareWeight + pelts * peltWeight
+                          + hides * hideWeight + arrows * arrowWeight;
+                if (hasBow)
+                    weight += bowWeight;
                 if (hasFishingKit)
                     weight += hasGoodRod ? fishingRodWeight : fishingKitWeight;
                 if (hasWaterFilter)
@@ -365,6 +383,9 @@ namespace Backpacking.Survival
         public void AddMoney(int amount) => money += amount;
         public bool TrySpendMoney(int amount) => TrySpend(ref money, amount);
         public bool TryTakePelt() => TrySpend(ref pelts, 1);
+        public void AddHide() => hides++;
+        public bool TryTakeHide() => TrySpend(ref hides, 1);
+        public float HideWeight => hideWeight;
 
         // ---------- Gear & fuel ----------
 
@@ -476,6 +497,16 @@ namespace Backpacking.Survival
         public bool TryUseFirewood(int amount) => TrySpend(ref firewood, amount);
         public bool TryUseMatch() => TrySpend(ref matches, 1);
         public void AddSnare() => snares++;
+
+        /// <summary>A bow, which goes straight onto the hotbar if there's a free slot.</summary>
+        public void AddBow()
+        {
+            hasBow = true;
+            AssignHotbar(new HotbarSlot(HotbarKind.Bow));
+        }
+
+        public void AddArrows(int count) => arrows += count;
+        public bool TryUseArrow() => TrySpend(ref arrows, 1);
         public bool TryUseSnare() => TrySpend(ref snares, 1);
 
         public bool TryUseGas(float grams)
@@ -687,6 +718,9 @@ namespace Backpacking.Survival
         {
             money = money,
             pelts = pelts,
+            hides = hides,
+            hasBow = hasBow,
+            arrows = arrows,
             tentName = tentName,
             tentShelter = tentShelter,
             tentWeight = tentWeight,
@@ -729,6 +763,9 @@ namespace Backpacking.Survival
         {
             money = state.money;
             pelts = state.pelts;
+            hides = state.hides;
+            hasBow = state.hasBow;
+            arrows = state.arrows;
             tentName = state.tentName;
             tentShelter = state.tentShelter;
             tentWeight = state.tentWeight;

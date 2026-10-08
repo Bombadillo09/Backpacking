@@ -64,7 +64,8 @@ namespace Backpacking.Player
                 useTime = -1f;
 
             HikerPose pose = appearance.Pose;
-            if (pose == null)
+            // The bow poses both hands itself (see Hunting.Bow).
+            if (pose == null || held.kind == HotbarKind.Bow)
                 return;
             HoldFrame(out Vector3 target, out Quaternion frame);
             pose.HandTarget = raise > 0f ? target : null;

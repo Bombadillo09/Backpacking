@@ -43,6 +43,9 @@ namespace Backpacking.Audio
         public static AudioClip Swish() => Any("Swish") ?? SoundSynth.Swish();
         public static AudioClip Chop() => Any("Chop") ?? SoundSynth.Chop(Random.Range(0, SoundSynth.ChopVariants));
         public static AudioClip Heartbeat() => Any("Heartbeat") ?? SoundSynth.Heartbeat();
+        public static AudioClip BowDraw() => Any("BowDraw");
+        public static AudioClip BowRelease() => Any("BowRelease") ?? SoundSynth.Swish();
+        public static AudioClip ArrowHit() => Any("ArrowHit") ?? SoundSynth.Chop(0);
 
         /// <summary>One footstep on <paramref name="surface"/>, never the same take as <paramref name="last"/>.</summary>
         public static AudioClip Footstep(Surface surface, ref int last)

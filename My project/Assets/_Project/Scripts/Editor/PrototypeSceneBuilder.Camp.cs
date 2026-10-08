@@ -287,6 +287,15 @@ namespace Backpacking.EditorTools
             SetField(held, "player", player);
             SetField(held, "appearance", appearance);
             SetField(held, "activity", activity);
+            // The bow, when it's in hand: drawing, shooting and holding it out.
+            var bow = go.AddComponent<Hunting.Bow>();
+            SetField(bow, "inputActions", inputActions);
+            SetField(bow, "player", player);
+            SetField(bow, "appearance", appearance);
+            SetField(bow, "backpack", backpack);
+            SetField(bow, "vitals", vitals);
+            SetField(bow, "activity", activity);
+            SetField(bow, "placer", placer);
             var creator = hud.AddComponent<CharacterCreator>();
             SetField(creator, "library", library);
             SetField(menus, "creator", creator);

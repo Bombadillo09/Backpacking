@@ -51,6 +51,10 @@ MonoBehaviour:
     icon: {fileID: 2800000, guid: 0262917a904bc6f40b26e621094e8c04, type: 3}
   - key: boots
     icon: {fileID: 2800000, guid: 7580ec10d51e33b498238985cafd8200, type: 3}
+  - key: bow
+    icon: {fileID: 2800000, guid: 648465d332e934240b0aaf4bacdf0488, type: 3}
+  - key: hide
+    icon: {fileID: 2800000, guid: 8e38a8e51268aa14993b3e0539d2676a, type: 3}
   - key: money
     icon: {fileID: 2800000, guid: 1d1c1494cd693264daedc9522a22cdbe, type: 3}
   - key: food-TrailMix
@@ -73,6 +77,12 @@ MonoBehaviour:
     icon: {fileID: 2800000, guid: a48ce9745b9732e44a0aab5a66ee32a7, type: 3}
   - key: food-Jerky
     icon: {fileID: 2800000, guid: 2da9fa3d54aa5c6439e0f82b7584ecbb, type: 3}
+  - key: food-RawVenison
+    icon: {fileID: 2800000, guid: f006d1ecb354b044aac36f720b0e4202, type: 3}
+  - key: food-CookedVenison
+    icon: {fileID: 2800000, guid: 24ef980c160b3f042b84d6d0e8bd3e78, type: 3}
+  - key: food-VenisonJerky
+    icon: {fileID: 2800000, guid: 1fe0b4d022f40f946af95f5183e29521, type: 3}
   - key: garment-base
     icon: {fileID: 2800000, guid: 0d2ce08ca96bb954eb667842d0ca49ce, type: 3}
   - key: garment-fleece
