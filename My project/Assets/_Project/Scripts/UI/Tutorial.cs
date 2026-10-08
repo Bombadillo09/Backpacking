@@ -36,6 +36,8 @@ namespace Backpacking.UI
             /// <summary>Done when true; null for an explanation that continues with Enter.</summary>
             public Func<bool> Done;
             public Action Begin;
+            /// <summary>When true, Enter skips the step: e.g. you didn't buy the gear it needs.</summary>
+            public Func<bool> CanSkip;
         }
 
         Step[] steps;
@@ -115,9 +117,11 @@ namespace Backpacking.UI
                     Text = $"Close the map ({Key}M{End}) and press {Key}Q{End} for your compass. The number at the top is your heading; the trail heads roughly north (0°).",
                     Done = () => compass != null && compass.IsOpen },
                 new Step { Title = "Your backpack",
-                    Text = $"Press {Key}Tab{End} to open your backpack: water, food, gear, clothing and first aid. Drink some safe water now.",
+                    Text = $"Press {Key}Tab{End} to open your backpack: water, food, gear, clothing and first aid. Drink some safe water now. "
+                           + $"(No bottle or no safe water yet? Press {Key}Enter{End}: fill up at a lake or stream and boil or filter it.)",
                     Begin = () => startWater = backpack.TotalWater,
-                    Done = () => backpack.TotalWater < startWater - 0.01f },
+                    Done = () => backpack.TotalWater < startWater - 0.01f,
+                    CanSkip = () => backpack.SafeWater <= 0f },
                 new Step { Title = "How you are",
                     Text = $"Press {Key}J{End} for your journal, then open the {Key}Status{End} tab. It shows any injury on an outline of your body, how bad it is, and how to treat it.",
                     Done = () => JournalView.StatusViewed },
@@ -132,21 +136,26 @@ namespace Backpacking.UI
                 new Step { Title = "Through the brush",
                     Text = $"Off the trail, thick brush slows you to a crawl. Your hotbar (bottom of the screen) holds what you carry to hand: press {Key}1{End} to take the machete in hand, walk into the woods and {Key}click{End} to swing it and hack a way through. The trail is always the easy way. (Keys 1–5 hold your water, food and bandages too; click to use them.)",
                     Begin = () => swung = false,
-                    Done = () => swung },
+                    Done = () => swung,
+                    CanSkip = () => !backpack.HasMachete },
                 new Step { Title = "Clear a campsite",
                     Text = $"In the woods you need bare ground for a tent or a fire. Open your backpack and choose {Key}Clear campsite{End}, then pick a spot. Felled saplings become firewood. (In an open meadow you can skip this: press {Key}Enter{End}.)",
                     Begin = () => startClearings = clearing != null ? clearing.Cleared.Count : 0,
-                    Done = () => clearing != null && clearing.Cleared.Count > startClearings },
+                    Done = () => clearing != null && clearing.Cleared.Count > startClearings,
+                    CanSkip = () => true },
                 new Step { Title = "Pitch your tent",
                     Text = $"Open your backpack and choose {Key}Take off pack{End}, then {Key}Take out tent bag{End}. Look at the bag and {Key}unpack{End} it on flat, clear ground. "
                            + $"Then look at the tent to {Key}set the poles{End}, and again to {Key}put up the fabric{End}. Sleeping in it keeps you warm and saves the game. Put your pack back on before you leave!",
-                    Done = () => placer.PlacedItems.Any(item => item.kind == CampItem.Tent && item.instance.TryGetComponent(out Tent tent) && tent.IsPitched) },
+                    Done = () => placer.PlacedItems.Any(item => item.kind == CampItem.Tent && item.instance.TryGetComponent(out Tent tent) && tent.IsPitched),
+                    CanSkip = () => !backpack.OwnsTent },
                 new Step { Title = "Light a fire",
                     Text = $"Backpack > {Key}Build fire ring{End}, place it, then look at it and press {Key}E{End} to light it with a match. A fire warms you, dries you, cooks and boils water.",
-                    Done = () => FindObjectsByType<Campfire>().Any(fire => fire.IsBurning) },
+                    Done = () => FindObjectsByType<Campfire>().Any(fire => fire.IsBurning),
+                    CanSkip = () => backpack.Matches <= 0 },
                 new Step { Title = "By the fire",
                     Text = $"Look at the fire and choose {Key}Sit by the fire{End} (or sit close with {Key}Z{End}), then take your boots off with {Key}E{End}. Your bare feet warm, dry and sit in the smoke, the old cure for infected feet.",
-                    Done = () => RestMode.Current != null && RestMode.Current.SmokingFeet },
+                    Done = () => RestMode.Current != null && RestMode.Current.SmokingFeet,
+                    CanSkip = () => !FindObjectsByType<Campfire>().Any(fire => fire.IsBurning) },
                 new Step { Title = "You're ready",
                     Text = $"That's the basics. Follow the trail north, rest your feet, keep dry and fed, and check your Status page (J) when something hurts. Good luck, {hikerName}!\n\nPress {Key}Enter{End} to finish." },
             };
@@ -192,8 +201,8 @@ namespace Backpacking.UI
                 return;
             }
 
-            // A step that can be skipped (clearing in the open) also takes Enter.
-            bool skippable = step.Title == "Clear a campsite";
+            // A step that can be skipped (clearing in the open, or gear you didn't buy) also takes Enter.
+            bool skippable = step.CanSkip != null && step.CanSkip();
             footer.SetText(doneAt >= 0f ? "Well done!" : skippable ? "Do it, or Enter to skip" : "");
             if (doneAt < 0f && step.Done())
                 doneAt = Time.time;

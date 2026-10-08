@@ -75,12 +75,12 @@ namespace Backpacking.UI
                     UIBuild.Box("grow").With(
                         UIBuild.Text("YOUR PACK", "heading"),
                         UIBuild.Box("row").With(
-                            bindings.ActionButton(() => backpack.IsWorn ? "Take off pack" : "Put pack on", TogglePack, null, Busy),
+                            bindings.ActionButton(() => backpack.IsWorn ? "Take off pack" : "Put pack on", TogglePack,
+                                () => backpack.HasPack ? null : "You don't have a backpack yet", Busy),
+                            bindings.ActionButton("Repack", Repack, () => backpack.HasPack ? null : "", Busy),
                             PlaceButton("Clear campsite (machete)", CampItem.Clearing),
                             PlaceButton("Build fire ring", CampItem.FireRing)),
-                        bindings.Text(() => backpack.IsWorn
-                            ? "Camp gear (tent, stove, chair, snares, fishing kit) is packed inside: take the pack off to get it out."
-                            : "Your pack is on the ground. Camp gear comes out of it while you're beside it.", "reason"))),
+                        bindings.Text(PackDescription, "reason"))),
                 UIBuild.Box("footer").With(
                     UIBuild.Button("Journal  (J)", () =>
                     {
@@ -150,6 +150,30 @@ namespace Backpacking.UI
 
         bool Busy() => activity.IsBusy;
 
+        /// <summary>Rearranges the pack; beside the truck, with the truck bed to pack from as well.</summary>
+        void Repack()
+        {
+            if (PackingView.Current == null)
+                return;
+            Vehicles.Pickup truck = Vehicles.Pickup.Current;
+            bool atTruck = truck != null && truck.Bed != null && !truck.Driving
+                           && Vector3.Distance(truck.transform.position, backpack.transform.position) < 6f;
+            Close();
+            PackingView.Current.Open(atTruck ? truck.Bed : null);
+        }
+
+        string PackDescription()
+        {
+            if (!backpack.HasPack)
+                return "No backpack yet: you can only carry what you wear. The outdoor store sells three.";
+            float inside = backpack.UsedIn(PackZone.Core), room = backpack.CapacityOf(PackZone.Core);
+            string where = backpack.IsWorn
+                ? "Camp gear is packed inside: take the pack off to get it out."
+                : "Your pack is on the ground. Camp gear comes out of it while you're beside it.";
+            return $"{backpack.Pack.Name}: {inside:0} of {room:0} L inside, {Backpack.BalanceWord(backpack.Balance)}"
+                   + $"{(backpack.Overfull > 0f ? ", over-full" : "")}. {where}";
+        }
+
         // ---------- What's in the pack ----------
 
         List<Item> Gather()
@@ -183,43 +207,61 @@ namespace Backpacking.UI
             }
 
             // Water and first aid.
-            Item water = Add("WATER & FIRST AID", "water", "water", () => "Water bottle", () => $"{backpack.TotalWater:0.0} / {backpack.WaterCapacity:0.0} L",
-                () => $"Safe to drink: {backpack.SafeWater:0.00} L. Untreated: {backpack.UntreatedWater:0.00} L.\n" +
-                      (backpack.HasWaterFilter ? "Your filter makes lake and stream water safe as you fill up." : "Untreated water may make you sick. Boil it first."),
-                new HotbarSlot(HotbarKind.Water));
-            water.Actions.Add((() => $"Drink safe water ({backpack.SipLitres:0.00} L)", backpack.DrinkSafeWater, () => backpack.SafeWater <= 0f ? "No safe water" : null));
-            water.Actions.Add((() => "Drink untreated water", backpack.DrinkUntreatedWater, () => backpack.UntreatedWater <= 0f ? "No untreated water" : null));
-            water.Actions.Add((() => "Pour out untreated water", backpack.PourOutUntreatedWater, () => backpack.UntreatedWater <= 0f ? "" : null));
+            // Only what you own: a new trip starts with nothing until you've been to the outdoor store.
+            if (backpack.WaterCapacity > 0f)
+            {
+                Item water = Add("WATER & FIRST AID", "water", "water", () => "Water bottle", () => $"{backpack.TotalWater:0.0} / {backpack.WaterCapacity:0.0} L",
+                    () => $"Safe to drink: {backpack.SafeWater:0.00} L. Untreated: {backpack.UntreatedWater:0.00} L.\n" +
+                          (backpack.HasWaterFilter ? "Your filter makes lake and stream water safe as you fill up." : "Untreated water may make you sick. Boil it first."),
+                    new HotbarSlot(HotbarKind.Water));
+                water.Actions.Add((() => $"Drink safe water ({backpack.SipLitres:0.00} L)", backpack.DrinkSafeWater, () => backpack.SafeWater <= 0f ? "No safe water" : null));
+                water.Actions.Add((() => "Drink untreated water", backpack.DrinkUntreatedWater, () => backpack.UntreatedWater <= 0f ? "No untreated water" : null));
+                water.Actions.Add((() => "Pour out untreated water", backpack.PourOutUntreatedWater, () => backpack.UntreatedWater <= 0f ? "" : null));
+            }
             if (backpack.HasWaterFilter)
                 Add("WATER & FIRST AID", "filter", "filter", () => "Squeeze filter", () => "",
                     () => "Filters lake and stream water as you fill your bottle, so it's safe straight away.");
-            Item antibiotics = Add("WATER & FIRST AID", "antibiotics", "antibiotics", () => "Antibiotics", () => $"×{backpack.Antibiotics}",
-                () => "One course clears an infection in a few hours. Trading posts sell them.", new HotbarSlot(HotbarKind.Antibiotics));
-            antibiotics.Actions.Add((() => "Take a course", TakeAntibiotics,
-                () => backpack.Antibiotics <= 0 ? "None left. Trading posts sell them." : !vitals.IsInfected ? "No infection to treat" : vitals.OnAntibiotics ? "Already taking a course" : null));
-            Item bandages = Add("WATER & FIRST AID", "bandage", "bandage", () => "Bandages", () => $"×{backpack.Bandages}",
-                () => "For cuts: a bandaged cut stops bleeding. Sore feet need rest instead: sit (Z) and take your boots off (E).",
-                new HotbarSlot(HotbarKind.Bandage));
-            bandages.Actions.Add((() => "Bandage a cut", BandageCut,
-                () => backpack.Bandages <= 0 ? "None left. Trading posts sell them." : !vitals.IsBleeding ? "No cut to bandage" : null));
+            if (backpack.Antibiotics > 0)
+            {
+                Item antibiotics = Add("WATER & FIRST AID", "antibiotics", "antibiotics", () => "Antibiotics", () => $"×{backpack.Antibiotics}",
+                    () => "One course clears an infection in a few hours. Trading posts sell them.", new HotbarSlot(HotbarKind.Antibiotics));
+                antibiotics.Actions.Add((() => "Take a course", TakeAntibiotics,
+                    () => backpack.Antibiotics <= 0 ? "None left. Trading posts sell them." : !vitals.IsInfected ? "No infection to treat" : vitals.OnAntibiotics ? "Already taking a course" : null));
+            }
+            if (backpack.Bandages > 0)
+            {
+                Item bandages = Add("WATER & FIRST AID", "bandage", "bandage", () => "Bandages", () => $"×{backpack.Bandages}",
+                    () => "For cuts: a bandaged cut stops bleeding. Sore feet need rest instead: sit (Z) and take your boots off (E).",
+                    new HotbarSlot(HotbarKind.Bandage));
+                bandages.Actions.Add((() => "Bandage a cut", BandageCut,
+                    () => backpack.Bandages <= 0 ? "None left. Trading posts sell them." : !vitals.IsBleeding ? "No cut to bandage" : null));
+            }
 
             // Camp gear.
-            Item tent = Add("CAMP GEAR", "tent", "tent", () => backpack.TentName, () => backpack.HasTent ? "packed" : "out",
-                () => $"+{backpack.TentShelter:0} °C when you sleep in it.\n{TentStatus()}");
-            tent.Actions.Add((() => "Take out the tent bag", () =>
+            if (backpack.OwnsTent)
             {
-                Close();
-                packHandling.TakeOutTent();
-            }, TentBagButtonProblem));
-            Add("CAMP GEAR", "sleepingbag", "sleepingbag", () => backpack.SleepingBagName, () => $"{backpack.SleepingBagComfort:0} °C",
-                () => $"Keeps you warm asleep down to about {backpack.SleepingBagComfort:0} °C (lower with a sleeping mat).");
+                Item tent = Add("CAMP GEAR", "tent", "tent", () => backpack.TentName, () => backpack.HasTent ? "packed" : "out",
+                    () => $"+{backpack.TentShelter:0} °C when you sleep in it.\n{TentStatus()}");
+                tent.Actions.Add((() => "Take out the tent bag", () =>
+                {
+                    Close();
+                    packHandling.TakeOutTent();
+                }, TentBagButtonProblem));
+            }
+            if (backpack.HasSleepingBag)
+                Add("CAMP GEAR", "sleepingbag", "sleepingbag", () => backpack.SleepingBagName, () => $"{backpack.SleepingBagComfort:0} °C",
+                    () => $"Keeps you warm asleep down to about {backpack.SleepingBagComfort:0} °C (lower with a sleeping mat)."
+                          + (backpack.BagWetness > 0.15f ? $"\nIt's {backpack.BagWetness * 100f:0}% wet, and far less warm until it dries. A fire helps." : ""));
             if (backpack.HasMat)
                 Add("CAMP GEAR", "mat", backpack.MatRecovery >= 1.4f ? "airmat" : "mat", () => backpack.MatName, () => "",
                     () => $"+{backpack.MatWarmth:0} °C asleep, and {(backpack.MatRecovery - 1f) * 100f:0}% more energy back from sleep.");
-            Item stove = Add("CAMP GEAR", "stove", "stove", () => "Canister stove & pot", () => $"{backpack.GasGrams:0} g gas",
-                () => $"Quick, reliable cooking and boiling. {backpack.GasGrams:0} g of gas left; trading posts sell canisters." +
-                      (backpack.HasStove ? "" : "\nIt's set up at camp: look at it to cook, or to pack it away."));
-            stove.Actions.Add((() => "Set up the stove", () => Place(CampItem.Stove), () => placer.RequirementProblem(CampItem.Stove)));
+            if (backpack.OwnsStove)
+            {
+                Item stove = Add("CAMP GEAR", "stove", "stove", () => "Canister stove & pot", () => $"{backpack.GasGrams:0} g gas",
+                    () => $"Quick, reliable cooking and boiling. {backpack.GasGrams:0} g of gas left; trading posts sell canisters." +
+                          (backpack.HasStove ? "" : "\nIt's set up at camp: look at it to cook, or to pack it away."));
+                stove.Actions.Add((() => "Set up the stove", () => Place(CampItem.Stove), () => placer.RequirementProblem(CampItem.Stove)));
+            }
             if (backpack.HasChair)
             {
                 Item chair = Add("CAMP GEAR", "chair", "chair", () => "Camp chair", () => backpack.ChairInPack ? "packed" : "out",
@@ -244,8 +286,9 @@ namespace Backpacking.UI
                     new HotbarSlot(HotbarKind.Machete));
                 machete.Actions.Add((() => "Clear a campsite here", () => Place(CampItem.Clearing), () => placer.RequirementProblem(CampItem.Clearing)));
             }
-            Add("TOOLS & FUEL", "matches", "matches", () => "Waterproof matches", () => $"×{backpack.Matches}",
-                () => "For lighting fires. Rain can beat a match.");
+            if (backpack.Matches > 0)
+                Add("TOOLS & FUEL", "matches", "matches", () => "Waterproof matches", () => $"×{backpack.Matches}",
+                    () => "For lighting fires. Rain can beat a match.");
             if (backpack.Firewood > 0)
             {
                 Item wood = Add("TOOLS & FUEL", "firewood", "firewood", () => "Firewood", () => $"×{backpack.Firewood}",

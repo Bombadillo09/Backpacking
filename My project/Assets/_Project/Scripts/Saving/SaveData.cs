@@ -40,6 +40,15 @@ namespace Backpacking.Saving
         public PackState pack;
         /// <summary>Campsites cleared and brush cut with the machete: centre in xyz, radius in w.</summary>
         public List<Vector4> clearings = new();
+
+        /// <summary>Where the pickup is, and whether you're driving it. Null in older saves: it's at home.</summary>
+        public Vehicles.PickupState truck;
+        /// <summary>What's in the truck bed. Null in older saves: it's empty.</summary>
+        public BackpackState truckBed;
+        /// <summary>How far through the run-up to the trail (home, store, packing, drive). Older saves are on the trail.</summary>
+        public int arrivalPhase = (int)Trip.ArrivalPhase.OnTheTrail;
+        /// <summary>The tutorial is waiting to start at the trailhead.</summary>
+        public bool tutorialPending;
     }
 
     [Serializable]

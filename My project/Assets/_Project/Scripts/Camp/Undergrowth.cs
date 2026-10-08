@@ -77,7 +77,8 @@ namespace Backpacking.Camp
             float target = clearing != null ? clearing.BrushDensity(player.transform.position) : 0f;
             density = Mathf.MoveTowards(density, target, 3f * Time.deltaTime);
             Density = density;
-            player.GroundSpeedMultiplier = Mathf.Lerp(1f, slowestSpeed, density);
+            // Gear strapped outside the pack catches on the brush.
+            player.GroundSpeedMultiplier = Mathf.Lerp(1f, slowestSpeed * (1f - (backpack != null ? backpack.StrapSnag : 0f)), density);
 
             bool free = !PlayerControlLock.MovementLocked && !placer.IsPlacing && !RestMode.SeatedNow
                         && UnityEngine.Cursor.lockState == CursorLockMode.Locked;

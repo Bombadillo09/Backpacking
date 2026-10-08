@@ -234,6 +234,8 @@ namespace Backpacking.Survival
 
         /// <summary>Degrees the truck's heater adds to the air in the cab.</summary>
         const float CabHeater = 10f;
+        /// <summary>Degrees of comfort a soaked sleeping bag loses.</summary>
+        const float WetBagLoss = 12f;
 
         /// <summary>Air temperature the player feels, including fires and shelter (°C).</summary>
         public float FeltTemperature { get; private set; }
@@ -500,6 +502,10 @@ namespace Backpacking.Survival
             float drying = (rain > 0.05f ? 0f : dryingRate) + fireWarmth * fireDryingPerDegree;
             wetness = Mathf.Clamp(wetness + (soaking - drying) * hours, 0f, Max);
             WarnOnce(ref warnedWet, Max - wetness, Max - 50f, "You're getting soaked. Put on your rain shell or find shelter.");
+            float bagWasWet = backpack.BagWetness;
+            backpack.WeatherTheBag(weather != null && !InVehicle ? weather.RainIntensity : 0f, hours, fireWarmth);
+            if (bagWasWet < 0.3f && backpack.BagWetness >= 0.3f)
+                Notifications.Post("The rain's soaking the sleeping bag strapped to the outside of your pack. A wet bag is a cold night: pack it inside.", 8f);
         }
 
         void UpdateWarmth(float hours, float bodyHeat)
@@ -514,10 +520,10 @@ namespace Backpacking.Survival
             FeltTemperature = air + fire + (inTent ? backpack.TentShelter : 0f) + (InVehicle ? CabHeater : 0f) - WindChill - soaked * soakedChill;
 
             float insulation = (backpack.ClothingInsulation + backpack.BootsWarmth + HikerTraits.InsulationBonus) * (1f - soakedInsulationLoss * soaked);
-            // In the bag, a mat stops the ground drawing the heat out of you.
-            ComfortTemperature = IsSleeping && InSleepingBag
-                ? backpack.SleepingBagComfort - backpack.MatWarmth
-                : neutralTemperature - insulation - bodyHeat;
+            // In the bag, a mat stops the ground drawing the heat out of you. A wet bag loses most of its warmth.
+            ComfortTemperature = IsSleeping && InSleepingBag && backpack.HasSleepingBag
+                ? backpack.SleepingBagComfort + backpack.BagWetness * WetBagLoss - backpack.MatWarmth
+                : neutralTemperature - insulation - bodyHeat - (IsSleeping ? backpack.MatWarmth : 0f);
 
             float difference = FeltTemperature - ComfortTemperature;
             float rate = difference < 0f ? coolingRate : warmingRate;

@@ -98,13 +98,15 @@ namespace Backpacking.Character
             if (backpack != null)
             {
                 // Riding in the truck, the pack is off your back (it rides beside you).
-                bool packOnBack = backpack.IsWorn && !player.Mounted;
+                bool packOnBack = backpack.IsWorn && backpack.HasPack && !player.Mounted;
                 appearance.SetPackWorn(packOnBack);
                 if (appearance.PackGear != null && packOnBack)
                 {
+                    // What's strapped on, as packed: the bottle and machete leave it while they're in hand.
                     HotbarSlot held = Hotbar.Current != null ? Hotbar.Current.Held : default;
-                    appearance.PackGear.Show(backpack.HasMat && backpack.MatRecovery < 1.4f, backpack.HasTent, backpack.HasChair && backpack.ChairInPack,
-                        held.kind != HotbarKind.Water, backpack.HasMachete && held.kind != HotbarKind.Machete);
+                    backpack.OutsideGear(out bool pad, out bool tent, out bool chair, out bool bottle, out bool machete);
+                    appearance.PackGear.Show(pad, tent, chair, bottle && held.kind != HotbarKind.Water, machete && held.kind != HotbarKind.Machete);
+                    appearance.PackGear.transform.localScale = Vector3.one * backpack.Pack.VisualScale;
                     appearance.PackGear.Tint(Camp.TentDesign.Of(backpack.TentModel).Fly);
                 }
             }

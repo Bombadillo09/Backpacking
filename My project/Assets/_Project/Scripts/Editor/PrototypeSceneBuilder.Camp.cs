@@ -362,6 +362,9 @@ namespace Backpacking.EditorTools
             ItemIconLibrary icons = ItemIcons.GetOrCreateLibrary();
             SetField(backpackView, "icons", icons);
             SetField(go.GetComponent<Hotbar>(), "icons", icons);
+            var packing = hud.AddComponent<PackingView>();
+            SetField(packing, "backpack", backpack);
+            SetField(packing, "icons", icons);
         }
 
         // ---------- Prefabs ----------

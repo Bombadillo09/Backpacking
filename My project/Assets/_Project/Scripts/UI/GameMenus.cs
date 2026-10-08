@@ -309,24 +309,58 @@ namespace Backpacking.UI
             creator.Open(BeginTrip, () => ShowPage(Page.Title));
         }
 
-        /// <summary>For the editor's benchmark: straight into a trip with the default hiker and no tutorial.</summary>
+        /// <summary>
+        /// For the editor's benchmark and tests: straight into a trip with the default hiker, the full standard kit
+        /// (the backpack's inspector values) and no tutorial or run-up to the trail.
+        /// </summary>
         public void BeginBenchmarkTrip()
         {
-            BeginTrip(new CharacterProfile());
+            BeginTrip(new CharacterProfile(), freshStart: false);
             if (tutorial != null)
                 tutorial.Stop();
         }
 
-        void BeginTrip(CharacterProfile hiker)
+        void BeginTrip(CharacterProfile hiker) => BeginTrip(hiker, freshStart: true);
+
+        /// <summary>
+        /// A fresh start begins at home with money and the clothes you stand in (plus one thing your background
+        /// brings): you drive to the outdoor store, buy and pack your kit, and drive to the trailhead.
+        /// </summary>
+        void BeginTrip(CharacterProfile hiker, bool freshStart)
         {
             HideAll();
             if (avatar != null)
                 avatar.Apply(hiker);
-            if (backpack != null)
-                Backgrounds.ApplyStartingKit(hiker.background, backpack);
+            Backpack truckBed = Vehicles.Pickup.Current != null ? Vehicles.Pickup.Current.Bed : null;
+            if (backpack != null && freshStart)
+            {
+                backpack.EmptyKit(Trip.ArrivalGuide.StartingMoney, streetClothes: true);
+                if (truckBed != null)
+                    truckBed.EmptyKit(0, streetClothes: false);
+                Backgrounds.ApplyStartingKit(hiker.background, backpack, truckBed != null ? truckBed : backpack);
+            }
             if (Trip.TripLog.Current != null)
-                Trip.TripLog.Current.BeginTrip($"{hiker.name} set out from the trailhead as a {Backgrounds.Name(hiker.background)}, "
-                                               + $"heading north along the route for {Trip.TripLog.Destination}.");
+                Trip.TripLog.Current.BeginTrip($"{hiker.name}, {Backgrounds.Name(hiker.background).ToLowerInvariant()}, set out to hike north to "
+                                               + $"{Trip.TripLog.Destination}.");
+            var arrival = FindAnyObjectByType<Trip.ArrivalGuide>();
+            if (arrival != null)
+            {
+                if (!freshStart)
+                    arrival.Skip();
+                else
+                {
+                    bool tutorialWanted = tutorial != null && (creator == null || creator.TutorialWanted);
+                    if (tutorialWanted)
+                        PlayerPrefs.SetInt("tutorial.done", 1);
+                    if (tutorial != null)
+                        tutorial.Stop();
+                    arrival.BeginAtHome(tutorialWanted);
+                    string replacesSave = saves.HasSave ? " Your next save replaces the old trip." : "";
+                    Notifications.Post($"Your goal, {hiker.name}: hike the trail north to {Trip.TripLog.Destination} and sign the summit register. "
+                                       + $"First, gear up: drive to {Trip.TripLog.Outfitter}.{replacesSave}", 12f);
+                    return;
+                }
+            }
             if (tutorial != null)
             {
                 if (creator == null || creator.TutorialWanted)

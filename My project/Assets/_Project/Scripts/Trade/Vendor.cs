@@ -27,8 +27,11 @@ namespace Backpacking.Trade
         [Tooltip("Fraction of an item's value paid when you sell it.")]
         [SerializeField, Range(0f, 2f)] float sellRate = 0.7f;
         [SerializeField] List<StockEntry> stock = new();
+        [Tooltip("A store by the road: what you buy is carried out to your truck's bed, if it's parked nearby, rather than into your pack.")]
+        [SerializeField] bool deliversToTruck;
 
         public string DisplayName => vendorName;
+        public bool DeliversToTruck => deliversToTruck;
         public IReadOnlyList<StockEntry> Stock => stock;
 
         public int PriceOf(ShopItemId item) => Mathf.CeilToInt(ShopCatalog.Get(item).BasePrice * priceMultiplier);

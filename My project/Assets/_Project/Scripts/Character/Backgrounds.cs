@@ -21,11 +21,11 @@ namespace Backpacking.Character
 
         public static string Description(Background background) => background switch
         {
-            Background.Ranger => "Years outdoors in all weathers. Handles the cold better (+3 °C), the rain is half as likely to beat your matches, and you carry 8 extra matches.",
-            Background.Angler => "Never without a rod. Starts with the telescopic rod, has 40% longer to react to a bite, and loses fewer fish.",
-            Background.Ultralight => "Every gram counts. Walks 8% faster with a pack 0.8 kg lighter, but starts with one meal less, no fishing kit, and trail runners that tire the feet faster than boots.",
-            Background.Forager => "Knows what's good to eat. Picks half as many berries again, is half as likely to get sick from untreated water or risky food, and carries 2 extra snares.",
-            _ => "A balanced all-rounder with the standard kit. A good place to start.",
+            Background.Ranger => "Years outdoors in all weathers. Handles the cold better (+3 °C) and the rain is half as likely to beat your matches. Brings an old machete from home.",
+            Background.Angler => "Never without a rod: brings a telescopic rod from home, has 40% longer to react to a bite, and loses fewer fish.",
+            Background.Ultralight => "Every gram counts. Walks 8% faster, and already owns a 40 L ultralight pack, so there's more money for the rest.",
+            Background.Forager => "Knows what's good to eat. Picks half as many berries again, is half as likely to get sick from untreated water or risky food, and brings 3 wire snares from home.",
+            _ => "A balanced all-rounder who brings an old fleece from home. A good place to start.",
         };
 
         /// <summary>
@@ -70,26 +70,29 @@ namespace Backpacking.Character
             }
         }
 
-        /// <summary>Changes to the standard kit. Applied once, when a new trip starts.</summary>
-        public static void ApplyStartingKit(Background background, Backpack backpack)
+        /// <summary>
+        /// The one thing each background brings from home, applied once when a new trip starts: into the truck bed,
+        /// or onto your back for a pack.
+        /// </summary>
+        public static void ApplyStartingKit(Background background, Backpack wearer, Backpack truckBed)
         {
             switch (background)
             {
                 case Background.Ranger:
-                    backpack.AddMatches(8);
+                    truckBed.AddMachete();
                     break;
                 case Background.Angler:
-                    backpack.AddFishingRod();
+                    truckBed.AddFishingRod();
                     break;
                 case Background.Ultralight:
-                    backpack.ReducePackWeight(0.8f);
-                    backpack.TryTakeFood(FoodKind.TrailMeal);
-                    backpack.RemoveFishingKit();
-                    backpack.SetBoots("Trail runners", 1.3f, false, 0f);
+                    wearer.SetPack(PackModel.Ultralight40);
                     break;
                 case Background.Forager:
-                    backpack.AddSnare();
-                    backpack.AddSnare();
+                    for (int i = 0; i < 3; i++)
+                        truckBed.AddSnare();
+                    break;
+                default:
+                    Trade.ShopCatalog.Get(Trade.ShopItemId.Fleece).ApplyTo(truckBed);
                     break;
             }
         }

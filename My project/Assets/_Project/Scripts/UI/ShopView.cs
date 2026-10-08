@@ -24,6 +24,15 @@ namespace Backpacking.UI
 
         public bool IsOpen => vendor != null;
 
+        /// <summary>Where bought supplies and gear go: the truck bed at a roadside store with the truck parked close, else your pack.</summary>
+        Backpack Delivery =>
+            vendor != null && vendor.DeliversToTruck && Vehicles.Pickup.Current != null
+            && Vector3.Distance(Vehicles.Pickup.Current.transform.position, vendor.transform.position) < TruckReach
+                ? Vehicles.Pickup.Current.Bed : backpack;
+
+        /// <summary>How close the truck has to be parked for the store to carry purchases out to it, in metres.</summary>
+        const float TruckReach = 80f;
+
         void Start()
         {
             title = UIBuild.Text("", "title");
@@ -126,16 +135,21 @@ namespace Backpacking.UI
             Vendor seller = vendor;
             int price = seller.PriceOf(entry.item);
             string Problem() => entry.quantity == 0 ? "Sold out"
-                : item.Problem(backpack) ?? (backpack.Money < price ? "Not enough money" : null);
+                : item.Problem(backpack, Delivery) ?? (backpack.Money < price ? "Not enough money" : null);
 
             Button buy = UIBuild.Button($"Buy  ${price}", () =>
             {
                 if (Problem() != null || !backpack.TrySpendMoney(price))
                     return;
-                item.ApplyTo(backpack);
+                Backpack into = item.Worn ? backpack : Delivery;
+                item.ApplyTo(into);
                 seller.TakeOneFromStock(entry);
-                if (item.IsGear)
-                    Notifications.Post($"Bought: {item.Name}.");
+                if (into != backpack)
+                    Notifications.Post(item.IsGear ? $"Bought: {item.Name}. It's carried out to your truck bed." : $"Bought: {item.Name}. In the truck bed.", 3f);
+                else if (item.IsGear)
+                    Notifications.Post(item.Worn ? $"Bought: {item.Name}. You put it on." : $"Bought: {item.Name}.");
+                if (into == backpack && backpack.HasPack && backpack.Overfull > 0f)
+                    Notifications.Post("Your pack is over-full: the extra's crammed in and hung off it anyhow. Repack it (Backpack > Repack).", 6f);
             }, "primary");
             buy.style.width = 120f;
             buyBindings.Enabled(buy, () => Problem() == null);

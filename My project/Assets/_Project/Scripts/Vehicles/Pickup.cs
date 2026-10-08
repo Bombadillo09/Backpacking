@@ -35,6 +35,8 @@ namespace Backpacking.Vehicles
         [SerializeField] FirstPersonController player;
         [SerializeField] Vitals vitals;
         [SerializeField] RoadPath road;
+        [Tooltip("What's in the truck bed: everything bought at the outdoor store that isn't packed yet.")]
+        [SerializeField] Backpack bed;
 
         [Header("Parts")]
         [Tooltip("Front left, front right, rear left, rear right.")]
@@ -75,15 +77,29 @@ namespace Backpacking.Vehicles
         float nextRoughMessage;
         readonly List<Collider> playerColliders = new();
 
+        /// <summary>Your truck, wherever it's parked.</summary>
+        public static Pickup Current { get; private set; }
+
         public string DisplayName => "Your pickup";
+        public Backpack Bed => bed;
         public bool Driving { get; private set; }
         /// <summary>For tests: drives with this input (x steer, y throttle) instead of the player's, with no one aboard.</summary>
         public Vector2? ScriptedInput { get; set; }
         public float SpeedKmh => body != null ? Vector3.Dot(body.linearVelocity, transform.forward) * 3.6f : 0f;
         bool OnItsSide => transform.up.y < 0.4f;
 
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics() => Current = null;
+
+        void OnDestroy()
+        {
+            if (Current == this)
+                Current = null;
+        }
+
         void Awake()
         {
+            Current = this;
             body = GetComponent<Rigidbody>();
             InputActionMap map = inputActions.FindActionMap("Player", true);
             move = map.FindAction("Move", true);
@@ -124,6 +140,15 @@ namespace Backpacking.Vehicles
                 return;
             }
             options.Add(new InteractionOption("Drive", GetIn));
+            Backpack pack = interactor.Backpack;
+            if (bed != null && PackingView.Current != null)
+            {
+                string problem = pack.HasPack && !pack.IsWorn ? "Put your pack on first" : null;
+                int things = bed.Contents().Count;
+                string label = !pack.HasPack ? $"Look in the truck bed ({things})"
+                    : things > 0 ? $"Pack your backpack ({things} in the truck bed)" : "Repack, or leave things in the truck bed";
+                options.Add(new InteractionOption(label, () => PackingView.Current.Open(bed), problem));
+            }
         }
 
         // ---------- Getting in and out ----------

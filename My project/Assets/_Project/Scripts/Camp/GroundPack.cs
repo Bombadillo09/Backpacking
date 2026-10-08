@@ -32,8 +32,8 @@ namespace Backpacking.Camp
         {
             if (visual == null)
                 return;
-            visual.Show(backpack.HasMat && backpack.MatRecovery < 1.4f, backpack.HasTent, backpack.HasChair && backpack.ChairInPack,
-                !bottleInHand, backpack.HasMachete && !macheteInHand);
+            backpack.OutsideGear(out bool pad, out bool tent, out bool chair, out bool bottle, out bool machete);
+            visual.Show(pad, tent, chair, bottle && !bottleInHand, machete && !macheteInHand);
             visual.Tint(TentDesign.Of(backpack.TentModel).Fly);
         }
 

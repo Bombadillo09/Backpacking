@@ -94,13 +94,18 @@ namespace Backpacking.Survival
         public float sleepingBagComfort, sleepingBagWeight;
         public List<Garment> clothing = new();
         public List<FoodItem> food = new();
+        // Saves from before packs could be bought carried the trekking pack, and owned whatever stove they had.
+        public int packModel = (int)PackModel.Trekking55;
+        public List<ZoneEntry> zones = new();
+        public bool ownsStove = true;
+        public float bagWetness;
     }
 
     /// <summary>
     /// Everything the player carries, and how heavy it is. The inspector values are the starting kit.
     /// This is a fixed set of supplies plus a food list for the prototype; a general item system comes later.
     /// </summary>
-    public class Backpack : MonoBehaviour
+    public partial class Backpack : MonoBehaviour
     {
         [SerializeField] Vitals vitals;
         [SerializeField] TimeOfDay timeOfDay;
@@ -230,10 +235,6 @@ namespace Backpacking.Survival
         [SerializeField] float hideWeight = 3.5f;
         [SerializeField] float bowWeight = 0.9f;
         [SerializeField] float arrowWeight = 0.03f;
-        [Tooltip("Up to this weight you move freely.")]
-        [SerializeField] float comfortableLoad = 15f;
-        [Tooltip("Above this you're overloaded: very slow and unable to sprint.")]
-        [SerializeField] float maxLoad = 25f;
         [SerializeField, Range(0.1f, 1f)] float speedAtMaxLoad = 0.65f;
         [SerializeField, Range(0.1f, 1f)] float overloadedSpeed = 0.45f;
         [Tooltip("Extra food, water and energy used while walking at max load (0.6 = 60% more).")]
@@ -286,8 +287,10 @@ namespace Backpacking.Survival
         public float SleepingBagComfort => sleepingBagComfort;
         public IReadOnlyList<Garment> Clothing => clothing;
         public float SipLitres => sipLitres;
-        public float ComfortableLoad => comfortableLoad;
-        public float MaxLoad => maxLoad;
+        /// <summary>Up to this weight you move freely; it depends on the pack.</summary>
+        public float ComfortableLoad => Pack.ComfortableLoad;
+        /// <summary>Above this you're overloaded: very slow and unable to sprint.</summary>
+        public float MaxLoad => Pack.MaxLoad;
 
         public float ClothingInsulation
         {
@@ -305,6 +308,12 @@ namespace Backpacking.Survival
 
         void Awake()
         {
+            // The truck bed starts empty; the player's pack starts with the inspector's kit (a new trip empties it).
+            if (IsTruckBed)
+            {
+                EmptyKit(0, streetClothes: false);
+                return;
+            }
             foreach (FoodStack stack in startingFood)
                 AddFood(stack.kind, stack.count);
         }
@@ -360,7 +369,7 @@ namespace Backpacking.Survival
             }
         }
 
-        public bool IsOverloaded => CarriedWeight > maxLoad;
+        public bool IsOverloaded => CarriedWeight > MaxLoad;
 
         /// <summary>How much the load slows walking: 1 when comfortable, lower when heavy.</summary>
         public float LoadSpeedMultiplier
@@ -368,15 +377,16 @@ namespace Backpacking.Survival
             get
             {
                 float weight = CarriedWeight;
-                if (weight > maxLoad)
+                if (weight > MaxLoad)
                     return overloadedSpeed;
-                return Mathf.Lerp(1f, speedAtMaxLoad, Mathf.InverseLerp(comfortableLoad, maxLoad, weight));
+                return Mathf.Lerp(1f, speedAtMaxLoad, Mathf.InverseLerp(ComfortableLoad, MaxLoad, weight));
             }
         }
 
-        /// <summary>Extra effort of walking with this load: 1 when comfortable, more when heavy.</summary>
+        /// <summary>Extra effort of walking with this load: 1 when comfortable, more when heavy or badly packed.</summary>
         public float LoadExertionMultiplier =>
-            1f + exertionAtMaxLoad * Mathf.Clamp01((CarriedWeight - comfortableLoad) / (maxLoad - comfortableLoad)) * (IsOverloaded ? 1.5f : 1f);
+            (1f + exertionAtMaxLoad * Mathf.Clamp01((CarriedWeight - ComfortableLoad) / (MaxLoad - ComfortableLoad)) * (IsOverloaded ? 1.5f : 1f))
+            * BalanceExertion;
 
         // ---------- Money ----------
 
@@ -393,9 +403,12 @@ namespace Backpacking.Survival
 
         public bool HasGarment(string garmentName) => clothing.Exists(garment => garment.name == garmentName);
 
-        /// <summary>Adds a new clothing layer, worn straight away.</summary>
-        public void AddGarment(string garmentName, float insulation, float weight) =>
-            clothing.Add(new Garment(garmentName, insulation, weight, true));
+        /// <summary>The truck bed: a container no one is wearing (it has no vitals).</summary>
+        public bool IsTruckBed => vitals == null;
+
+        /// <summary>Adds a new clothing layer: worn straight away, or in the truck bed, waiting to be packed or put on.</summary>
+        public void AddGarment(string garmentName, float insulation, float weight, bool waterproof = false) =>
+            clothing.Add(new Garment(garmentName, insulation, weight, !IsTruckBed, waterproof));
 
         public void SetSleepingBag(string bagName, float comfort, float weight)
         {
@@ -410,6 +423,13 @@ namespace Backpacking.Survival
             tentModel = model;
             tentShelter = shelter;
             tentWeight = weight;
+        }
+
+        /// <summary>A tent, packed: a new one, or one replacing the tent you have.</summary>
+        public void AddTent(string newTentName, Camp.TentModel model, float shelter, float weight)
+        {
+            SetTent(newTentName, model, shelter, weight);
+            hasTent = true;
         }
 
         public void SetMat(string newMatName, float warmth, float weight, float recovery)
@@ -636,8 +656,9 @@ namespace Backpacking.Survival
                     spoiledThisFrame.Add(item.Info.Name);
             }
 
+            // The truck bed has no one to eat from it (no vitals).
             foreach (string name in spoiledThisFrame)
-                Notifications.Post($"Your {name.ToLowerInvariant()} has spoiled.");
+                Notifications.Post(vitals != null ? $"Your {name.ToLowerInvariant()} has spoiled." : $"The {name.ToLowerInvariant()} in the truck has spoiled.");
         }
 
         // ---------- Water ----------
@@ -757,6 +778,10 @@ namespace Backpacking.Survival
             sleepingBagWeight = sleepingBagWeight,
             clothing = new List<Garment>(clothing),
             food = new List<FoodItem>(food),
+            packModel = (int)packModel,
+            zones = new List<ZoneEntry>(zones),
+            ownsStove = ownsStove,
+            bagWetness = bagWetness,
         };
 
         public void RestoreState(BackpackState state)
@@ -803,6 +828,11 @@ namespace Backpacking.Survival
             sleepingBagWeight = state.sleepingBagWeight;
             clothing = new List<Garment>(state.clothing);
             food = new List<FoodItem>(state.food);
+            packModel = (PackModel)state.packModel;
+            zones = new List<ZoneEntry>(state.zones ?? new List<ZoneEntry>());
+            ownsStove = state.ownsStove || state.hasStove;
+            bagWetness = state.bagWetness;
+            balanceCheckedAt = -1f;
         }
 
         static bool TrySpend(ref int stock, int amount)

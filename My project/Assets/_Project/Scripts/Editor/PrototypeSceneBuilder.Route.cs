@@ -46,17 +46,26 @@ namespace Backpacking.EditorTools
 
         const int Unlimited = -1;
 
-        static readonly VendorSetup OutfitterStock = new()
+        /// <summary>The outdoor store on the road in: everything you need to start, at town prices.</summary>
+        static readonly VendorSetup StarterStock = new()
         {
             PriceMultiplier = 1f,
             SellRate = 0.6f,
             Stock = new[]
             {
-                (ShopItemId.GasCanister, Unlimited), (ShopItemId.Matches, Unlimited), (ShopItemId.TrailMix, Unlimited),
-                (ShopItemId.DehydratedMeal, Unlimited), (ShopItemId.Snare, Unlimited), (ShopItemId.Antibiotics, Unlimited),
-                (ShopItemId.WaterBladder, 1), (ShopItemId.WaterFilter, 1), (ShopItemId.FishingRod, 1), (ShopItemId.WoolHatAndGloves, 1),
-                (ShopItemId.LeatherBoots, 1), (ShopItemId.FoamMat, 3), (ShopItemId.InflatableMat, 1),
-                (ShopItemId.Bandages, Unlimited), (ShopItemId.CampChair, 1),
+                (ShopItemId.UltralightPack, Unlimited), (ShopItemId.TrekkingPack, Unlimited), (ShopItemId.ExpeditionPack, Unlimited),
+                (ShopItemId.OnePersonTent, Unlimited), (ShopItemId.TwoPersonTent, Unlimited),
+                (ShopItemId.SummerBag, Unlimited), (ShopItemId.ThreeSeasonBag, Unlimited),
+                (ShopItemId.FoamMat, Unlimited), (ShopItemId.InflatableMat, Unlimited),
+                (ShopItemId.Stove, Unlimited), (ShopItemId.GasCanister, Unlimited), (ShopItemId.Matches, Unlimited),
+                (ShopItemId.WaterBottle, Unlimited), (ShopItemId.WaterBladder, Unlimited), (ShopItemId.WaterFilter, Unlimited),
+                (ShopItemId.TrailMix, Unlimited), (ShopItemId.DehydratedMeal, Unlimited),
+                (ShopItemId.Bandages, Unlimited), (ShopItemId.Antibiotics, Unlimited),
+                (ShopItemId.BaseLayer, Unlimited), (ShopItemId.Fleece, Unlimited), (ShopItemId.RainShell, Unlimited),
+                (ShopItemId.DownJacket, Unlimited), (ShopItemId.WoolHatAndGloves, Unlimited),
+                (ShopItemId.HikingBoots, Unlimited), (ShopItemId.LeatherBoots, Unlimited),
+                (ShopItemId.Machete, Unlimited), (ShopItemId.FishingKit, Unlimited), (ShopItemId.FishingRod, Unlimited),
+                (ShopItemId.Snare, Unlimited), (ShopItemId.CampChair, Unlimited),
                 (ShopItemId.HuntingBow, 1), (ShopItemId.Arrows, Unlimited),
             },
         };

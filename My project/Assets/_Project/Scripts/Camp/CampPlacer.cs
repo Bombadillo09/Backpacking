@@ -96,9 +96,11 @@ namespace Backpacking.Camp
         public string RequirementProblem(CampItem item) => item switch
         {
             CampItem.Tent => PackHandling.Current != null && PackHandling.Current.TentBag != null ? null
+                : !backpack.OwnsTent ? "You don't have a tent"
                 : backpack.HasTent ? "Take your pack off and take the tent bag out of it first"
                 : "Your tent is already out",
-            CampItem.Stove => !backpack.HasStove ? "Your stove is already out" : GearProblem(),
+            CampItem.Stove => !backpack.OwnsStove ? "You don't have a stove"
+                : !backpack.HasStove ? "Your stove is already out" : GearProblem(),
             CampItem.FireRing => backpack.Firewood >= fireRingFirewood ? null : $"Needs {fireRingFirewood} firewood",
             CampItem.Snare => backpack.Snares <= 0 ? "No snares left" : GearProblem(),
             CampItem.Chair => !backpack.HasChair ? "You don't have a chair. Trading posts sell them"

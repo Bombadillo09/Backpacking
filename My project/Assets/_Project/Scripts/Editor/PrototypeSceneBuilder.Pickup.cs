@@ -2,6 +2,7 @@ using Backpacking.Player;
 using Backpacking.Survival;
 using Backpacking.Vehicles;
 using Backpacking.World;
+using Backpacking.UI;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -116,7 +117,16 @@ namespace Backpacking.EditorTools
                 lights[i] = lamp;
             }
 
+            // The truck bed holds what you've bought and haven't packed: a Backpack with no one wearing it.
+            var bedObject = new GameObject("Truck Bed");
+            bedObject.transform.SetParent(truck.transform, false);
+            bedObject.transform.localPosition = new Vector3(0f, 0.95f, -1.5f);
+            var bed = bedObject.AddComponent<Backpack>();
+            SetField(bed, "timeOfDay", Object.FindAnyObjectByType<TimeOfDay>());
+            SetField(bed, "temperature", Object.FindAnyObjectByType<AmbientTemperature>());
+
             var pickup = truck.AddComponent<Pickup>();
+            SetField(pickup, "bed", bed);
             SetField(pickup, "inputActions", AssetDatabase.LoadAssetAtPath<InputActionAsset>(InputActionsPath));
             SetField(pickup, "player", player);
             SetField(pickup, "vitals", Object.FindAnyObjectByType<Vitals>());
@@ -128,6 +138,21 @@ namespace Backpacking.EditorTools
             SetField(pickup, "driverExit", driverExit);
             SetField(pickup, "passengerExit", passengerExit);
             SetObjectArray(pickup, "headlights", lights);
+
+            var saves = Object.FindAnyObjectByType<Saving.SaveSystem>();
+            SetField(saves, "pickup", pickup);
+            var tutorial = Object.FindAnyObjectByType<Tutorial>();
+            if (tutorial != null)
+            {
+                var guide = tutorial.gameObject.AddComponent<Trip.ArrivalGuide>();
+                SetField(guide, "player", player);
+                SetField(guide, "backpack", player.GetComponent<Backpack>());
+                SetField(guide, "truck", pickup);
+                SetField(guide, "store", storeDoor);
+                SetField(guide, "trailhead", parkingCentre);
+                SetField(guide, "tutorial", tutorial);
+                SetField(saves, "arrival", guide);
+            }
         }
 
         /// <summary>Barely tinted, so the view out isn't hazy; the shine still shows it's glass.</summary>

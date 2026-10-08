@@ -39,6 +39,8 @@ namespace Backpacking.Saving
         [SerializeField] PlayerAvatar avatar;
         [SerializeField] UI.Tutorial tutorial;
         [SerializeField] PackHandling packHandling;
+        [SerializeField] Vehicles.Pickup pickup;
+        [SerializeField] ArrivalGuide arrival;
         [SerializeField] string fileName = "trip.json";
         [Tooltip("How close to a route stop counts as being 'near' it in the save summary, in metres.")]
         [SerializeField] float nearbyDistance = 400f;
@@ -198,6 +200,17 @@ namespace Backpacking.Saving
                 data.clearings.AddRange(clearing.Cleared);
             if (packHandling != null)
                 data.pack = packHandling.CaptureState();
+            if (pickup != null)
+            {
+                data.truck = pickup.CaptureState();
+                if (pickup.Bed != null)
+                    data.truckBed = pickup.Bed.CaptureState();
+            }
+            if (arrival != null)
+            {
+                data.arrivalPhase = (int)arrival.Phase;
+                data.tutorialPending = arrival.TutorialPending;
+            }
 
             foreach ((CampItem kind, GameObject instance) in placer.PlacedItems)
             {
@@ -300,6 +313,16 @@ namespace Backpacking.Saving
             // Older saves have no pack state: it's on your back.
             if (packHandling != null)
                 packHandling.RestoreState(data.pack);
+            // Older saves have no truck: it stays parked at home, empty.
+            if (pickup != null)
+            {
+                if (pickup.Bed != null && data.truckBed != null)
+                    pickup.Bed.RestoreState(data.truckBed);
+                if (data.truck != null)
+                    pickup.RestoreState(data.truck);
+            }
+            if (arrival != null)
+                arrival.Restore(data.arrivalPhase, data.tutorialPending);
 
             Notifications.Post($"Welcome back. {data.summary}.");
         }

@@ -20,7 +20,7 @@ namespace Backpacking.Camp
             string treatment = backpack.HasWaterFilter ? "filtered" : "untreated";
             options.Add(new InteractionOption($"Fill water bottle (+{space:0.0} L {treatment})", () =>
                 interactor.Activity.Begin("Filling water bottle", fillMinutes, () => backpack.FillFromSource()),
-                space <= 0.01f ? "Bottle is full" : null));
+                backpack.WaterCapacity <= 0f ? "You have no water bottle" : space <= 0.01f ? "Bottle is full" : null));
             options.Add(new InteractionOption($"Drink straight from the water ({treatment})", () =>
                 backpack.DrinkFromSource(drinkLitres)));
             // The rod lives in the pack, like the rest of the camp gear.

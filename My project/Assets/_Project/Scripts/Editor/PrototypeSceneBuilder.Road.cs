@@ -45,6 +45,8 @@ namespace Backpacking.EditorTools
         /// <summary>The road for the scene being built, as a path like the trail.</summary>
         static Trail currentRoad;
         static Place home, store, parking;
+        /// <summary>In front of the store's door, and the middle of the trailhead parking: for the arrival guide.</summary>
+        static Transform storeDoor, parkingCentre;
 
         static IEnumerable<Place> Places()
         {
@@ -668,9 +670,10 @@ namespace Backpacking.EditorTools
             var vendor = counter.AddComponent<Vendor>();
             AddSaveId(counter, $"vendor-{TripLog.Outfitter}");
             SetString(vendor, "vendorName", TripLog.Outfitter);
-            SetFloat(vendor, "priceMultiplier", OutfitterStock.PriceMultiplier);
-            SetFloat(vendor, "sellRate", OutfitterStock.SellRate);
-            SetStock(vendor, OutfitterStock.Stock);
+            SetFloat(vendor, "priceMultiplier", StarterStock.PriceMultiplier);
+            SetFloat(vendor, "sellRate", StarterStock.SellRate);
+            SetStock(vendor, StarterStock.Stock);
+            SetBool(vendor, "deliversToTruck", true);
 
             // Shelving along both side walls, stocked with boxes and bundles of gear.
             var random = new System.Random(Seed + 11);
@@ -706,6 +709,7 @@ namespace Backpacking.EditorTools
             SetEnum(point, "kind", (int)NavigationPointKind.TradingPost);
             SetBool(point, "visited", true);
             AddSaveId(pointObject, $"point-{TripLog.Outfitter}");
+            storeDoor = pointObject.transform;
         }
 
         static void AddSignText(GameObject root, string text, Vector3 position, float characterSize)
@@ -737,6 +741,9 @@ namespace Backpacking.EditorTools
             Material timber = GetOrCreateMaterial("Timber", new Color(0.42f, 0.3f, 0.19f));
             Material roof = GetOrCreateMaterial("RoofShingles", new Color(0.25f, 0.22f, 0.2f));
             Material board = GetOrCreateMaterial("NoticeBoard", new Color(0.2f, 0.3f, 0.22f));
+            parkingCentre = new GameObject("Trailhead Parking").transform;
+            parkingCentre.SetParent(parent, false);
+            parkingCentre.position = OnGround(terrain, place.Centre);
 
             // The trail leaves the lot to the north, toward the first cairn.
             Vector2 north = Vector2.up, east = Vector2.right;

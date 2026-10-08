@@ -59,7 +59,8 @@ namespace Backpacking.UI
             yield return new WaitForSeconds(2.5f);
 
             player = FindAnyObjectByType<FirstPersonController>();
-            backpack = FindAnyObjectByType<Backpack>();
+            // The player's pack, not the truck bed (which is a Backpack too).
+            backpack = FindAnyObjectByType<Player.FirstPersonController>().GetComponent<Backpack>();
             timeOfDay = FindAnyObjectByType<TimeOfDay>();
             backpack.AddBow();
             backpack.AddArrows(12);
