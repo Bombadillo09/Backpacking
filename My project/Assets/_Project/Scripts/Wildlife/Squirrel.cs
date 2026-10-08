@@ -116,7 +116,7 @@ namespace Backpacking.Wildlife
                     if (distance < calmDistance * 0.8f && Time.time > nextChatter)
                     {
                         nextChatter = Time.time + Random.Range(3f, 8f);
-                        voice.PlayOneShot(SoundSynth.Chatter(), Random.Range(0.5f, 0.8f));
+                        voice.PlayOneShot(Sounds.Chatter(), Random.Range(0.5f, 0.8f));
                     }
                     calmTimer = distance > calmDistance ? calmTimer + Time.deltaTime : 0f;
                     if (calmTimer > 6f)
@@ -152,7 +152,7 @@ namespace Backpacking.Wildlife
             hasTree = TreeIndex.Nearest(transform.position, 25f, out tree);
             Enter(State.Fleeing);
             if (Random.value < 0.5f)
-                voice.PlayOneShot(SoundSynth.Chatter(), 0.4f);
+                voice.PlayOneShot(Sounds.Chatter(), 0.4f);
         }
 
         /// <summary>A short scamper to a new spot nearby, staying around its tree.</summary>

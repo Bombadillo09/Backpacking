@@ -7,9 +7,8 @@ using Random = System.Random;
 namespace Backpacking.Audio
 {
     /// <summary>
-    /// Placeholder sounds generated in code, so the game has audio before real recordings are added.
-    /// Every component that uses one also has a clip slot; a recording put there replaces the generated sound.
-    /// Clips are made on first use and cached.
+    /// Placeholder sounds generated in code, used by <see cref="Sounds"/> for any sound that has no field
+    /// recording yet. Clips are made on first use and cached.
     /// </summary>
     public static class SoundSynth
     {

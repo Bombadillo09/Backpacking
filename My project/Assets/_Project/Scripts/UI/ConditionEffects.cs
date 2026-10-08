@@ -33,7 +33,7 @@ namespace Backpacking.UI
         [SerializeField] float maxSway = 2.5f;
 
         [Header("Sound")]
-        [Tooltip("Leave empty to use a generated heartbeat.")]
+        [Tooltip("Leave empty to use the recorded (or generated) heartbeat.")]
         [SerializeField] AudioClip heartbeatClip;
         [SerializeField, Range(0f, 1f)] float heartbeatVolume = 0.8f;
 
@@ -60,7 +60,7 @@ namespace Backpacking.UI
             heartbeat = gameObject.AddComponent<AudioSource>();
             heartbeat.playOnAwake = false;
             heartbeat.spatialBlend = 0f;
-            heartbeat.clip = heartbeatClip != null ? heartbeatClip : SoundSynth.Heartbeat();
+            heartbeat.clip = heartbeatClip != null ? heartbeatClip : Sounds.Heartbeat();
         }
 
         void OnDestroy()

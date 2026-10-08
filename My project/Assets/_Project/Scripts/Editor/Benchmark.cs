@@ -1,5 +1,7 @@
 using System.IO;
 using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine.SceneManagement;
 
 namespace Backpacking.EditorTools
 {
@@ -12,6 +14,7 @@ namespace Backpacking.EditorTools
     public static class Benchmark
     {
         const string LabelPath = "Temp/backpacking-benchmark-label";
+        const string ScenePath = "Assets/_Project/Scenes/Prototype.unity";
 
         // Back in the editor after a run, the project's own run-in-background setting goes back as it was.
         static Benchmark() => EditorApplication.playModeStateChanged += state =>
@@ -33,6 +36,9 @@ namespace Backpacking.EditorTools
             if (!EditorPrefs.HasKey(UI.Benchmark.RunInBackgroundKey))
                 EditorPrefs.SetBool(UI.Benchmark.RunInBackgroundKey, PlayerSettings.runInBackground);
             PlayerSettings.runInBackground = true;
+            // The editor may have come up on another scene (e.g. after a batch-mode run).
+            if (SceneManager.GetActiveScene().path != ScenePath)
+                EditorSceneManager.OpenScene(ScenePath);
             EditorApplication.EnterPlaymode();
             return $"Entering Play mode for benchmark \"{label}\"; results in {UI.Benchmark.LogPath}.";
         }

@@ -252,7 +252,7 @@ namespace Backpacking.Wildlife
             animal.transform.position = position;
             // A little size variety.
             animal.transform.localScale *= Random.Range(0.85f, 1.15f);
-            animal.AddComponent<Animal>().Initialise(isRabbit ? rabbit : deer, player, isRabbit ? null : SoundSynth.Snort());
+            animal.AddComponent<Animal>().Initialise(isRabbit ? rabbit : deer, player, isRabbit ? null : Sounds.DeerAlarm());
             return animal;
         }
 
@@ -296,7 +296,7 @@ namespace Backpacking.Wildlife
                 bird.transform.SetPositionAndRotation(at, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
                 members.Add(bird);
             }
-            flock.AddComponent<BirdFlock>().Initialise(player, timeOfDay, members, SoundSynth.Flutter());
+            flock.AddComponent<BirdFlock>().Initialise(player, timeOfDay, members, Sounds.Flutter());
             return flock;
         }
     }

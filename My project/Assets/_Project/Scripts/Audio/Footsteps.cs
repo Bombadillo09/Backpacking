@@ -18,7 +18,7 @@ namespace Backpacking.Audio
         public class SurfaceClips
         {
             public Surface surface;
-            [Tooltip("Leave empty to use generated placeholder steps.")]
+            [Tooltip("Leave empty to use the recorded (or generated) steps.")]
             public AudioClip[] clips;
         }
 
@@ -94,12 +94,7 @@ namespace Backpacking.Audio
                     if (entry.surface == surface && entry.clips != null && entry.clips.Length > 0)
                         return entry.clips[Random.Range(0, entry.clips.Length)];
 
-            // Never the same variant twice in a row.
-            int variant = Random.Range(0, SoundSynth.FootstepVariants - 1);
-            if (variant >= lastVariant)
-                variant++;
-            lastVariant = variant;
-            return SoundSynth.Footstep(surface, variant);
+            return Sounds.Footstep(surface, ref lastVariant);
         }
 
         Surface SurfaceUnderfoot()

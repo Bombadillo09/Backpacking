@@ -8,8 +8,8 @@ namespace Backpacking.Audio
 {
     /// <summary>
     /// The sound of the world around the player: wind that follows the weather, rain (muffled inside the
-    /// tent), birds by day with a dawn chorus, crickets on mild evenings, thunder after each lightning strike and water
-    /// lapping at lakes. Leave any clip empty to use a generated placeholder.
+    /// tent), birds by day with a dawn chorus, crickets on mild evenings, owls after dark, thunder after each lightning strike and water
+    /// lapping at lakes. Leave any clip empty to use the recordings in Resources/Sounds (or a generated placeholder).
     /// </summary>
     public class AmbienceAudio : MonoBehaviour
     {
@@ -18,7 +18,7 @@ namespace Backpacking.Audio
         [SerializeField] AmbientTemperature temperature;
         [SerializeField] Vitals vitals;
 
-        [Header("Clips (empty = generated placeholder)")]
+        [Header("Clips (empty = recording, else generated)")]
         [SerializeField] AudioClip windClip;
         [SerializeField] AudioClip rainClip;
         [SerializeField] AudioClip cricketsClip;
@@ -33,10 +33,13 @@ namespace Backpacking.Audio
         [SerializeField, Range(0f, 1f)] float birdVolume = 0.5f;
         [SerializeField, Range(0f, 1f)] float thunderVolume = 0.9f;
         [SerializeField, Range(0f, 1f)] float waterVolume = 0.45f;
+        [SerializeField, Range(0f, 1f)] float owlVolume = 0.5f;
 
         [Header("Wildlife")]
         [Tooltip("Bird calls per real minute in full daylight. The dawn chorus triples it.")]
         [SerializeField] float birdCallsPerMinute = 8f;
+        [Tooltip("Owl hoots per real minute in full darkness.")]
+        [SerializeField] float owlCallsPerMinute = 1.2f;
         [Tooltip("Air temperature (°C) range over which crickets go from silent to full song.")]
         [SerializeField] Vector2 cricketTemperature = new(4f, 11f);
         [Tooltip("Speed of sound, m/s: thunder arrives this long after the flash.")]
@@ -45,6 +48,7 @@ namespace Backpacking.Audio
         AudioSource wind, rain, crickets;
         AudioLowPassFilter rainMuffle;
         AudioSource[] birds;
+        AudioSource owl;
         int nextBird;
         // Two thunder voices, so a new clap can start while the last still rolls.
         readonly AudioSource[] thunder = new AudioSource[2];
@@ -54,10 +58,10 @@ namespace Backpacking.Audio
 
         void Start()
         {
-            wind = CreateLoop("Wind", windClip != null ? windClip : SoundSynth.Wind());
-            rain = CreateLoop("Rain", rainClip != null ? rainClip : SoundSynth.Rain());
+            wind = CreateLoop("Wind", windClip != null ? windClip : Sounds.Wind());
+            rain = CreateLoop("Rain", rainClip != null ? rainClip : Sounds.Rain());
             rainMuffle = rain.gameObject.AddComponent<AudioLowPassFilter>();
-            crickets = CreateLoop("Crickets", cricketsClip != null ? cricketsClip : SoundSynth.Crickets());
+            crickets = CreateLoop("Crickets", cricketsClip != null ? cricketsClip : Sounds.Crickets());
             for (int i = 0; i < thunder.Length; i++)
             {
                 thunder[i] = CreateSource($"Thunder {i}", transform);
@@ -72,8 +76,10 @@ namespace Backpacking.Audio
                 birds[i] = CreateSource($"Bird {i}", birdRoot);
                 MakeSpatial(birds[i], 8f, 90f);
             }
+            owl = CreateSource("Owl", birdRoot);
+            MakeSpatial(owl, 15f, 160f);
 
-            AudioClip water = waterClip != null ? waterClip : SoundSynth.Water();
+            AudioClip water = waterClip != null ? waterClip : Sounds.Water();
             foreach (WaterSource lake in FindObjectsByType<WaterSource>())
                 AddLakeSound(lake, water);
         }
@@ -97,6 +103,7 @@ namespace Backpacking.Audio
             Fade(crickets, cricketsVolume * night * warmth * (1f - rainAmount) * (1f - 0.7f * windiness));
 
             UpdateBirds(rainAmount, windiness);
+            UpdateOwls(rainAmount, windiness);
             UpdateThunder();
         }
 
@@ -122,7 +129,24 @@ namespace Backpacking.Audio
         {
             if (birdClips != null && birdClips.Length > 0)
                 return birdClips[Random.Range(0, birdClips.Length)];
-            return SoundSynth.BirdCall(Random.Range(0, SoundSynth.BirdVariants));
+            return Sounds.BirdCall();
+        }
+
+        /// <summary>Now and then after dark, an owl hoots from somewhere out in the woods.</summary>
+        void UpdateOwls(float rainAmount, float windiness)
+        {
+            float night = 1f - timeOfDay.Daylight;
+            float rate = owlCallsPerMinute * night * night * (1f - rainAmount) * (1f - 0.7f * windiness);
+            if (Random.value >= rate / 60f * Time.deltaTime)
+                return;
+            AudioClip hoot = Sounds.Owl();
+            if (hoot == null)
+                return;
+
+            Vector2 direction = Random.insideUnitCircle.normalized * Random.Range(30f, 80f);
+            owl.transform.position = transform.position + new Vector3(direction.x, Random.Range(6f, 14f), direction.y);
+            owl.pitch = Random.Range(0.96f, 1.04f);
+            owl.PlayOneShot(hoot, owlVolume * Random.Range(0.6f, 1f));
         }
 
         /// <summary>A lightning strike <paramref name="distance"/> metres away: its thunder follows once the sound arrives.</summary>
@@ -142,7 +166,7 @@ namespace Backpacking.Audio
                 thunderMuffle[nextThunder].cutoffFrequency = Mathf.Lerp(12000f, 700f, Mathf.Sqrt(far));
                 nextThunder = (nextThunder + 1) % thunder.Length;
                 voice.pitch = Mathf.Lerp(1.2f, 0.7f, far) * Random.Range(0.92f, 1.08f);
-                voice.PlayOneShot(thunderClip != null ? thunderClip : SoundSynth.Thunder(), thunderVolume * Mathf.Lerp(1f, 0.3f, far));
+                voice.PlayOneShot(thunderClip != null ? thunderClip : Sounds.Thunder(), thunderVolume * Mathf.Lerp(1f, 0.3f, far));
             }
         }
 

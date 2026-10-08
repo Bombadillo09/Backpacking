@@ -34,7 +34,7 @@ namespace Backpacking.Camp
         [SerializeField] float downpourExtraBurn = 1f;
 
         [Header("Sound")]
-        [Tooltip("Leave empty to use a generated crackle.")]
+        [Tooltip("Leave empty to use the recorded (or generated) crackle.")]
         [SerializeField] AudioClip crackleClip;
         [SerializeField, Range(0f, 1f)] float crackleVolume = 0.7f;
 
@@ -66,7 +66,7 @@ namespace Backpacking.Camp
             baseLightIntensity = fireLight.intensity;
 
             crackle = gameObject.AddComponent<AudioSource>();
-            crackle.clip = crackleClip != null ? crackleClip : SoundSynth.Fire();
+            crackle.clip = crackleClip != null ? crackleClip : Sounds.Fire();
             crackle.loop = true;
             crackle.playOnAwake = false;
             crackle.spatialBlend = 1f;

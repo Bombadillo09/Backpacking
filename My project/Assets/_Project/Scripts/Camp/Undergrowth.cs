@@ -104,10 +104,10 @@ namespace Backpacking.Camp
             Vector3 ahead = player.transform.position + player.transform.forward * reach;
             int cut = clearing.Chop(ahead, vitals);
             source.pitch = Random.Range(0.9f, 1.1f);
-            source.PlayOneShot(SoundSynth.Swish(), volume * 0.6f);
+            source.PlayOneShot(Sounds.Swish(), volume * 0.6f);
             if (cut > 0)
             {
-                source.PlayOneShot(SoundSynth.Chop(Random.Range(0, SoundSynth.ChopVariants)), volume);
+                source.PlayOneShot(Sounds.Chop(), volume);
                 if (Random.value < cutChance * (vitals.IsExhausted ? 3f : 1f))
                     vitals.Cut();
             }
