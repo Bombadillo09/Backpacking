@@ -78,6 +78,11 @@ namespace Backpacking.Player
 
         bool cursorWasNeeded;
         bool invertY;
+        float mountedYaw;
+        Vector3 mountedEye;
+
+        /// <summary>How far you can turn your head from facing forward in a vehicle seat, in degrees.</summary>
+        const float MountedYawLimit = 120f;
 
         public bool IsGrounded => controller.isGrounded;
         public bool IsSprinting { get; private set; }
@@ -99,6 +104,9 @@ namespace Backpacking.Player
         public Vector3 AimOrigin => cameraPivot.position + cameraPivot.forward * (ThirdPerson ? cameraDistance : 0f);
         public float WalkSpeed => walkSpeed;
         public Transform CameraPivot => cameraPivot;
+        /// <summary>The vehicle seat you're sitting in, or null. See <see cref="MountAt"/>.</summary>
+        public Transform Mount { get; private set; }
+        public bool Mounted => Mount != null;
 
         /// <summary>Scales all movement speeds, e.g. when exhausted. Set by other systems.</summary>
         public float SpeedMultiplier { get; set; } = 1f;
@@ -169,8 +177,14 @@ namespace Backpacking.Player
             if (GameInput.ToggleViewPressed && !PlayerControlLock.CursorNeeded)
                 ThirdPerson = !ThirdPerson;
             bool locked = PlayerControlLock.MovementLocked;
-            if (!locked && Cursor.lockState == CursorLockMode.Locked)
+            // A vehicle locks walking while you drive, but you can still look around the cab.
+            if ((!locked || Mounted) && Cursor.lockState == CursorLockMode.Locked)
                 Look();
+            if (Mounted)
+            {
+                seatedAmount = 1f;
+                return;
+            }
             if (!locked && !Seated)
                 UpdateCrouch();
             Move(locked || Seated);
@@ -180,24 +194,33 @@ namespace Backpacking.Player
         // After everything that moves the view this frame (head bob, shivering) has had its say.
         void LateUpdate()
         {
-            Vector3 eye = new Vector3(0f, Mathf.Lerp(eyeHeight, SeatedEyeHeightNow, Mathf.SmoothStep(0f, 1f, seatedAmount)), 0f) + BobPosition;
-            Quaternion look = Quaternion.Euler(pitch + ViewOffset.y + AimSway.y + BobRotation.x, ViewOffset.x + AimSway.x + BobRotation.y, ViewOffset.z + BobRotation.z);
+            Vector3 eye = Mounted ? mountedEye
+                : new Vector3(0f, Mathf.Lerp(eyeHeight, SeatedEyeHeightNow, Mathf.SmoothStep(0f, 1f, seatedAmount)), 0f) + BobPosition;
+            Quaternion look = Quaternion.Euler(pitch + ViewOffset.y + AimSway.y + BobRotation.x, mountedYaw + ViewOffset.x + AimSway.x + BobRotation.y, ViewOffset.z + BobRotation.z);
             cameraPivot.localRotation = look;
             cameraPivot.localPosition = ThirdPerson ? eye + look * ThirdPersonOffset(eye, look) : eye;
             if (!ThirdPerson)
                 cameraDistance = 0f;
         }
 
-        /// <summary>Pulls the camera in when trees, rocks or the ground come between it and the player.</summary>
+        /// <summary>
+        /// Pulls the camera in when trees, rocks or the ground come between it and the player. In a vehicle it
+        /// pulls further back to show the whole vehicle, and the vehicle itself doesn't count as in the way.
+        /// </summary>
         Vector3 ThirdPersonOffset(Vector3 eye, Quaternion look)
         {
-            float wanted = thirdPersonOffset.magnitude;
-            Vector3 direction = thirdPersonOffset / wanted;
+            Vector3 offset = Mounted ? MountedThirdPersonOffset : thirdPersonOffset;
+            float wanted = offset.magnitude;
+            Vector3 direction = offset / wanted;
             Vector3 origin = transform.TransformPoint(eye);
             Vector3 worldDirection = transform.rotation * (look * direction);
             float allowed = wanted;
-            if (Physics.SphereCast(origin, 0.2f, worldDirection, out RaycastHit hit, wanted, ~0, QueryTriggerInteraction.Ignore))
-                allowed = Mathf.Max(thirdPersonMinDistance, hit.distance - 0.1f);
+            foreach (RaycastHit hit in Physics.SphereCastAll(origin, 0.2f, worldDirection, wanted, ~0, QueryTriggerInteraction.Ignore))
+            {
+                if (Mounted && hit.transform.IsChildOf(Mount.root))
+                    continue;
+                allowed = Mathf.Min(allowed, Mathf.Max(thirdPersonMinDistance, hit.distance - 0.1f));
+            }
             // Snap in quickly so nothing clips, ease back out.
             cameraDistance = allowed < cameraDistance ? allowed : Mathf.MoveTowards(cameraDistance, allowed, 4f * Time.deltaTime);
             return direction * cameraDistance;
@@ -211,8 +234,51 @@ namespace Backpacking.Player
             if (invertY)
                 delta.y = -delta.y;
 
-            transform.Rotate(0f, delta.x, 0f);
+            if (Mounted)
+                mountedYaw = Mathf.Clamp(mountedYaw + delta.x, -MountedYawLimit, MountedYawLimit);
+            else
+                transform.Rotate(0f, delta.x, 0f);
             pitch = Mathf.Clamp(pitch - delta.y, -maxPitch, maxPitch);
+        }
+
+        /// <summary>Camera position behind the eyes in third person while in a vehicle: far enough back to see all of it.</summary>
+        static readonly Vector3 MountedThirdPersonOffset = new(0.6f, 1.1f, -6.5f);
+
+        /// <summary>
+        /// Sits you in a vehicle seat: you ride along with it, facing forward, eyes at <paramref name="eye"/>
+        /// (local to the seat). Walking stops; you can still look around. <see cref="Dismount"/> to get out.
+        /// </summary>
+        public void MountAt(Transform seat, Vector3 eye)
+        {
+            controller.enabled = false;
+            horizontalVelocity = Vector3.zero;
+            verticalVelocity = 0f;
+            IsSprinting = false;
+            IsCrouching = false;
+            transform.SetParent(seat, false);
+            transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+            Mount = seat;
+            mountedEye = eye;
+            mountedYaw = 0f;
+            pitch = 0f;
+            Seated = true;
+        }
+
+        /// <summary>Gets out of the vehicle, standing at <paramref name="position"/> facing <paramref name="facing"/>.</summary>
+        public void Dismount(Vector3 position, Quaternion facing)
+        {
+            if (!Mounted)
+                return;
+            transform.SetParent(null, true);
+            transform.SetPositionAndRotation(position, Quaternion.Euler(0f, facing.eulerAngles.y + mountedYaw, 0f));
+            Mount = null;
+            mountedYaw = 0f;
+            Seated = false;
+            seatedAmount = 0f;
+            controller.height = standingHeight;
+            controller.center = new Vector3(0f, standingHeight * 0.5f, 0f);
+            eyeHeight = standingHeight - eyeOffsetFromTop;
+            controller.enabled = true;
         }
 
         void Move(bool locked)

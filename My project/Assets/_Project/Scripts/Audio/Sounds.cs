@@ -43,6 +43,9 @@ namespace Backpacking.Audio
         public static AudioClip Swish() => Any("Swish") ?? SoundSynth.Swish();
         public static AudioClip Chop() => Any("Chop") ?? SoundSynth.Chop(Random.Range(0, SoundSynth.ChopVariants));
         public static AudioClip Heartbeat() => Any("Heartbeat") ?? SoundSynth.Heartbeat();
+        /// <summary>The pickup's engine at idle, loopable; pitched up with the revs.</summary>
+        public static AudioClip Engine() => Any("Engine") ?? SoundSynth.Engine();
+        public static AudioClip DoorShut() => Any("DoorShut") ?? SoundSynth.DoorShut();
         public static AudioClip BowDraw() => Any("BowDraw");
         public static AudioClip BowRelease() => Any("BowRelease") ?? SoundSynth.Swish();
         public static AudioClip ArrowHit() => Any("ArrowHit") ?? SoundSynth.Chop(0);

@@ -186,7 +186,8 @@ namespace Backpacking.Trip
             Vector3 moved = position - lastPosition;
             moved.y = 0f;
             lastPosition = position;
-            if (moved.magnitude < teleportDistance && !activity.IsSleeping)
+            // Driving isn't walking.
+            if (moved.magnitude < teleportDistance && !activity.IsSleeping && !player.Mounted)
             {
                 state.distance += moved.magnitude;
                 state.dayDistance += moved.magnitude;

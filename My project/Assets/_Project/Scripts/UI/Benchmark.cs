@@ -177,7 +177,7 @@ namespace Backpacking.UI
 
             var player = FindAnyObjectByType<FirstPersonController>();
             var controller = player.GetComponent<CharacterController>();
-            var spots = new List<(string name, Vector3 position)> { ("Trailhead (start)", player.transform.position) };
+            var spots = new List<(string name, Vector3 position)> { ("Home (start)", player.transform.position) };
             List<NavigationPoint> route = NavigationPoint.All.OrderBy(point => Vector3.Distance(point.transform.position, player.transform.position)).ToList();
             if (route.Count > 2)
                 spots.Add(($"Woods near {route[route.Count / 2].DisplayName}", route[route.Count / 2].transform.position + new Vector3(25f, 0f, 15f)));

@@ -123,7 +123,7 @@ namespace Backpacking.EditorTools
             RouteStop trailhead = route.Stops[0];
 
             home = new Place { Name = "Home", Centre = Normalised(0.2f, 0.046f), LotRadius = 14f, MeadowRadius = 45f };
-            store = new Place { Name = TripLog.Outfitter, Centre = Normalised(0.355f, 0.05f), LotRadius = 24f, MeadowRadius = 60f };
+            store = new Place { Name = TripLog.Outfitter, Centre = Normalised(0.355f, 0.05f), LotRadius = 18f, MeadowRadius = 55f };
             parking = new Place { Name = "Trailhead parking", Centre = Normalised(trailhead.U, trailhead.V) + new Vector2(0f, -32f), LotRadius = 13f, MeadowRadius = 40f };
 
             foreach (Place place in Places())
@@ -276,6 +276,18 @@ namespace Backpacking.EditorTools
                 points[i] = OnGround(terrain, currentRoad.Points[i]);
             SetVector3Array(path, "points", points);
             SetRoadPlaces(path, terrain);
+            SetFloat(path, "halfWidth", RoadHalfWidth);
+            Modify(path, "lots", property =>
+            {
+                var lots = new List<Place>(Places());
+                property.arraySize = lots.Count;
+                for (int i = 0; i < lots.Count; i++)
+                {
+                    SerializedProperty entry = property.GetArrayElementAtIndex(i);
+                    entry.FindPropertyRelative("centre").vector3Value = OnGround(terrain, lots[i].Centre);
+                    entry.FindPropertyRelative("radius").floatValue = lots[i].LotRadius;
+                }
+            });
 
             List<(Vector2 position, Vector2 forward, float along)> samples = ResampleTrail(currentRoad.Points, TrailStripSpacing);
             const int perChunk = 400;
@@ -431,6 +443,22 @@ namespace Backpacking.EditorTools
 
         // ---------- Home ----------
 
+        /// <summary>The cabin stands this far back from the middle of the home lot, behind the end of the road.</summary>
+        const float HomeCabinBack = 9f;
+        const float CabinFloorTop = 0.3f;
+
+        /// <summary>Where the trip starts: inside the cabin, facing the door. Null if there's no home.</summary>
+        static Vector3? HomeSpawn(Terrain terrain, out Quaternion facing)
+        {
+            facing = Quaternion.identity;
+            if (home == null)
+                return null;
+            Vector2 along = home.RoadDirection;
+            Vector3 cabin = OnGround(terrain, home.Centre - along * HomeCabinBack);
+            facing = Quaternion.LookRotation(new Vector3(along.x, 0f, along.y));
+            return cabin + Vector3.up * (CabinFloorTop + 0.05f) + facing * new Vector3(0.3f, 0f, 0.3f);
+        }
+
         /// <summary>
         /// A one-room timber cabin at the end of the road: bed, table, kitchen counter and a lamp. The door faces
         /// down the road (local +Z).
@@ -438,7 +466,7 @@ namespace Backpacking.EditorTools
         static void CreateHome(Place place, Terrain terrain, Transform parent)
         {
             Vector2 along = place.RoadDirection;
-            GameObject cabin = PlaceBuilding("Home", place, new Vector2(-9f, 0f), along, terrain, parent);
+            GameObject cabin = PlaceBuilding("Home", place, new Vector2(-HomeCabinBack, 0f), along, terrain, parent);
             AddSaveId(cabin, "home");
 
             Material walls = GetOrCreateMaterial("CabinWalls", new Color(0.5f, 0.36f, 0.24f));
@@ -451,7 +479,7 @@ namespace Backpacking.EditorTools
             Material rug = GetOrCreateMaterial("Rug", new Color(0.3f, 0.4f, 0.5f));
             Material metal = GetOrCreateMaterial("DarkMetal", new Color(0.18f, 0.18f, 0.19f), 0.5f);
 
-            const float width = 6f, depth = 5f, floorTop = 0.3f, wallHeight = 2.6f, wall = 0.15f;
+            const float width = 6f, depth = 5f, floorTop = CabinFloorTop, wallHeight = 2.6f, wall = 0.15f;
             const float doorX = 0.8f, doorWidth = 1.1f, doorHeight = 2.1f;
             BuildRoom(cabin, width, depth, floorTop, wallHeight, wall, doorX, doorWidth, doorHeight, walls, floor);
             // Step up to the door.
@@ -497,12 +525,12 @@ namespace Backpacking.EditorTools
 
             AddLamp(cabin, new Vector3(0f, top - 0.3f, 0f), 7f, 1.6f);
 
-            // A mailbox by the road.
+            // A mailbox by the road, across from where the truck is parked.
             Vector2 side = new(-along.y, along.x);
-            Vector2 mailboxXZ = place.Centre + along * 4f + side * (RoadHalfWidth + 1.2f);
+            Vector2 mailboxXZ = place.Centre + along * 4f - side * (RoadHalfWidth + 1.2f);
             var mailbox = new GameObject("Mailbox");
             mailbox.transform.SetParent(parent, false);
-            mailbox.transform.SetPositionAndRotation(OnGround(terrain, mailboxXZ), Quaternion.LookRotation(new Vector3(-side.x, 0f, -side.y)));
+            mailbox.transform.SetPositionAndRotation(OnGround(terrain, mailboxXZ), Quaternion.LookRotation(new Vector3(side.x, 0f, side.y)));
             AddSolid(PrimitiveType.Cube, mailbox, new Vector3(0f, 0.55f, 0f), Quaternion.identity, new Vector3(0.1f, 1.1f, 0.1f), floor);
             AddVisual(PrimitiveType.Cube, mailbox, new Vector3(0f, 1.2f, 0.05f), Quaternion.identity, new Vector3(0.25f, 0.25f, 0.5f), metal);
         }
@@ -552,10 +580,14 @@ namespace Backpacking.EditorTools
         {
             Quaternion rotation = Quaternion.Euler(0f, yaw, 0f);
             AddVisual(PrimitiveType.Cube, root, centre, rotation, new Vector3(size.x, size.y, 0.26f), glass);
-            // Frame: sill, head and a centre bar.
-            AddVisual(PrimitiveType.Cube, root, centre, rotation, new Vector3(size.x + 0.14f, 0.07f, 0.28f), frame);
+            // Frame: sill, head, sides and a cross.
+            Vector3 across = rotation * Vector3.right;
             AddVisual(PrimitiveType.Cube, root, centre + Vector3.up * (size.y / 2f + 0.035f), rotation, new Vector3(size.x + 0.14f, 0.07f, 0.28f), frame);
             AddVisual(PrimitiveType.Cube, root, centre - Vector3.up * (size.y / 2f + 0.035f), rotation, new Vector3(size.x + 0.14f, 0.07f, 0.28f), frame);
+            AddVisual(PrimitiveType.Cube, root, centre + across * (size.x / 2f + 0.035f), rotation, new Vector3(0.07f, size.y, 0.28f), frame);
+            AddVisual(PrimitiveType.Cube, root, centre - across * (size.x / 2f + 0.035f), rotation, new Vector3(0.07f, size.y, 0.28f), frame);
+            AddVisual(PrimitiveType.Cube, root, centre, rotation, new Vector3(size.x, 0.05f, 0.27f), frame);
+            AddVisual(PrimitiveType.Cube, root, centre, rotation, new Vector3(0.05f, size.y, 0.27f), frame);
         }
 
         static void AddLamp(GameObject root, Vector3 position, float range, float intensity)
@@ -592,7 +624,7 @@ namespace Backpacking.EditorTools
         static void CreateStore(Place place, Terrain terrain, Transform parent)
         {
             Vector2 along = place.RoadDirection, side = new(-along.y, along.x);
-            GameObject building = PlaceBuilding(TripLog.Outfitter, place, new Vector2(0f, 12f), -side, terrain, parent);
+            GameObject building = PlaceBuilding(TripLog.Outfitter, place, new Vector2(0f, 11f), -side, terrain, parent);
 
             Material walls = GetOrCreateMaterial("StoreWalls", new Color(0.32f, 0.38f, 0.3f));
             Material floor = GetOrCreateMaterial("StoreFloor", new Color(0.55f, 0.45f, 0.33f));

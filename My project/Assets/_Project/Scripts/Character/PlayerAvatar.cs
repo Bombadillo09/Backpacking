@@ -97,8 +97,10 @@ namespace Backpacking.Character
                 backpack = GetComponent<Survival.Backpack>();
             if (backpack != null)
             {
-                appearance.SetPackWorn(backpack.IsWorn);
-                if (appearance.PackGear != null && backpack.IsWorn)
+                // Riding in the truck, the pack is off your back (it rides beside you).
+                bool packOnBack = backpack.IsWorn && !player.Mounted;
+                appearance.SetPackWorn(packOnBack);
+                if (appearance.PackGear != null && packOnBack)
                 {
                     HotbarSlot held = Hotbar.Current != null ? Hotbar.Current.Held : default;
                     appearance.PackGear.Show(backpack.HasMat && backpack.MatRecovery < 1.4f, backpack.HasTent, backpack.HasChair && backpack.ChairInPack,
@@ -116,7 +118,8 @@ namespace Backpacking.Character
             // Sink to the ground at the same pace as the camera lowers.
             seated = Mathf.MoveTowards(seated, player.Seated ? 1f : 0f, Time.deltaTime * 2.5f);
             // In a chair the sitting clip is already right (it's a chair pose); on the ground it's adjusted to sit on it.
-            bool inChair = RestMode.Current != null && RestMode.Current.InChair;
+            // A vehicle seat is a chair as far as the body is concerned.
+            bool inChair = player.Mounted || (RestMode.Current != null && RestMode.Current.InChair);
             pose.Seated = inChair ? 0f : seated;
             if (shownFirstPerson)
                 appearance.transform.localPosition = new Vector3(0f, 0f,

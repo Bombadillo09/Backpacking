@@ -229,6 +229,11 @@ namespace Backpacking.Survival
         public bool IsSheltered { get; set; }
         /// <summary>Set while asleep in the sleeping bag. Passing out on the ground leaves you in your clothes.</summary>
         public bool InSleepingBag { get; set; }
+        /// <summary>Set while sitting in the truck's cab: out of the rain and wind, with the heater on.</summary>
+        public bool InVehicle { get; set; }
+
+        /// <summary>Degrees the truck's heater adds to the air in the cab.</summary>
+        const float CabHeater = 10f;
 
         /// <summary>Air temperature the player feels, including fires and shelter (°C).</summary>
         public float FeltTemperature { get; private set; }
@@ -489,8 +494,8 @@ namespace Backpacking.Survival
 
         void UpdateWetness(float hours, float fireWarmth)
         {
-            bool inTent = IsSleeping && IsSheltered;
-            float rain = weather != null && !inTent ? weather.RainIntensity : 0f;
+            bool covered = (IsSleeping && IsSheltered) || InVehicle;
+            float rain = weather != null && !covered ? weather.RainIntensity : 0f;
             float soaking = rain * soakingRate * (backpack.WearingWaterproof ? shellLeakage : 1f);
             float drying = (rain > 0.05f ? 0f : dryingRate) + fireWarmth * fireDryingPerDegree;
             wetness = Mathf.Clamp(wetness + (soaking - drying) * hours, 0f, Max);
@@ -504,9 +509,9 @@ namespace Backpacking.Survival
             UpdateWetness(hours, fire);
 
             bool inTent = IsSleeping && IsSheltered;
-            WindChill = weather != null && !inTent ? weather.WindKmh * windChillPerKmh : 0f;
+            WindChill = weather != null && !inTent && !InVehicle ? weather.WindKmh * windChillPerKmh : 0f;
             float soaked = wetness / Max;
-            FeltTemperature = air + fire + (inTent ? backpack.TentShelter : 0f) - WindChill - soaked * soakedChill;
+            FeltTemperature = air + fire + (inTent ? backpack.TentShelter : 0f) + (InVehicle ? CabHeater : 0f) - WindChill - soaked * soakedChill;
 
             float insulation = (backpack.ClothingInsulation + backpack.BootsWarmth + HikerTraits.InsulationBonus) * (1f - soakedInsulationLoss * soaked);
             // In the bag, a mat stops the ground drawing the heat out of you.

@@ -89,7 +89,10 @@ namespace Backpacking.EditorTools
             var temperature = world.AddComponent<AmbientTemperature>();
             SetField(temperature, "timeOfDay", timeOfDay);
 
-            FirstPersonController player = CreatePlayer(SpawnPosition(route, terrain));
+            // The trip starts at home; the tutorial's firewood still lies around the trailhead.
+            Vector3 trailheadSpawn = SpawnPosition(route, terrain);
+            FirstPersonController player = CreatePlayer(HomeSpawn(terrain, out Quaternion facing) ?? trailheadSpawn);
+            player.transform.rotation = facing;
 
             var weather = world.AddComponent<WeatherSystem>();
             SetField(weather, "timeOfDay", timeOfDay);
@@ -149,7 +152,8 @@ namespace Backpacking.EditorTools
             SetObjectArray(wildlife, "songbirdPrefabs", art.songbirdModels ?? new GameObject[0]);
             SetField(wildlife, "squirrelPrefab", art.squirrelModel);
             SetField(wildlife, "butterflyPrefab", art.butterflyModel);
-            ScatterGatherables(terrain, route, player.transform.position, prefabs, art);
+            ScatterGatherables(terrain, route, trailheadSpawn, prefabs, art);
+            CreatePickup(terrain, player);
             ScatterBoulders(terrain, route, art);
             ScatterFallenLogs(terrain, route, art);
 

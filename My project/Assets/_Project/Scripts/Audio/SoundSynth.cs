@@ -326,6 +326,41 @@ namespace Backpacking.Audio
             return Clip("Heartbeat", Normalise(samples, 0.95f));
         });
 
+        /// <summary>
+        /// A pickup's engine ticking over: firing pulses with a slight lope, over a low rumble. Loopable; raise the
+        /// pitch for revs. Every tone is a whole number of cycles per second, so the loop joins seamlessly.
+        /// </summary>
+        public static AudioClip Engine() => Cached("Engine", () =>
+        {
+            var random = new Random(41);
+            float[] data = Loopable(2f, 0.4f, length =>
+            {
+                var samples = new float[length];
+                var rumble = new OnePole();
+                for (int i = 0; i < length; i++)
+                {
+                    float t = (float)i / SampleRate;
+                    float firing = 0f;
+                    for (int harmonic = 1; harmonic <= 6; harmonic++)
+                        firing += MathF.Sin(2f * MathF.PI * 40f * harmonic * t + harmonic * 0.7f) / harmonic;
+                    float lope = 0.75f + 0.25f * MathF.Sin(2f * MathF.PI * 10f * t);
+                    samples[i] = firing * lope * 0.6f + rumble.LowPass(Noise(random), 300f) * 1.5f;
+                }
+                return samples;
+            });
+            return Clip("Engine", Normalise(data, 0.7f));
+        });
+
+        /// <summary>A car door shutting: a deep thunk and a short rattle.</summary>
+        public static AudioClip DoorShut() => Cached("DoorShut", () =>
+        {
+            var random = new Random(42);
+            var samples = new float[(int)(0.4f * SampleRate)];
+            AddThud(samples, random, 0f, 0.07f, 220f, 1f);
+            AddGrainsAt(samples, random, 0.005f, 0.06f, 600f, 0.15f, 0.4f, 1800f);
+            return Clip("DoorShut", Normalise(samples, 0.9f));
+        });
+
         // ---------- Building blocks ----------
 
         /// <summary>A sine sweep with a smooth envelope, added into the buffer.</summary>

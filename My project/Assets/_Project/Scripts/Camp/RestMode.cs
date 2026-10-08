@@ -125,6 +125,19 @@ namespace Backpacking.Camp
         void Update()
         {
             bool menus = PlayerControlLock.CursorNeeded;
+            // Driving: the truck seats you. Your feet rest as they would in a chair, boots on.
+            if (player.Mounted)
+            {
+                IsSeated = false;
+                BootsOff = false;
+                SmokingFeet = false;
+                vitals.Seated = true;
+                vitals.InChair = true;
+                vitals.BootsOff = false;
+                vitals.SmokingFeet = false;
+                hint?.SetVisible(false);
+                return;
+            }
             if (GameInput.RestPressed && !menus)
             {
                 if (IsSeated)
