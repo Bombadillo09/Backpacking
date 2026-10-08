@@ -107,7 +107,7 @@ namespace Backpacking.EditorTools
                 weights[GrassLayer] = Mathf.Max(0f, 1f - rock - snow - alpine - forestGround - dirt);
                 // A soft worn band under the trail's dirt strip.
                 float worn = 0.8f * (1f - Mathf.InverseLerp(1f, 4.5f, TrailDistance(u, v)));
-                weights[DirtLayer] = dirt + worn;
+                weights[DirtLayer] = dirt + worn + RoadGround(u, v);
                 weights[RockLayer] = rock;
                 weights[SnowLayer] = snow;
                 weights[ForestFloorLayer] = forestGround - litter;
@@ -161,7 +161,7 @@ namespace Backpacking.EditorTools
                 if (InClearing(u, v, route, data))
                     continue;
                 // Keep trunks off the path; the branches still meet overhead.
-                if (TrailDistance(u, v) < TrailTreeClearance)
+                if (TrailDistance(u, v) < TrailTreeClearance || RoadDistance(u, v) < RoadTreeClearance)
                     continue;
 
                 int[] pool = random.NextDouble() < biome.Valley ? valley
@@ -238,6 +238,8 @@ namespace Backpacking.EditorTools
                 if (Vector2.Distance(world, stopWorld) < clearing)
                     return true;
             }
+            if (InsideLot(world) > -5f)
+                return true;
             return false;
         }
 
@@ -319,7 +321,7 @@ namespace Backpacking.EditorTools
                 growth[cell] = 1f - bare;
                 rocky[cell] = Mathf.InverseLerp(15f, 30f, steepness);
                 woods[cell] = TrailWoods(u, v) * biome.Forest;
-                fromTrail[cell] = TrailDistance(u, v);
+                fromTrail[cell] = TroddenDistance(u, v);
             }
 
             // Densities below are per 24 m² (one cell at the old, coarser resolution), scaled to the real cell size.

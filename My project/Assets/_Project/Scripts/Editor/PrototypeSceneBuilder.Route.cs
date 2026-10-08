@@ -97,7 +97,9 @@ namespace Backpacking.EditorTools
         {
             var layout = new RouteLayout();
             const float valleyV = 0.40f;
-            layout.Stops.Add(new RouteStop { Name = "Trailhead Outfitter", U = 0.50f, V = 0.06f, Kind = NavigationPointKind.TradingPost, Vendor = OutfitterStock });
+            // The road from home ends in a car park just south of the first cairn. The outdoor store on that road
+            // is the first place to buy gear (see PrototypeSceneBuilder.Road).
+            layout.Stops.Add(new RouteStop { Name = "Trailhead", U = 0.50f, V = 0.06f });
             layout.Stops.Add(new RouteStop { Name = "Beaver Pond", U = 0.44f, V = 0.17f, LakeRadius = PondRadius });
             layout.Stops.Add(new RouteStop { Name = "Aspen Meadow", U = 0.36f, V = 0.27f });
             layout.Stops.Add(new RouteStop { Name = "Valley Crossing", U = ValleyCentre(valleyV), V = valleyV, Kind = NavigationPointKind.TradingPost, LakeRadius = ValleyLakeRadius, Vendor = ValleyStoreStock });

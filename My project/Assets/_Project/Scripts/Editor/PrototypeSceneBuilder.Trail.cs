@@ -74,12 +74,16 @@ namespace Backpacking.EditorTools
             float half = TerrainSize / 2f;
             var world = new Vector2(u * TerrainSize - half, v * TerrainSize - half);
             float band = 1f - Mathf.InverseLerp(TrailWoodsWidth * 0.6f, TrailWoodsWidth, currentTrail.DistanceAt(world));
+            // The road runs through woods too.
+            if (currentRoad != null)
+                band = Mathf.Max(band, 1f - Mathf.InverseLerp(RoadWoodsWidth * 0.6f, RoadWoodsWidth, currentRoad.DistanceAt(world)));
             if (band <= 0f)
                 return 0f;
             float glade = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.6f, 0.72f, Mathf.PerlinNoise(u * 55f + 17f, v * 55f + 71f)));
             float nearPost = 0f;
             foreach (Vector2 post in currentTrail.Posts)
                 nearPost = Mathf.Max(nearPost, 1f - Mathf.InverseLerp(PostMeadowRadius * 0.6f, PostMeadowRadius, Vector2.Distance(world, post)));
+            nearPost = Mathf.Max(nearPost, NearPlace(world));
             return band * 0.95f * (1f - glade) * (1f - nearPost);
         }
 
@@ -94,6 +98,13 @@ namespace Backpacking.EditorTools
                 if (stop.Kind == Navigation.NavigationPointKind.TradingPost)
                     trail.Posts.Add(StopXZ(stop));
 
+            // The path starts at the mouth of the trailhead parking and leads up to the first cairn.
+            if (parking != null)
+            {
+                Vector2 mouth = parking.Centre + Vector2.up * (parking.LotRadius - 1f);
+                trail.Points.Add(mouth);
+                trail.Points.Add(Vector2.Lerp(mouth, StopXZ(route.Stops[0]), 0.5f));
+            }
             for (int leg = 0; leg < route.Stops.Count - 1; leg++)
             {
                 Vector2 a = StopXZ(route.Stops[leg]), b = StopXZ(route.Stops[leg + 1]);
@@ -196,7 +207,7 @@ namespace Backpacking.EditorTools
             for (int start = 0; start < samples.Count - 1; start += perChunk)
             {
                 int end = Mathf.Min(samples.Count - 1, start + perChunk);
-                Mesh mesh = BuildTrailStrip(terrain, samples, start, end);
+                Mesh mesh = BuildTrailStrip(terrain, samples, start, end, TrailStyle);
                 mesh.name = $"Trail{chunk}";
                 AssetDatabase.CreateAsset(mesh, $"{folder}/Trail{chunk}.asset");
 
@@ -246,14 +257,38 @@ namespace Backpacking.EditorTools
             return 0.5f * (2f * p1 + (-p0 + p2) * t + (2f * p0 - 5f * p1 + 4f * p2 - p3) * t2 + (-p0 + 3f * p1 - 3f * p2 + p3) * t3);
         }
 
-        /// <summary>
-        /// A strip four vertices wide following the ground, so it bends over cross-slopes. Its width wanders
-        /// and its edges are ragged, like a worn path.
-        /// </summary>
-        static Mesh BuildTrailStrip(Terrain terrain, List<(Vector2 position, Vector2 forward, float along)> samples, int start, int end)
+        /// <summary>The cross-section of a ground strip: where its vertices sit across it, and how wide and ragged it is.</summary>
+        struct StripStyle
         {
-            float[] across = { -0.5f, -0.17f, 0.17f, 0.5f };
-            float[] lift = { 0.025f, 0.04f, 0.04f, 0.025f };
+            /// <summary>Vertex positions across the strip, as fractions of its width.</summary>
+            public float[] Across;
+            /// <summary>Metres above the ground for each vertex across.</summary>
+            public float[] Lift;
+            public float WidthMin, WidthMax;
+            /// <summary>Metres the outer edges wander in and out.</summary>
+            public float Ragged;
+            /// <summary>Metres one texture tile covers.</summary>
+            public float Tile;
+        }
+
+        static readonly StripStyle TrailStyle = new()
+        {
+            Across = new[] { -0.5f, -0.17f, 0.17f, 0.5f },
+            Lift = new[] { 0.025f, 0.04f, 0.04f, 0.025f },
+            WidthMin = 0.85f,
+            WidthMax = 1.35f,
+            Ragged = 0.3f,
+            Tile = TrailTextureTile,
+        };
+
+        /// <summary>
+        /// A strip following the ground, so it bends over cross-slopes. Its width wanders and its edges are
+        /// ragged, like a worn path.
+        /// </summary>
+        static Mesh BuildTrailStrip(Terrain terrain, List<(Vector2 position, Vector2 forward, float along)> samples, int start, int end, StripStyle style)
+        {
+            float[] across = style.Across;
+            float[] lift = style.Lift;
             TerrainData data = terrain.terrainData;
             Vector3 origin = terrain.transform.position;
             var vertices = new List<Vector3>();
@@ -265,20 +300,20 @@ namespace Backpacking.EditorTools
             {
                 (Vector2 position, Vector2 forward, float along) = samples[i];
                 var side = new Vector2(forward.y, -forward.x);
-                float width = Mathf.Lerp(0.85f, 1.35f, Mathf.PerlinNoise(along * 0.03f, 4.2f));
+                float width = Mathf.Lerp(style.WidthMin, style.WidthMax, Mathf.PerlinNoise(along * 0.03f, 4.2f));
                 for (int k = 0; k < across.Length; k++)
                 {
                     float offset = across[k] * width;
                     // Ragged edges.
                     if (k == 0 || k == across.Length - 1)
-                        offset += (Mathf.PerlinNoise(along * 0.45f, k * 13.7f) - 0.5f) * 0.3f;
+                        offset += (Mathf.PerlinNoise(along * 0.45f, k * 13.7f) - 0.5f) * style.Ragged;
                     Vector2 xz = position + side * offset;
                     var world = new Vector3(xz.x, 0f, xz.y);
                     world.y = terrain.SampleHeight(world) + origin.y + lift[k];
                     vertices.Add(world);
                     float u = Mathf.Clamp01((world.x - origin.x) / data.size.x), v = Mathf.Clamp01((world.z - origin.z) / data.size.z);
                     normals.Add(data.GetInterpolatedNormal(u, v));
-                    uvs.Add(new Vector2(offset / TrailTextureTile + 0.5f, along / TrailTextureTile));
+                    uvs.Add(new Vector2(offset / style.Tile + 0.5f, along / style.Tile));
                 }
                 if (i == start)
                     continue;

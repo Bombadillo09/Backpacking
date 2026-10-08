@@ -56,6 +56,8 @@ namespace Backpacking.Trip
     public class TripLog : MonoBehaviour
     {
         public const string Destination = "Lookout Summit";
+        /// <summary>The outdoor store on the road in, where the kit is bought.</summary>
+        public const string Outfitter = "Pine Hollow Outfitters";
 
         [SerializeField] TimeOfDay timeOfDay;
         [SerializeField] FirstPersonController player;

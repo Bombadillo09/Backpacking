@@ -102,6 +102,7 @@ namespace Backpacking.Navigation
             map.style.backgroundImage = mapTexture;
             SetBorder(map, 2f, Ink);
             paper.Add(map);
+            AddRoad(side);
             AddTrail(side);
 
             Label title = Label("Prototype Valley", side * 0.026f);
@@ -163,7 +164,7 @@ namespace Backpacking.Navigation
             north.style.top = margin * 0.95f - labelSize;
             north.style.unityTextAlign = TextAnchor.MiddleCenter;
 
-            Label legend = Label($"Contours every {contourInterval:0} m   ·   Red dashes: trail   ·   Large markers: trading posts and the summit   ·   Small: checkpoints", labelSize);
+            Label legend = Label($"Contours every {contourInterval:0} m   ·   Red dashes: trail   ·   Double line: road   ·   Large markers: trading posts and the summit   ·   Small: checkpoints", labelSize);
             legend.style.left = margin;
             legend.style.top = margin + mapSize + margin * 0.4f;
 
@@ -183,6 +184,23 @@ namespace Backpacking.Navigation
                 name.style.left = at.x + size * 0.7f;
                 name.style.top = at.y - labelSize * 0.9f;
             }
+
+            // Home and the trailhead parking, labelled along the road.
+            RoadPath road = FindAnyObjectByType<RoadPath>();
+            if (road != null)
+                foreach (RoadPlace place in road.Places)
+                {
+                    float size = side * 0.011f;
+                    VisualElement marker = UIBuild.Box("map-marker");
+                    marker.style.width = marker.style.height = size;
+                    marker.style.backgroundColor = Ink;
+                    Place(marker, place.position, size);
+                    paper.Add(marker);
+                    Label name = Label(place.name, labelSize);
+                    Vector2 at = MapPosition(place.position);
+                    name.style.left = at.x + size * 0.9f;
+                    name.style.top = at.y + labelSize * 0.1f;
+                }
 
             playerMarker = null;
             if (showPlayerPosition && player != null)
@@ -264,6 +282,42 @@ namespace Backpacking.Navigation
         }
 
         static readonly Color TrailColour = new(0.72f, 0.12f, 0.08f, 0.9f);
+        static readonly Color RoadFill = new(0.95f, 0.88f, 0.62f);
+
+        /// <summary>The gravel road as a cased line: ink edges with a pale fill, like roads on a topo map.</summary>
+        void AddRoad(float side)
+        {
+            RoadPath road = FindAnyObjectByType<RoadPath>();
+            if (road == null || road.Points.Count < 2)
+                return;
+
+            var points = new Vector2[road.Points.Count];
+            for (int i = 0; i < points.Length; i++)
+                points[i] = MapPosition(road.Points[i]);
+            float width = Mathf.Max(2f, side * 0.0045f);
+
+            var line = new VisualElement { pickingMode = PickingMode.Ignore };
+            line.style.position = Position.Absolute;
+            line.style.left = line.style.top = 0f;
+            line.style.width = line.style.height = side;
+            line.generateVisualContent += context =>
+            {
+                Painter2D painter = context.painter2D;
+                painter.lineCap = LineCap.Round;
+                painter.lineJoin = LineJoin.Round;
+                foreach ((Color colour, float lineWidth) in new[] { (Ink, width), (RoadFill, width * 0.45f) })
+                {
+                    painter.strokeColor = colour;
+                    painter.lineWidth = lineWidth;
+                    painter.BeginPath();
+                    painter.MoveTo(points[0]);
+                    for (int i = 1; i < points.Length; i++)
+                        painter.LineTo(points[i]);
+                    painter.Stroke();
+                }
+            };
+            paper.Add(line);
+        }
 
         /// <summary>Where a world position falls on the paper, in pixels from its top-left corner.</summary>
         Vector2 MapPosition(Vector3 world)

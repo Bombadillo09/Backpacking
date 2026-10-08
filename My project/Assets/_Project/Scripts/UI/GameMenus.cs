@@ -325,7 +325,7 @@ namespace Backpacking.UI
             if (backpack != null)
                 Backgrounds.ApplyStartingKit(hiker.background, backpack);
             if (Trip.TripLog.Current != null)
-                Trip.TripLog.Current.BeginTrip($"{hiker.name} set out from Trailhead Outfitter as a {Backgrounds.Name(hiker.background)}, "
+                Trip.TripLog.Current.BeginTrip($"{hiker.name} set out from the trailhead as a {Backgrounds.Name(hiker.background)}, "
                                                + $"heading north along the route for {Trip.TripLog.Destination}.");
             if (tutorial != null)
             {

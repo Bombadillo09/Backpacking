@@ -76,6 +76,7 @@ namespace Backpacking.EditorTools
             }
             CreateRoute(route, terrain, prefabs.TradingPost);
             CreateTrail(terrain, art);
+            CreateDrive(terrain);
             Light sun = CreateDirectionalLight("Sun", Color.white, 1.3f, LightShadows.Soft);
             Light moon = CreateDirectionalLight("Moon", new Color(0.6f, 0.7f, 1f), 0.12f, LightShadows.None);
             SetUpSkyAndFog(sun);
@@ -170,6 +171,7 @@ namespace Backpacking.EditorTools
             };
             float[,] heights = GenerateHeights(data.heightmapResolution);
             route = PlanRoute(heights);
+            PlanDrive(heights, route);
             currentTrail = PlanTrail(route);
             data.SetHeights(0, 0, heights);
             DressTerrain(data, route, art);

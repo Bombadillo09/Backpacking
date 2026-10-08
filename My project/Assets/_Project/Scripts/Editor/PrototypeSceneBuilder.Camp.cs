@@ -151,8 +151,10 @@ namespace Backpacking.EditorTools
                 if (fromStop.magnitude < (stop.Vendor != null ? PostFlattenRadius : 4f))
                     return true;
             }
-            // Nothing lying on the path itself.
-            if (TrailDistance(position) < 2f)
+            // Nothing lying on the path, the road or the lots.
+            if (TrailDistance(position) < 2f || RoadDistance(position) < RoadHalfWidth + 2f)
+                return true;
+            if (InsideLot(new Vector2(position.x, position.z)) > -3f)
                 return true;
             return false;
         }
