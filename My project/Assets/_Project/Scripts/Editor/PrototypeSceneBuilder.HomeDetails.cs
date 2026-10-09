@@ -98,6 +98,7 @@ namespace Backpacking.EditorTools
             foreach (float x in new[] { -0.38f, 0.38f })
                 AddVisual(PrimitiveType.Cube, house, bench + new Vector3(x, 0.21f, 0f), Quaternion.identity, new Vector3(0.05f, 0.42f, 0.32f), wood);
             AddVisual(PrimitiveType.Cube, house, bench + new Vector3(0f, 0.75f, -0.15f), Quaternion.identity, new Vector3(0.9f, 0.3f, 0.04f), wood);
+            Furnish(house, "planter_box_01", new Vector3(-0.2f, floorTop, halfDepth + 0.32f), 0f, solid: true);
 
             // A woodpile against the side wall under the chimney: logs stacked end-out.
             for (int row = 0; row < 4; row++)
@@ -107,7 +108,9 @@ namespace Backpacking.EditorTools
                     AddVisual(PrimitiveType.Cylinder, house, at, Quaternion.Euler(0f, 0f, 90f), new Vector3(0.15f, 0.25f, 0.15f), bark);
                     AddVisual(PrimitiveType.Cylinder, house, at + new Vector3(-0.251f, 0f, 0f), Quaternion.Euler(0f, 0f, 90f), new Vector3(0.13f, 0.002f, 0.13f), logEnd);
                 }
-            // A rain barrel at the back corner, under the gutter.
+            Furnish(house, "wooden_axe", new Vector3(-halfWidth - 0.3f, 0f, 1.38f), 90f);
+            // A rain barrel at the back corner, under the gutter, and a bucket beside it.
+            Furnish(house, "wooden_bucket_01", new Vector3(halfWidth - 0.85f, 0f, -halfDepth - 0.4f), 30f, solid: true);
             AddSolid(PrimitiveType.Cylinder, house, new Vector3(halfWidth - 0.2f, 0.4f, -halfDepth - 0.45f), Quaternion.identity, new Vector3(0.55f, 0.4f, 0.55f), barrel);
         }
 
@@ -130,11 +133,9 @@ namespace Backpacking.EditorTools
             // Beams across the ceiling, and a shade and cord for each lamp.
             foreach (float z in new[] { -2.5f, -1.2f, 1.2f, 2.5f })
                 AddVisual(PrimitiveType.Cube, house, new Vector3(0f, top - 0.07f, z), Quaternion.identity, new Vector3(HouseWidth - 0.36f, 0.14f, 0.12f), wood);
-            foreach (Vector3 lamp in new[] { new Vector3(-1.8f, top - 0.3f, 1.8f), new Vector3(2.4f, top - 0.3f, 1.8f), new Vector3(-1.6f, top - 0.3f, -1.8f), new Vector3(2.4f, top - 0.3f, -1.8f) })
-            {
-                AddVisual(PrimitiveType.Cylinder, house, lamp + Vector3.up * 0.12f, Quaternion.identity, new Vector3(0.38f, 0.07f, 0.38f), shade);
-                AddVisual(PrimitiveType.Cylinder, house, lamp + Vector3.up * 0.25f, Quaternion.identity, new Vector3(0.01f, 0.06f, 0.01f), metal);
-            }
+            foreach (Vector3 lamp in new[] { new Vector3(-1.8f, top, 1.8f), new Vector3(2.4f, top, 1.8f), new Vector3(-1.6f, top, -1.8f), new Vector3(2.4f, top, -1.8f) })
+                if (Furnish(house, "modern_ceiling_lamp_01", lamp - Vector3.up * 0.95f, 0f, scale: 0.75f) == null)
+                    AddVisual(PrimitiveType.Cylinder, house, lamp - Vector3.up * 0.18f, Quaternion.identity, new Vector3(0.38f, 0.07f, 0.38f), shade);
 
             // Curtains on a rod at each main window: (centre on the wall's line, the way into the room, width, height, colour).
             Material living = GetOrCreateMaterial("CurtainLiving", new Color(0.62f, 0.3f, 0.18f));
@@ -165,12 +166,12 @@ namespace Backpacking.EditorTools
                 }
             }
 
-            // A mountain painting in the living room, a framed trail map in the bedroom, a clock in the kitchen.
-            Vector3 painting = new(-0.55f, y + 1.65f, 0.075f);
-            AddVisual(PrimitiveType.Cube, house, painting, Quaternion.identity, new Vector3(0.75f, 0.55f, 0.03f), wood);
-            AddVisual(PrimitiveType.Cube, house, painting + new Vector3(0f, 0.08f, 0.012f), Quaternion.identity, new Vector3(0.65f, 0.3f, 0.01f), canvasSky);
-            AddVisual(PrimitiveType.Cube, house, painting + new Vector3(0f, -0.13f, 0.013f), Quaternion.identity, new Vector3(0.65f, 0.17f, 0.01f), canvasHills);
-            AddVisual(PrimitiveType.Cube, house, painting + new Vector3(0.05f, 0.05f, 0.014f), Quaternion.Euler(0f, 0f, 45f), new Vector3(0.22f, 0.22f, 0.01f), canvasPeak);
+            // A mountain painting in the living room's picture frame (its own print is a blank card), a framed
+            // trail map in the bedroom, a clock in the kitchen.
+            Vector3 painting = new(-0.95f, y + 1.62f, 0.079f);
+            AddVisual(PrimitiveType.Cube, house, painting + new Vector3(0f, 0.12f, 0f), Quaternion.identity, new Vector3(0.5f, 0.5f, 0.002f), canvasSky);
+            AddVisual(PrimitiveType.Cube, house, painting + new Vector3(0f, -0.25f, 0.0012f), Quaternion.identity, new Vector3(0.5f, 0.24f, 0.002f), canvasHills);
+            AddVisual(PrimitiveType.Cube, house, painting + new Vector3(0.04f, -0.06f, 0.0006f), Quaternion.Euler(0f, 0f, 45f), new Vector3(0.24f, 0.24f, 0.002f), canvasPeak);
             Vector3 map = new(0.825f, y + 1.6f, -2.1f);
             AddVisual(PrimitiveType.Cube, house, map, Quaternion.identity, new Vector3(0.03f, 0.6f, 0.8f), wood);
             AddVisual(PrimitiveType.Cube, house, map + new Vector3(-0.012f, 0f, 0f), Quaternion.identity, new Vector3(0.01f, 0.52f, 0.72f),
@@ -178,11 +179,7 @@ namespace Backpacking.EditorTools
             for (int line = 0; line < 5; line++)
                 AddVisual(PrimitiveType.Cube, house, map + new Vector3(-0.018f, -0.2f + line * 0.09f, -0.25f + line * 0.11f), Quaternion.Euler(30f + line * 15f, 0f, 0f),
                     new Vector3(0.004f, 0.012f, 0.16f), GetOrCreateMaterial("MapTrail", new Color(0.72f, 0.12f, 0.08f)));
-            Vector3 clock = new(1.25f, y + 2.05f, 0.07f);
-            AddVisual(PrimitiveType.Cylinder, house, clock, Quaternion.Euler(90f, 0f, 0f), new Vector3(0.3f, 0.02f, 0.3f), wood);
-            AddVisual(PrimitiveType.Cylinder, house, clock + new Vector3(0f, 0f, 0.012f), Quaternion.Euler(90f, 0f, 0f), new Vector3(0.26f, 0.01f, 0.26f), clockFace);
-            AddVisual(PrimitiveType.Cube, house, clock + new Vector3(0.03f, 0.03f, 0.02f), Quaternion.Euler(0f, 0f, -45f), new Vector3(0.012f, 0.09f, 0.005f), metal);
-            AddVisual(PrimitiveType.Cube, house, clock + new Vector3(0f, 0.05f, 0.022f), Quaternion.identity, new Vector3(0.008f, 0.1f, 0.005f), metal);
+            Furnish(house, "wall_clock", new Vector3(1.25f, y + 1.89f, 0.08f), 0f);
 
             // ---------- Living room ----------
 
@@ -193,12 +190,9 @@ namespace Backpacking.EditorTools
             AddVisual(PrimitiveType.Capsule, house, rack + new Vector3(0.12f, 1.2f, 0f), Quaternion.Euler(0f, 0f, 8f), new Vector3(0.32f, 0.38f, 0.18f), jacket);
             AddVisual(PrimitiveType.Sphere, house, rack + new Vector3(-0.08f, 1.68f, 0f), Quaternion.identity, new Vector3(0.2f, 0.1f, 0.2f), throwBlanket);
             AddVisual(PrimitiveType.Cube, house, new Vector3(-0.35f, y + 0.008f, 2.55f), Quaternion.identity, new Vector3(0.6f, 0.016f, 0.35f), metal);
-            // Cushions and a throw on the sofa, a magazine on the table.
-            AddVisual(PrimitiveType.Cube, house, new Vector3(-3.5f, y + 0.72f, 0.98f), Quaternion.Euler(0f, 0f, -15f), new Vector3(0.12f, 0.36f, 0.36f), cushion);
-            AddVisual(PrimitiveType.Cube, house, new Vector3(-3.5f, y + 0.72f, 2.62f), Quaternion.Euler(0f, 0f, -15f), new Vector3(0.12f, 0.36f, 0.36f), throwBlanket);
-            AddVisual(PrimitiveType.Cube, house, new Vector3(-3.3f, y + 0.58f, 2.3f), Quaternion.Euler(0f, 10f, 0f), new Vector3(0.7f, 0.05f, 0.45f), throwBlanket);
-            AddVisual(PrimitiveType.Cube, house, new Vector3(-2.3f, y + 0.43f, 2.05f), Quaternion.Euler(0f, 20f, 0f), new Vector3(0.22f, 0.008f, 0.3f), canvasSky);
-            // A floor lamp by the armchair.
+            // A magazine on the table.
+            AddVisual(PrimitiveType.Cube, house, new Vector3(-2.3f, y + 0.538f, 1.82f), Quaternion.Euler(0f, 20f, 0f), new Vector3(0.22f, 0.008f, 0.3f), canvasSky);
+            // A floor lamp by the rocking chair.
             Vector3 floorLamp = new(-0.45f, y, 0.4f);
             AddVisual(PrimitiveType.Cylinder, house, floorLamp + new Vector3(0f, 0.015f, 0f), Quaternion.identity, new Vector3(0.3f, 0.015f, 0.3f), metal);
             AddVisual(PrimitiveType.Cylinder, house, floorLamp + new Vector3(0f, 0.8f, 0f), Quaternion.identity, new Vector3(0.025f, 0.8f, 0.025f), metal);
@@ -222,18 +216,12 @@ namespace Backpacking.EditorTools
                 AddVisual(PrimitiveType.Cube, house, new Vector3(x + 0.43f, y + 0.68f, 2.69f), Quaternion.identity, new Vector3(0.02f, 0.12f, 0.02f), steel);
             }
             AddVisual(PrimitiveType.Cube, house, new Vector3(2.65f, y + 0.74f, 2.695f), Quaternion.identity, new Vector3(2.3f, 0.01f, 0.01f), cupboardEdge);
-            foreach (float z in new[] { 0.85f, 2.1f })
+            AddVisual(PrimitiveType.Cube, house, new Vector3(3.19f, y + 0.68f, 0.97f), Quaternion.identity, new Vector3(0.02f, 0.12f, 0.02f), steel);
+            foreach (float z in new[] { 1.69f, 2.18f })
             {
                 AddVisual(PrimitiveType.Cube, house, new Vector3(3.195f, y + 0.43f, z), Quaternion.identity, new Vector3(0.01f, 0.8f, 0.01f), cupboardEdge);
                 AddVisual(PrimitiveType.Cube, house, new Vector3(3.19f, y + 0.68f, z + 0.3f), Quaternion.identity, new Vector3(0.02f, 0.12f, 0.02f), steel);
             }
-            // The oven under the cooker: black door, glass window, a bar handle with a tea towel.
-            AddVisual(PrimitiveType.Cube, house, new Vector3(3.193f, y + 0.42f, 1.4f), Quaternion.identity, new Vector3(0.01f, 0.6f, 0.56f), metal);
-            AddVisual(PrimitiveType.Cube, house, new Vector3(3.188f, y + 0.38f, 1.4f), Quaternion.identity, new Vector3(0.005f, 0.28f, 0.4f),
-                GetOrCreateMaterial("StoveGlass", new Color(0.1f, 0.08f, 0.07f), 0.9f));
-            AddVisual(PrimitiveType.Cylinder, house, new Vector3(3.16f, y + 0.66f, 1.4f), Quaternion.Euler(90f, 0f, 0f), new Vector3(0.02f, 0.25f, 0.02f), steel);
-            AddVisual(PrimitiveType.Cube, house, new Vector3(3.15f, y + 0.52f, 1.5f), Quaternion.identity, new Vector3(0.01f, 0.28f, 0.2f),
-                GetOrCreateMaterial("TeaTowel", new Color(0.85f, 0.85f, 0.8f)));
             // Tiles behind the worktops.
             Material tile = GetOrCreateMaterial("KitchenTiles", new Color(0.82f, 0.85f, 0.8f), 0.5f);
             AddVisual(PrimitiveType.Cube, house, new Vector3(2.65f, y + 1.04f, 3.315f), Quaternion.identity, new Vector3(2.3f, 0.26f, 0.01f), tile);
@@ -256,29 +244,20 @@ namespace Backpacking.EditorTools
             AddVisual(PrimitiveType.Cube, house, new Vector3(3.6f, y + 1.0f, 2.95f), Quaternion.Euler(-12f, 0f, 0f), new Vector3(0.12f, 0.2f, 0.1f), wood);
             for (int i = 0; i < 3; i++)
                 AddVisual(PrimitiveType.Cube, house, new Vector3(3.57f + i * 0.03f, y + 1.13f, 2.93f), Quaternion.identity, new Vector3(0.015f, 0.06f, 0.025f), metal);
-            AddVisual(PrimitiveType.Cube, house, new Vector3(3.25f, y + 0.915f, 3.0f), Quaternion.Euler(0f, 10f, 0f), new Vector3(0.4f, 0.02f, 0.28f), wood);
             AddSolid(PrimitiveType.Cylinder, house, new Vector3(1.22f, y + 0.3f, 3.05f), Quaternion.identity, new Vector3(0.3f, 0.3f, 0.3f), steel);
             Vector3 bowl = new(1.9f, y + 0.8f, 1.5f);
-            AddVisual(PrimitiveType.Cylinder, house, bowl, Quaternion.identity, new Vector3(0.28f, 0.04f, 0.28f), white);
             Material[] fruit = { GetOrCreateMaterial("Apple", new Color(0.75f, 0.12f, 0.1f)), GetOrCreateMaterial("Orange", new Color(0.95f, 0.55f, 0.1f)),
                 GetOrCreateMaterial("GreenApple", new Color(0.5f, 0.75f, 0.2f)) };
             for (int i = 0; i < 4; i++)
-                AddVisual(PrimitiveType.Sphere, house, bowl + new Vector3(Mathf.Cos(i * 1.6f) * 0.06f, 0.06f + (i == 3 ? 0.05f : 0f), Mathf.Sin(i * 1.6f) * 0.06f), Quaternion.identity,
+                AddVisual(PrimitiveType.Sphere, house, bowl + new Vector3(Mathf.Cos(i * 1.6f) * 0.06f, 0.07f + (i == 3 ? 0.05f : 0f), Mathf.Sin(i * 1.6f) * 0.06f), Quaternion.identity,
                     Vector3.one * 0.08f, fruit[i % fruit.Length]);
             // Two mugs by the kettle.
-            foreach (float z in new[] { 2.0f, 2.15f })
+            foreach (float z in new[] { 1.85f, 2.0f })
                 AddVisual(PrimitiveType.Cylinder, house, new Vector3(3.55f, y + 0.95f, z), Quaternion.identity, new Vector3(0.08f, 0.05f, 0.08f), white);
 
             // ---------- Bedroom ----------
 
-            // Books and a lamp-side alarm clock on the nightstands, slippers, a laundry basket, wardrobe handles.
-            Vector3 leftStand = new(-2.95f, y + 0.565f, -3.1f), rightStand = new(-0.85f, y + 0.565f, -3.1f);
-            for (int i = 0; i < 3; i++)
-                AddVisual(PrimitiveType.Cube, house, leftStand + new Vector3(0.08f, 0.02f + i * 0.03f, 0.08f), Quaternion.Euler(0f, i * 12f, 0f), new Vector3(0.16f, 0.028f, 0.22f),
-                    i == 1 ? canvasHills : throwBlanket);
-            AddVisual(PrimitiveType.Cube, house, rightStand + new Vector3(0.1f, 0.05f, 0.08f), Quaternion.Euler(0f, -20f, 0f), new Vector3(0.12f, 0.08f, 0.06f), metal);
-            AddVisual(PrimitiveType.Cube, house, rightStand + new Vector3(0.1f, 0.05f, 0.112f), Quaternion.Euler(0f, -20f, 0f), new Vector3(0.09f, 0.04f, 0.004f),
-                GetOrCreateEmissiveMaterial("ClockDigits", new Color(1f, 0.15f, 0.1f)));
+            // Slippers by the bed, a laundry basket, wardrobe handles.
             foreach (float x in new[] { -1.02f, -0.88f })
                 AddVisual(PrimitiveType.Capsule, house, new Vector3(x, y + 0.03f, -1.05f), Quaternion.Euler(90f, 0f, 0f), new Vector3(0.1f, 0.13f, 0.06f), cushion);
             AddVisual(PrimitiveType.Cylinder, house, new Vector3(0.5f, y + 0.25f, -3.0f), Quaternion.identity, new Vector3(0.45f, 0.25f, 0.45f), wicker);

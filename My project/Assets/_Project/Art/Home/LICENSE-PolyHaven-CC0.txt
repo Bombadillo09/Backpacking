@@ -1,0 +1,2 @@
+Held item models from Poly Haven (https://polyhaven.com), CC0 1.0 Universal (public domain).
+machete, plastic_thermos, medical_tape, medical_box, long_life_food.

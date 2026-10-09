@@ -73,3 +73,40 @@ From [Freesound](https://freesound.org); the file names are the sound IDs, e.g. 
 | ArrowHit | Arrow Impact (205938) | Twisted_Euphoria |
 | ArrowHit | Arrow_Hit_1 (708223) | Mythmazter |
 | ArrowHit | Arrow Impact (521552) | omerbhatti34 |
+
+## Home furniture and household things
+
+From [Poly Haven](https://polyhaven.com), released under [CC0](https://polyhaven.com/license) (public domain; listed here as thanks). Each folder in `Home/` holds the 1K FBX and its textures; `HomeModelSetup` turns them into prefabs and URP materials, and the house builder places them.
+
+| Model | Author |
+|---|---|
+| [Lantern 01](https://polyhaven.com/a/Lantern_01) | Rajil Jose Macatangay |
+| [Rockingchair 01](https://polyhaven.com/a/Rockingchair_01) | Jorge Camacho |
+| [Alarm Clock 01](https://polyhaven.com/a/alarm_clock_01) | Yann Kervran, James Ray Cock |
+| [Book Encyclopedia Set 01](https://polyhaven.com/a/book_encyclopedia_set_01) | John Malcolm |
+| [Brass Pan 01](https://polyhaven.com/a/brass_pan_01) | Rico Cilliers |
+| [Electric Stove](https://polyhaven.com/a/electric_stove) | Kuutti Siitonen |
+| [Hanging Picture Frame 01](https://polyhaven.com/a/hanging_picture_frame_01) | James Ray Cock |
+| [Jug 01](https://polyhaven.com/a/jug_01) | Kuutti Siitonen |
+| [Modern Ceiling Lamp 01](https://polyhaven.com/a/modern_ceiling_lamp_01) | James Ray Cock |
+| [Old Bed Frame](https://polyhaven.com/a/old_bed_frame) | Luca B |
+| [Ornate Mirror 01](https://polyhaven.com/a/ornate_mirror_01) | James Ray Cock |
+| [Painted Wooden Chair 01](https://polyhaven.com/a/painted_wooden_chair_01) | Kuutti Siitonen |
+| [Painted Wooden Nightstand](https://polyhaven.com/a/painted_wooden_nightstand) | Kirill Sannikov |
+| [Planter Box 01](https://polyhaven.com/a/planter_box_01) | James Ray Cock |
+| [Pot Enamel 01](https://polyhaven.com/a/pot_enamel_01) | Kuutti Siitonen |
+| [Potted Plant 04](https://polyhaven.com/a/potted_plant_04) | James Ray Cock |
+| [Small Wooden Table 01](https://polyhaven.com/a/small_wooden_table_01) | Ulan Cabanilla |
+| [Sofa 02](https://polyhaven.com/a/sofa_02) | Kirill Sannikov |
+| [Standing Picture Frame 01](https://polyhaven.com/a/standing_picture_frame_01) | James Ray Cock |
+| [Throw Pillows 01](https://polyhaven.com/a/throw_pillows_01) | Serhii Khromov |
+| [Vintage Electric Kettle](https://polyhaven.com/a/vintage_electric_kettle) | SV Garip |
+| [Vintage Oil Lamp](https://polyhaven.com/a/vintage_oil_lamp) | Monsta3D |
+| [Vintage Wooden Drawer 01](https://polyhaven.com/a/vintage_wooden_drawer_01) | James Ray Cock |
+| [Wall Clock](https://polyhaven.com/a/wall_clock) | PierreB3D |
+| [Wooden Axe](https://polyhaven.com/a/wooden_axe) | Ulan Cabanilla |
+| [Wooden Bookshelf Worn](https://polyhaven.com/a/wooden_bookshelf_worn) | Ulan Cabanilla |
+| [Wooden Bowl 01](https://polyhaven.com/a/wooden_bowl_01) | Oliver Harries |
+| [Wooden Bucket 01](https://polyhaven.com/a/wooden_bucket_01) | James Ray Cock |
+| [Wooden Cutting Board](https://polyhaven.com/a/wooden_cutting_board) | Kuutti Siitonen |
+| [Wooden Table 02](https://polyhaven.com/a/wooden_table_02) | Serhii Khromov |

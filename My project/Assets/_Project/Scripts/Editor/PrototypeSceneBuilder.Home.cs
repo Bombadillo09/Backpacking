@@ -1,3 +1,4 @@
+using UnityEditor;
 using UnityEngine;
 
 namespace Backpacking.EditorTools
@@ -175,64 +176,63 @@ namespace Backpacking.EditorTools
             });
         }
 
-        /// <summary>Front left: a sofa and armchair round a coffee table on a rug, a wood stove and a bookshelf.</summary>
+        /// <summary>
+        /// Puts one of the Poly Haven models (see <see cref="HomeModelSetup"/>) in a building: its base at
+        /// <paramref name="position"/> (local), turned <paramref name="yaw"/> degrees, with a box collider if
+        /// <paramref name="solid"/>. Null if the model isn't there.
+        /// </summary>
+        static GameObject Furnish(GameObject root, string id, Vector3 position, float yaw, bool solid = false, float scale = 1f)
+        {
+            GameObject prefab = HomeModelSetup.Prefab(id);
+            if (prefab == null)
+                return null;
+            var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+            instance.transform.localScale = Vector3.one * scale;
+            if (solid)
+            {
+                // Measured at the origin, unturned, so the box fits the model's own axes.
+                Bounds bounds = HomeModelSetup.WorldBounds(instance);
+                var box = instance.AddComponent<BoxCollider>();
+                box.center = bounds.center / scale;
+                box.size = bounds.size / scale;
+            }
+            instance.transform.SetParent(root.transform, false);
+            instance.transform.SetLocalPositionAndRotation(position, Quaternion.Euler(0f, yaw, 0f));
+            return instance;
+        }
+
+        /// <summary>Front left: a leather sofa and a rocking chair round a coffee table on a rug, the wood stove, a bookshelf.</summary>
         static void FurnishLivingRoom(GameObject house, float floorTop, Material wood, Material metal)
         {
-            Material sofa = GetOrCreateMaterial("Sofa", new Color(0.28f, 0.38f, 0.3f));
             Material rug = GetOrCreateMaterial("Rug", new Color(0.3f, 0.4f, 0.5f));
-            Material books = GetOrCreateMaterial("Books", new Color(0.55f, 0.25f, 0.2f));
             Material fire = GetOrCreateEmissiveMaterial("StoveGlow", new Color(1f, 0.45f, 0.15f));
             float y = floorTop;
 
             AddVisual(PrimitiveType.Cube, house, new Vector3(-2.2f, y + 0.005f, 1.8f), Quaternion.identity, new Vector3(2.4f, 0.01f, 1.8f), rug);
-            // Sofa against the left wall, facing into the room.
-            AddSolid(PrimitiveType.Cube, house, new Vector3(-3.4f, y + 0.22f, 1.8f), Quaternion.identity, new Vector3(0.85f, 0.44f, 2f), sofa);
-            AddVisual(PrimitiveType.Cube, house, new Vector3(-3.72f, y + 0.6f, 1.8f), Quaternion.identity, new Vector3(0.22f, 0.5f, 2f), sofa);
-            foreach (float z in new[] { 0.75f, 2.85f })
-                AddVisual(PrimitiveType.Cube, house, new Vector3(-3.4f, y + 0.55f, z), Quaternion.identity, new Vector3(0.85f, 0.22f, 0.15f), sofa);
-            foreach (float z in new[] { 1.3f, 2.3f })
-                AddVisual(PrimitiveType.Cube, house, new Vector3(-3.4f, y + 0.5f, z), Quaternion.identity, new Vector3(0.7f, 0.12f, 0.9f), sofa);
-            // Coffee table.
-            AddSolid(PrimitiveType.Cube, house, new Vector3(-2.2f, y + 0.4f, 1.8f), Quaternion.identity, new Vector3(0.6f, 0.05f, 1.1f), wood);
-            foreach (Vector2 leg in new[] { new Vector2(-0.25f, -0.5f), new Vector2(0.25f, -0.5f), new Vector2(-0.25f, 0.5f), new Vector2(0.25f, 0.5f) })
-                AddVisual(PrimitiveType.Cube, house, new Vector3(-2.2f + leg.x, y + 0.19f, 1.8f + leg.y), Quaternion.identity, new Vector3(0.05f, 0.38f, 0.05f), wood);
-            AddVisual(PrimitiveType.Cylinder, house, new Vector3(-2.15f, y + 0.47f, 1.6f), Quaternion.identity, new Vector3(0.09f, 0.05f, 0.09f), metal);
-            // Armchair, turned toward the stove.
-            Vector3 armchair = new(-1.2f, y, 0.85f);
-            AddSolid(PrimitiveType.Cube, house, armchair + new Vector3(0f, 0.22f, 0f), Quaternion.Euler(0f, -40f, 0f), new Vector3(0.8f, 0.44f, 0.8f), sofa);
-            AddVisual(PrimitiveType.Cube, house, armchair + new Vector3(0.22f, 0.62f, -0.2f), Quaternion.Euler(0f, -40f, 0f), new Vector3(0.8f, 0.5f, 0.18f), sofa);
+            // Sofa against the left wall facing into the room, cushions on it; a rocking chair turned to the stove.
+            Furnish(house, "sofa_02", new Vector3(-3.38f, y, 1.8f), 90f, solid: true);
+            Furnish(house, "throw_pillows_01", new Vector3(-3.42f, y + 0.42f, 1.8f), 90f, scale: 0.85f);
+            Furnish(house, "Rockingchair_01", new Vector3(-1.15f, y, 0.95f), -40f, solid: true);
+            // A low wooden table with a lantern and a little plant on it.
+            Furnish(house, "small_wooden_table_01", new Vector3(-2.3f, y, 1.8f), 90f, solid: true);
+            Furnish(house, "Lantern_01", new Vector3(-2.25f, y + 0.535f, 1.5f), 20f);
+            Furnish(house, "potted_plant_04", new Vector3(-2.32f, y + 0.535f, 2.1f), 0f);
             // Wood stove in the front corner, with its pipe up to the chimney.
             Vector3 stove = new(-3.3f, y, 3f);
             AddSolid(PrimitiveType.Cube, house, stove + new Vector3(0f, 0.38f, 0f), Quaternion.identity, new Vector3(0.6f, 0.76f, 0.55f), metal);
             AddVisual(PrimitiveType.Cube, house, stove + new Vector3(0.301f, 0.35f, 0f), Quaternion.identity, new Vector3(0.01f, 0.25f, 0.3f), fire);
-            AddVisual(PrimitiveType.Cylinder, house, stove + new Vector3(0f, 1.7f, -0.6f + 0.6f), Quaternion.identity, new Vector3(0.14f, 0.95f, 0.14f), metal);
+            AddVisual(PrimitiveType.Cylinder, house, stove + new Vector3(0f, 1.7f, 0f), Quaternion.identity, new Vector3(0.14f, 0.95f, 0.14f), metal);
             AddVisual(PrimitiveType.Cube, house, stove + new Vector3(0f, 0.01f, 0f), Quaternion.identity, new Vector3(1f, 0.02f, 0.9f), GetOrCreateMaterial("Hearth", new Color(0.35f, 0.34f, 0.33f)));
-            // Bookshelf against the middle wall.
-            Vector3 shelf = new(-3f, y, 0.3f);
-            AddSolid(PrimitiveType.Cube, house, shelf + new Vector3(0f, 0.9f, 0f), Quaternion.identity, new Vector3(1.1f, 1.8f, 0.3f), wood);
-            // Books on its shelves, each its own height and colour.
-            Material[] spines =
-            {
-                books, GetOrCreateMaterial("BooksBlue", new Color(0.2f, 0.28f, 0.45f)), GetOrCreateMaterial("BooksGreen", new Color(0.25f, 0.4f, 0.25f)),
-                GetOrCreateMaterial("BooksCream", new Color(0.85f, 0.8f, 0.65f)), GetOrCreateMaterial("BooksBrown", new Color(0.4f, 0.28f, 0.18f)),
-            };
-            var random = new System.Random(Seed + 21);
-            for (int row = 0; row < 3; row++)
-            {
-                float x = -0.5f;
-                while (x < 0.45f)
-                {
-                    float width = 0.035f + (float)random.NextDouble() * 0.04f, bookHeight = 0.17f + (float)random.NextDouble() * 0.1f;
-                    AddVisual(PrimitiveType.Cube, house, shelf + new Vector3(x + width / 2f, 0.33f + row * 0.55f + bookHeight / 2f, 0.1f), Quaternion.Euler(0f, 0f, random.NextDouble() < 0.1 ? 12f : 0f),
-                        new Vector3(width, bookHeight, 0.2f), spines[random.Next(spines.Length)]);
-                    x += width + 0.004f;
-                }
-                // The shelf board under each row.
-                AddVisual(PrimitiveType.Cube, house, shelf + new Vector3(0f, 0.32f + row * 0.55f, 0.12f), Quaternion.identity, new Vector3(1.05f, 0.025f, 0.12f), wood);
-            }
+            // A worn bookshelf against the middle wall, with a set of encyclopedias and an oil lamp on top.
+            Furnish(house, "wooden_bookshelf_worn", new Vector3(-3.0f, y, 0.36f), 0f, solid: true);
+            Furnish(house, "book_encyclopedia_set_01", new Vector3(-3.15f, y + 1.06f, 0.36f), 0f);
+            Furnish(house, "book_encyclopedia_set_01", new Vector3(-2.85f, y + 0.4f, 0.36f), 180f);
+            Furnish(house, "vintage_oil_lamp", new Vector3(-3.4f, y + 2.07f, 0.36f), 0f, scale: 0.6f);
+            // A framed picture on the middle wall.
+            Furnish(house, "hanging_picture_frame_01", new Vector3(-0.95f, y + 1.2f, 0.07f), 0f);
         }
 
-        /// <summary>Front right: an L of counters with a sink under the window, a stove and a fridge, and a small table.</summary>
+        /// <summary>Front right: an L of counters with a sink under the window, an electric cooker and a fridge, a table for two.</summary>
         static void FurnishKitchen(GameObject house, float floorTop, Material wood, Material metal, Material white)
         {
             Material counter = GetOrCreateMaterial("Countertop", new Color(0.32f, 0.33f, 0.34f), 0.4f);
@@ -245,32 +245,32 @@ namespace Backpacking.EditorTools
             AddVisual(PrimitiveType.Cube, house, new Vector3(2.65f, y + 0.88f, 3.0f), Quaternion.identity, new Vector3(2.34f, 0.04f, 0.64f), counter);
             AddVisual(PrimitiveType.Cube, house, new Vector3(2.7f, y + 0.89f, 3.0f), Quaternion.identity, new Vector3(0.55f, 0.03f, 0.4f), steel);
             AddVisual(PrimitiveType.Cylinder, house, new Vector3(2.7f, y + 1.02f, 3.22f), Quaternion.identity, new Vector3(0.03f, 0.12f, 0.03f), steel);
-            // Along the right wall: the cooker and more worktop, then the fridge.
-            AddSolid(PrimitiveType.Cube, house, new Vector3(3.5f, y + 0.43f, 1.75f), Quaternion.identity, new Vector3(0.6f, 0.86f, 1.9f), cupboard);
-            AddVisual(PrimitiveType.Cube, house, new Vector3(3.5f, y + 0.88f, 1.75f), Quaternion.identity, new Vector3(0.64f, 0.04f, 1.9f), counter);
-            AddVisual(PrimitiveType.Cube, house, new Vector3(3.5f, y + 0.9f, 1.4f), Quaternion.identity, new Vector3(0.5f, 0.02f, 0.55f), metal);
-            foreach (Vector2 ring in new[] { new Vector2(-0.12f, -0.13f), new Vector2(0.12f, -0.13f), new Vector2(-0.12f, 0.13f), new Vector2(0.12f, 0.13f) })
-                AddVisual(PrimitiveType.Cylinder, house, new Vector3(3.5f + ring.x, y + 0.915f, 1.4f + ring.y), Quaternion.identity, new Vector3(0.16f, 0.004f, 0.16f), steel);
+            // Along the right wall: worktop either side of the electric cooker, then the fridge.
+            foreach ((float from, float to) in new[] { (0.8f, 1.13f), (1.67f, 2.7f) })
+            {
+                float middle = (from + to) / 2f, length = to - from;
+                AddSolid(PrimitiveType.Cube, house, new Vector3(3.5f, y + 0.43f, middle), Quaternion.identity, new Vector3(0.6f, 0.86f, length), cupboard);
+                AddVisual(PrimitiveType.Cube, house, new Vector3(3.5f, y + 0.88f, middle), Quaternion.identity, new Vector3(0.64f, 0.04f, length), counter);
+            }
+            Furnish(house, "electric_stove", new Vector3(3.5f, y, 1.4f), -90f, solid: true);
+            Furnish(house, "pot_enamel_01", new Vector3(3.5f, y + 0.86f, 1.28f), 0f);
+            Furnish(house, "brass_pan_01", new Vector3(3.5f, y + 0.86f, 1.55f), 90f);
             AddSolid(PrimitiveType.Cube, house, new Vector3(3.48f, y + 0.9f, 0.45f), Quaternion.identity, new Vector3(0.66f, 1.8f, 0.66f), white);
             AddVisual(PrimitiveType.Cube, house, new Vector3(3.14f, y + 1.1f, 0.25f), Quaternion.identity, new Vector3(0.03f, 0.5f, 0.04f), steel);
             // Wall cupboards above the worktop.
             AddVisual(PrimitiveType.Cube, house, new Vector3(3.65f, y + 1.85f, 1.9f), Quaternion.identity, new Vector3(0.35f, 0.65f, 1.4f), cupboard);
-            // Kettle and a pot on the cooker.
-            AddVisual(PrimitiveType.Cylinder, house, new Vector3(3.45f, y + 1f, 1.3f), Quaternion.identity, new Vector3(0.2f, 0.09f, 0.2f), metal);
-            // A small table with two chairs.
-            Vector3 table = new(1.9f, y, 1.5f);
-            AddSolid(PrimitiveType.Cylinder, house, table + new Vector3(0f, 0.74f, 0f), Quaternion.identity, new Vector3(0.9f, 0.025f, 0.9f), wood);
-            AddVisual(PrimitiveType.Cylinder, house, table + new Vector3(0f, 0.37f, 0f), Quaternion.identity, new Vector3(0.08f, 0.37f, 0.08f), wood);
-            foreach (float x in new[] { -0.6f, 0.6f })
-            {
-                Vector3 chair = table + new Vector3(x, 0f, 0f);
-                AddSolid(PrimitiveType.Cube, house, chair + new Vector3(0f, 0.45f, 0f), Quaternion.identity, new Vector3(0.42f, 0.05f, 0.42f), wood);
-                AddVisual(PrimitiveType.Cube, house, chair + new Vector3(0f, 0.22f, 0f), Quaternion.identity, new Vector3(0.36f, 0.44f, 0.36f), wood);
-                AddVisual(PrimitiveType.Cube, house, chair + new Vector3(Mathf.Sign(x) * 0.19f, 0.75f, 0f), Quaternion.identity, new Vector3(0.04f, 0.55f, 0.42f), wood);
-            }
+            // A kettle and a chopping board on the worktops.
+            Furnish(house, "vintage_electric_kettle", new Vector3(3.5f, y + 0.9f, 2.35f), -90f);
+            Furnish(house, "wooden_cutting_board", new Vector3(3.25f, y + 0.9f, 3.0f), 10f);
+            // A wooden table for two with painted chairs, a jug and a bowl of fruit.
+            Furnish(house, "wooden_table_02", new Vector3(1.9f, y, 1.5f), 0f, solid: true);
+            Furnish(house, "painted_wooden_chair_01", new Vector3(1.9f, y, 0.92f), 0f, solid: true);
+            Furnish(house, "painted_wooden_chair_01", new Vector3(1.9f, y, 2.08f), 180f, solid: true);
+            Furnish(house, "wooden_bowl_01", new Vector3(1.9f, y + 0.8f, 1.5f), 0f);
+            Furnish(house, "jug_01", new Vector3(2.25f, y + 0.8f, 1.62f), 30f);
         }
 
-        /// <summary>Back left: a double bed with nightstands, a wardrobe, a rug and your hiking boots' empty spot by the door.</summary>
+        /// <summary>Back left: an iron single bed with a mattress and blanket, nightstands, a chest of drawers, a wardrobe.</summary>
         static void FurnishBedroom(GameObject house, float floorTop, Material wood, Material white)
         {
             Material bedding = GetOrCreateMaterial("Bedding", new Color(0.85f, 0.84f, 0.8f));
@@ -279,19 +279,22 @@ namespace Backpacking.EditorTools
             Material lampShade = GetOrCreateEmissiveMaterial("LampShade", new Color(1f, 0.85f, 0.6f));
             float y = floorTop;
 
-            Vector3 bed = new(-1.9f, y, -2.35f);
-            AddSolid(PrimitiveType.Cube, house, bed + new Vector3(0f, 0.2f, 0f), Quaternion.identity, new Vector3(1.45f, 0.4f, 2.05f), wood);
-            AddVisual(PrimitiveType.Cube, house, bed + new Vector3(0f, 0.48f, 0f), Quaternion.identity, new Vector3(1.4f, 0.18f, 2f), bedding);
-            AddVisual(PrimitiveType.Cube, house, bed + new Vector3(0f, 0.59f, 0.25f), Quaternion.Euler(1.5f, 0f, 0f), new Vector3(1.44f, 0.06f, 1.5f), blanket);
-            foreach (float x in new[] { -0.35f, 0.35f })
-                AddVisual(PrimitiveType.Cube, house, bed + new Vector3(x, 0.63f, -0.78f), Quaternion.identity, new Vector3(0.55f, 0.12f, 0.32f), bedding);
-            AddVisual(PrimitiveType.Cube, house, bed + new Vector3(0f, 0.65f, -1.02f), Quaternion.identity, new Vector3(1.5f, 1.3f, 0.06f), wood);
-            foreach (float x in new[] { -1.05f, 1.05f })
-            {
-                AddSolid(PrimitiveType.Cube, house, bed + new Vector3(x, 0.28f, -0.75f), Quaternion.identity, new Vector3(0.45f, 0.56f, 0.4f), wood);
-                AddVisual(PrimitiveType.Cylinder, house, bed + new Vector3(x, 0.72f, -0.78f), Quaternion.identity, new Vector3(0.18f, 0.1f, 0.18f), lampShade);
-            }
-            AddVisual(PrimitiveType.Cube, house, bed + new Vector3(0f, 0.005f, 1.4f), Quaternion.identity, new Vector3(1.8f, 0.01f, 0.9f), rug);
+            // The bed: an old iron frame against the back wall, made up with a mattress, sheets, a blanket and a pillow.
+            Vector3 bed = new(-2.0f, y, -2.31f);
+            Furnish(house, "old_bed_frame", bed, 0f, solid: true);
+            AddVisual(PrimitiveType.Cube, house, bed + new Vector3(0f, 0.5f, 0f), Quaternion.identity, new Vector3(0.84f, 0.16f, 1.88f), bedding);
+            AddVisual(PrimitiveType.Cube, house, bed + new Vector3(0f, 0.59f, 0.25f), Quaternion.Euler(1.5f, 0f, 0f), new Vector3(0.9f, 0.05f, 1.35f), blanket);
+            AddVisual(PrimitiveType.Cube, house, bed + new Vector3(0f, 0.63f, -0.72f), Quaternion.identity, new Vector3(0.55f, 0.11f, 0.32f), bedding);
+            // A nightstand each side, a lamp on the left one and the alarm clock on the right.
+            foreach (float x in new[] { -0.95f, 0.95f })
+                Furnish(house, "painted_wooden_nightstand", bed + new Vector3(x, 0f, -0.75f), 0f, solid: true);
+            AddVisual(PrimitiveType.Cylinder, house, bed + new Vector3(-0.95f, 0.72f, -0.8f), Quaternion.identity, new Vector3(0.18f, 0.1f, 0.18f), lampShade);
+            Furnish(house, "alarm_clock_01", bed + new Vector3(0.95f, 0.62f, -0.75f), -20f);
+            AddVisual(PrimitiveType.Cube, house, bed + new Vector3(0f, 0.005f, 1.4f), Quaternion.identity, new Vector3(1.6f, 0.01f, 0.9f), rug);
+            // A chest of drawers against the bathroom wall, a photo on it and a mirror above.
+            Furnish(house, "vintage_wooden_drawer_01", new Vector3(0.6f, y, -1.0f), -90f, solid: true);
+            Furnish(house, "standing_picture_frame_01", new Vector3(0.62f, y + 0.55f, -0.8f), -110f);
+            Furnish(house, "ornate_mirror_01", new Vector3(0.83f, y + 0.95f, -1.0f), -90f);
             // Wardrobe against the left wall, by the door.
             AddSolid(PrimitiveType.Cube, house, new Vector3(-3.55f, y + 1f, -0.7f), Quaternion.identity, new Vector3(0.6f, 2f, 1.1f), wood);
             AddVisual(PrimitiveType.Cube, house, new Vector3(-3.24f, y + 1f, -0.7f), Quaternion.identity, new Vector3(0.01f, 1.9f, 0.02f), white);
