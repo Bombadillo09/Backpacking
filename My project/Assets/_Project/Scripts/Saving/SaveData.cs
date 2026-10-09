@@ -106,5 +106,7 @@ namespace Backpacking.Saving
         public int tentModel = -1;
         /// <summary>Whose it is: empty for the save's own hiker, else a co-op friend's key and name.</summary>
         public string owner = "", ownerName = "";
+        /// <summary>For a lantern, whether it's lit.</summary>
+        public bool lanternOn = true;
     }
 }

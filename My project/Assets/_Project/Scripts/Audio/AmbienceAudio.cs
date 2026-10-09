@@ -91,7 +91,46 @@ namespace Backpacking.Audio
 
             AudioClip water = waterClip != null ? waterClip : Sounds.Water();
             foreach (WaterSource lake in FindObjectsByType<WaterSource>())
-                AddLakeSound(lake, water);
+                if (!lake.Flowing)
+                    AddLakeSound(lake, water);
+            // Rivers and streams are many short stretches: one voice follows the nearest bit of running water.
+            river = CreateSource("River", birdRoot);
+            MakeSpatial(river, 5f, 55f);
+            river.rolloffMode = AudioRolloffMode.Linear;
+            river.clip = water;
+            river.loop = true;
+            river.pitch = 1.25f;
+            river.Play();
+        }
+
+        AudioSource river;
+        float nextRiverCheck;
+
+        /// <summary>Puts the river's voice on the closest point of the closest running water.</summary>
+        void UpdateRiver()
+        {
+            if (river == null)
+                return;
+            river.volume = waterVolume * 1.3f * Level;
+            if (Time.time < nextRiverCheck)
+                return;
+            nextRiverCheck = Time.time + 0.3f;
+            Vector3 here = transform.position;
+            float best = float.MaxValue;
+            Vector3 nearest = here + Vector3.up * 500f;
+            foreach (WaterSource water in WaterSource.All)
+            {
+                if (water == null || !water.Flowing || !water.TryGetComponent(out Collider area))
+                    continue;
+                Vector3 point = area.ClosestPoint(here);
+                float distance = (point - here).sqrMagnitude;
+                if (distance < best)
+                {
+                    best = distance;
+                    nearest = point;
+                }
+            }
+            river.transform.position = nearest;
         }
 
         void Update()
@@ -123,6 +162,7 @@ namespace Backpacking.Audio
                 if (lake != null)
                     lake.volume = waterVolume * level;
 
+            UpdateRiver();
             UpdateBirds(rainAmount, windiness);
             UpdateOwls(rainAmount, windiness);
             UpdateThunder();

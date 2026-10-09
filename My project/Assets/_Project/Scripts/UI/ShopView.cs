@@ -8,7 +8,10 @@ using UnityEngine.UIElements;
 
 namespace Backpacking.UI
 {
-    /// <summary>The trading screen: buy from the vendor's stock on the left, sell food, pelts and hides on the right.</summary>
+    /// <summary>
+    /// The trading screen: buy from the vendor's stock on the left, in tabs (gear, food, clothing), and sell food,
+    /// pelts and hides on the right. Limited stock is counted for each hiker, so friends can each buy one.
+    /// </summary>
     public class ShopView : MonoBehaviour
     {
         [SerializeField] Backpack backpack;
@@ -21,6 +24,9 @@ namespace Backpacking.UI
         Label title;
         ScrollView buyList, sellList;
         string sellKey;
+        static readonly string[] Tabs = { "Gear", "Food", "Clothing" };
+        string tab = Tabs[0];
+        readonly System.Collections.Generic.Dictionary<string, Button> tabButtons = new();
 
         public bool IsOpen => vendor != null;
 
@@ -46,7 +52,7 @@ namespace Backpacking.UI
                     bindings.Text(() => $"${backpack.Money}", "money")),
                 bindings.Text(PackLine, "small"),
                 UIBuild.Box("columns").With(
-                    UIBuild.Box("column").With(UIBuild.Text("BUY", "heading"), buyList),
+                    UIBuild.Box("column").With(UIBuild.Text("BUY", "heading"), TabRow(), buyList),
                     UIBuild.Box("column", "next").With(UIBuild.Text("SELL", "heading"), sellList)),
                 UIBuild.Box("footer").With(UIBuild.Button("Leave  (Tab)", Close)));
             panel.style.width = 1040f;
@@ -56,6 +62,38 @@ namespace Backpacking.UI
             screen.SetVisible(false);
             GameUI.Current.Screens.Add(screen);
         }
+
+        /// <summary>The gear, food and clothing tabs over the buy list, each with how many things it has.</summary>
+        VisualElement TabRow()
+        {
+            VisualElement row = UIBuild.Box("row", "shop-tabs");
+            foreach (string name in Tabs)
+            {
+                string shown = name;
+                Button button = UIBuild.Button(name, () =>
+                {
+                    tab = shown;
+                    BuildBuyList();
+                }, "shop-tab");
+                bindings.Add(() =>
+                {
+                    int count = vendor == null ? 0 : vendor.Stock.Count(entry => TabOf(entry.item) == shown);
+                    button.SetText($"{shown}   {count}");
+                    button.SetEnabled(count > 0);
+                });
+                tabButtons[name] = button;
+                row.Add(button);
+            }
+            return row;
+        }
+
+        /// <summary>Which tab something's in: food, clothing and boots, or gear (everything else).</summary>
+        static string TabOf(ShopItemId item) => ShopCatalog.CategoryOf(item) switch
+        {
+            "Food" => "Food",
+            "Clothing & boots" => "Clothing",
+            _ => "Gear",
+        };
 
         /// <summary>How full the pack is, so you can tell what will fit before you buy.</summary>
         string PackLine()
@@ -73,6 +111,8 @@ namespace Backpacking.UI
                 return;
             vendor = trader;
             title.text = vendor.DisplayName;
+            // Start on the first tab with anything in it.
+            tab = Tabs.FirstOrDefault(name => vendor.Stock.Any(entry => TabOf(entry.item) == name)) ?? Tabs[0];
             BuildBuyList();
             sellKey = null;
             screen.SetVisible(true);
@@ -122,13 +162,18 @@ namespace Backpacking.UI
         {
             buyBindings.Clear();
             buyList.Clear();
+            foreach ((string name, Button button) in tabButtons)
+                if (name == tab)
+                    button.AddToClassList("selected");
+                else
+                    button.RemoveFromClassList("selected");
             // Grouped by kind of thing: packs, shelter and sleeping, cooking, water, food, clothing, tools, first aid.
             foreach (string category in ShopCatalog.Categories)
             {
                 bool headed = false;
                 foreach (StockEntry entry in vendor.Stock)
                 {
-                    if (ShopCatalog.CategoryOf(entry.item) != category)
+                    if (ShopCatalog.CategoryOf(entry.item) != category || TabOf(entry.item) != tab)
                         continue;
                     if (!headed)
                     {

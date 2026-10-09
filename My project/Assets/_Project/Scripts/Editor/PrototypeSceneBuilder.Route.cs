@@ -66,9 +66,9 @@ namespace Backpacking.EditorTools
                 (ShopItemId.HikingBoots, Unlimited), (ShopItemId.LeatherBoots, Unlimited),
                 (ShopItemId.Machete, Unlimited), (ShopItemId.FishingKit, Unlimited), (ShopItemId.FishingRod, Unlimited),
                 (ShopItemId.Snare, Unlimited), (ShopItemId.CampChair, Unlimited),
-                (ShopItemId.HuntingBow, 1), (ShopItemId.Arrows, Unlimited),
+                (ShopItemId.HuntingBow, Unlimited), (ShopItemId.Arrows, Unlimited),
                 // New stock goes at the end: saves keep each vendor's stock by its place in this list.
-                (ShopItemId.Flashlight, Unlimited),
+                (ShopItemId.Flashlight, Unlimited), (ShopItemId.Lantern, Unlimited),
             },
         };
 
@@ -84,6 +84,7 @@ namespace Backpacking.EditorTools
                 (ShopItemId.TwoPersonTent, 1), (ShopItemId.FoamMat, 2), (ShopItemId.InflatableMat, 1),
                 (ShopItemId.Bandages, 6), (ShopItemId.CampChair, 1),
                 (ShopItemId.HuntingBow, 1), (ShopItemId.Arrows, 18),
+                (ShopItemId.Lantern, 2),
             },
         };
 

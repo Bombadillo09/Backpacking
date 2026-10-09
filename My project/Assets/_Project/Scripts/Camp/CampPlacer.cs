@@ -18,6 +18,8 @@ namespace Backpacking.Camp
         /// <summary>Not gear: a spot to clear of brush with the machete.</summary>
         Clearing,
         Chair,
+        // New kinds go at the end: saves store placed gear by this number.
+        Lantern,
     }
 
     /// <summary>
@@ -39,6 +41,7 @@ namespace Backpacking.Camp
         [SerializeField] GameObject stovePrefab;
         [SerializeField] GameObject snarePrefab;
         [SerializeField] GameObject chairPrefab;
+        [SerializeField] GameObject lanternPrefab;
         [Tooltip("The see-through disc shown while choosing a spot to clear.")]
         [SerializeField] GameObject clearingPrefab;
 
@@ -106,6 +109,9 @@ namespace Backpacking.Camp
             CampItem.Chair => !backpack.HasChair ? "You don't have a chair. Trading posts sell them"
                 : !backpack.ChairInPack ? "Your chair is already out" : GearProblem(),
             CampItem.Clearing => backpack.HasMachete ? null : "You need a machete",
+            // It hangs off the outside of the pack: no need to take the pack off.
+            CampItem.Lantern => !backpack.HasLantern ? "You don't have a lantern. The outdoor store sells them"
+                : !backpack.LanternInPack ? "Your lantern is already out" : null,
             _ => null,
         };
 
@@ -185,6 +191,9 @@ namespace Backpacking.Camp
         {
             if (hit.collider.GetComponent<WaterSource>() != null)
                 return "Can't place it in water";
+            // A lantern can stand on a rock, a log or a table too.
+            if (placing == CampItem.Lantern)
+                return Vector3.Angle(hit.normal, Vector3.up) > 30f ? "Too steep: it would fall over" : FootprintBlocked(position, rotation) ? "Something is in the way" : null;
             if (hit.collider is not TerrainCollider)
                 return "Place it on the ground";
 
@@ -282,6 +291,11 @@ namespace Backpacking.Camp
                     Spawn(item, position, rotation).GetComponent<CampChair>().Setup(ChairStage.Packed);
                     Notifications.Post("Chair out of its sack. Look at it to put the frame together.", 3.5f);
                     break;
+                case CampItem.Lantern:
+                    backpack.LanternInPack = false;
+                    Spawn(item, position, rotation);
+                    Notifications.Post("You set the lantern down and light it. Look at it to turn it off, or pick it up.", 3.5f);
+                    break;
                 case CampItem.Snare:
                     backpack.TryUseSnare();
                     Spawn(item, position, rotation);
@@ -297,6 +311,7 @@ namespace Backpacking.Camp
             CampItem.Snare => snarePrefab,
             CampItem.Clearing => clearingPrefab,
             CampItem.Chair => chairPrefab,
+            CampItem.Lantern => lanternPrefab,
             _ => stovePrefab,
         };
 

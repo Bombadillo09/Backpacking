@@ -357,6 +357,12 @@ namespace Backpacking.UI
                     () => "Poles first, then the seat. Sitting in it your feet rest faster than on the ground, and your boots still come off.");
                 chair.Actions.Add((() => "Take out the chair", () => Place(CampItem.Chair), () => placer.RequirementProblem(CampItem.Chair)));
             }
+            if (backpack.HasLantern)
+            {
+                Item lantern = Add("CAMP GEAR", "lantern", "lantern", () => "Camp lantern", () => backpack.LanternInPack ? "packed" : "out",
+                    () => "Set it down to light up camp: a warm glow a good few metres round. It hangs off your pack, so it comes out with the pack on.");
+                lantern.Actions.Add((() => "Set the lantern down", () => Place(CampItem.Lantern), () => placer.RequirementProblem(CampItem.Lantern)));
+            }
             if (backpack.Snares > 0)
             {
                 Item snares = Add("CAMP GEAR", "snare", "snare", () => "Wire snares", () => $"×{backpack.Snares}",
@@ -511,6 +517,7 @@ namespace Backpacking.UI
                     return "in the tent";
                 case "stove" when !backpack.HasStove:
                 case "chair" when !backpack.ChairInPack:
+                case "lantern" when !backpack.LanternInPack:
                     return "set up at camp";
             }
             if (!backpack.HasPack)

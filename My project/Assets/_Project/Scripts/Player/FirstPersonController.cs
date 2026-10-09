@@ -115,6 +115,8 @@ namespace Backpacking.Player
         public bool CanSprint { get; set; } = true;
         /// <summary>Slows movement over difficult ground, e.g. thick brush. Set by other systems.</summary>
         public float GroundSpeedMultiplier { get; set; } = 1f;
+        /// <summary>Slows movement while wading (see Survival.Wading).</summary>
+        public float WaterSpeedMultiplier { get; set; } = 1f;
         /// <summary>Extra view rotation in degrees (x yaw, y pitch, z roll), e.g. shivering. Set by other systems.</summary>
         public Vector3 ViewOffset { get; set; }
         /// <summary>Unsteady aim while drawing a bow, in degrees (yaw, pitch). The shot follows the view, so it follows this too.</summary>
@@ -296,7 +298,7 @@ namespace Backpacking.Player
 
             // Sprinting only makes sense moving forward.
             IsSprinting = CanSprint && sprintAction.IsPressed() && input.y > 0.1f && !IsCrouching;
-            float speed = (IsCrouching ? crouchSpeed : IsSprinting ? sprintSpeed : walkSpeed) * SpeedMultiplier * GroundSpeedMultiplier;
+            float speed = (IsCrouching ? crouchSpeed : IsSprinting ? sprintSpeed : walkSpeed) * SpeedMultiplier * GroundSpeedMultiplier * WaterSpeedMultiplier;
             if (wishDirection.sqrMagnitude > 0.0001f)
                 speed *= UphillSpeedMultiplier(wishDirection.normalized);
 

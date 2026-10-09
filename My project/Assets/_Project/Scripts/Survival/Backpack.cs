@@ -168,6 +168,7 @@ namespace Backpacking.Survival
         public float bagWetness;
         public bool matOut, bagOut;
         public bool hasFlashlight;
+        public bool hasLantern, lanternInPack;
     }
 
     /// <summary>
@@ -230,6 +231,13 @@ namespace Backpacking.Survival
         [Tooltip("In the pack. False while it's out: set up or lying on the ground.")]
         [SerializeField] bool chairInPack;
         [SerializeField] float chairWeight = 0.9f;
+
+        [Header("Camp lantern")]
+        [Tooltip("Owned at all (bought at a store).")]
+        [SerializeField] bool hasLantern;
+        [Tooltip("In the pack (hanging off it). False while it's set down somewhere.")]
+        [SerializeField] bool lanternInPack;
+        [SerializeField] float lanternWeight = 0.4f;
 
         [Header("Hotbar")]
         [SerializeField] List<HotbarSlot> hotbar = new()
@@ -338,6 +346,8 @@ namespace Backpacking.Survival
         public int Bandages => bandages;
         public bool HasChair => hasChair;
         public bool ChairInPack { get => chairInPack; set => chairInPack = value; }
+        public bool HasLantern => hasLantern;
+        public bool LanternInPack { get => lanternInPack; set => lanternInPack = value; }
         public const int HotbarSize = 5;
         public IReadOnlyList<HotbarSlot> Hotbar => hotbar;
         /// <summary>How fast your feet tire in these boots: 1 is ordinary, lower is better.</summary>
@@ -410,6 +420,8 @@ namespace Backpacking.Survival
                     weight += gasGrams / 1000f + Mathf.Ceil(gasGrams / 230f) * canisterWeight;
                 if (hasChair && chairInPack)
                     weight += chairWeight;
+                if (hasLantern && lanternInPack)
+                    weight += lanternWeight;
                 weight += antibiotics * 0.03f + bandages * 0.01f + matches * 0.002f + firewood * firewoodWeight + snares * snareWeight + pelts * peltWeight
                           + hides * hideWeight + arrows * arrowWeight;
                 if (hasBow)
@@ -587,6 +599,12 @@ namespace Backpacking.Survival
         {
             hasChair = true;
             chairInPack = true;
+        }
+
+        public void AddLantern()
+        {
+            hasLantern = true;
+            lanternInPack = true;
         }
 
         /// <summary>Puts something on the hotbar: in the given slot, or the first empty one. Moves it if it's already on.</summary>
@@ -935,6 +953,8 @@ namespace Backpacking.Survival
             matOut = matOut,
             bagOut = bagOut,
             hasFlashlight = hasFlashlight,
+            hasLantern = hasLantern,
+            lanternInPack = lanternInPack,
         };
 
         public void RestoreState(BackpackState state)
@@ -988,6 +1008,8 @@ namespace Backpacking.Survival
             matOut = state.matOut;
             bagOut = state.bagOut;
             hasFlashlight = state.hasFlashlight;
+            hasLantern = state.hasLantern;
+            lanternInPack = state.lanternInPack;
             balanceCheckedAt = -1f;
         }
 

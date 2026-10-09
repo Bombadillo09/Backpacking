@@ -47,6 +47,7 @@ namespace Backpacking.Trade
         DownJacket,
         HikingBoots,
         Flashlight,
+        Lantern,
     }
 
     /// <summary>Something a trading post can sell: what it costs and what it does to the backpack.</summary>
@@ -233,6 +234,10 @@ namespace Backpacking.Trade
                 "A bright LED torch for camp chores and finding the trail after dark. Hold it (hotbar) and click to switch it on. 0.15 kg.", 20, true,
                 backpack => backpack.AddFlashlight(),
                 backpack => backpack.HasFlashlight ? "Already owned" : null),
+            [ShopItemId.Lantern] = new ShopItem("Camp lantern",
+                "A gas-mantle style LED lantern. Set it down and it lights up camp all round, so you can cook and pitch after dark. Hangs off your pack. 0.4 kg.", 30, true,
+                backpack => backpack.AddLantern(),
+                backpack => backpack.HasLantern ? "Already owned" : null),
             [ShopItemId.FishingKit] = new ShopItem("Hand line & hooks",
                 "A basic fishing kit: fish bite, but you need quick hands. 0.1 kg.", 10, true,
                 backpack => backpack.AddFishingKit(),
@@ -365,7 +370,7 @@ namespace Backpacking.Trade
             ShopItemId.UltralightPack or ShopItemId.TrekkingPack or ShopItemId.ExpeditionPack => "Packs",
             ShopItemId.OnePersonTent or ShopItemId.TwoPersonTent or ShopItemId.FourSeasonTent or ShopItemId.SummerBag
                 or ShopItemId.ThreeSeasonBag or ShopItemId.WinterSleepingBag or ShopItemId.FoamMat or ShopItemId.InflatableMat
-                or ShopItemId.CampChair => "Shelter & sleeping",
+                or ShopItemId.CampChair or ShopItemId.Lantern => "Shelter & sleeping",
             ShopItemId.Stove or ShopItemId.GasCanister or ShopItemId.Matches => "Cooking & fuel",
             ShopItemId.WaterBottle or ShopItemId.WaterBladder or ShopItemId.WaterFilter => "Water",
             ShopItemId.TrailMix or ShopItemId.DehydratedMeal => "Food",

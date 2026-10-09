@@ -82,7 +82,13 @@ namespace Backpacking.EditorTools
             water.transform.position = lake.Centre;
             float scale = lake.Radius * 2.2f / 10f;
             water.transform.localScale = new Vector3(scale, 1f, scale);
-            water.GetComponent<Renderer>().sharedMaterial = GetOrCreateMaterial("Water", new Color(0.12f, 0.24f, 0.3f), 0.95f);
+            // The same clear water as the rivers, its ripples drifting slowly (a repeat every 5 m).
+            water.GetComponent<Renderer>().sharedMaterial = GetOrCreateRiverMaterial();
+            water.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            var drift = water.AddComponent<FlowingWater>();
+            SetFloat(drift, "speed", 0.08f);
+            SetFloat(drift, "metresPerRepeat", 5f);
+            Modify(drift, "tiling", property => property.vector2Value = Vector2.one * (scale * 10f / 5f));
 
             // Swap the solid collider for a thin trigger: the player can wade in, but can still target the water.
             Object.DestroyImmediate(water.GetComponent<Collider>());
@@ -156,6 +162,9 @@ namespace Backpacking.EditorTools
                 return true;
             if (InsideLot(new Vector2(position.x, position.z)) > -3f)
                 return true;
+            // Nor in the rivers or on the bridges.
+            if (RiverEdgeDistance(new Vector2(position.x, position.z)) < 1.5f || NearBridge(new Vector2(position.x, position.z), 2f))
+                return true;
             return false;
         }
 
@@ -213,6 +222,7 @@ namespace Backpacking.EditorTools
             SetField(placer, "stovePrefab", prefabs.Stove);
             SetField(placer, "snarePrefab", prefabs.Snare);
             SetField(placer, "chairPrefab", prefabs.Chair);
+            SetField(placer, "lanternPrefab", prefabs.Lantern);
             SetField(placer, "clearingPrefab", prefabs.ClearingMarker);
             var packHandling = go.AddComponent<PackHandling>();
             SetField(packHandling, "backpack", backpack);
@@ -338,6 +348,9 @@ namespace Backpacking.EditorTools
 
             go.AddComponent<HeadBob>();
             go.AddComponent<Footsteps>();
+            var wading = go.AddComponent<Wading>();
+            SetField(wading, "vitals", vitals);
+            SetField(wading, "backpack", backpack);
             var ambience = go.AddComponent<AmbienceAudio>();
             SetField(ambience, "timeOfDay", timeOfDay);
             SetField(ambience, "weather", weather);
@@ -371,7 +384,7 @@ namespace Backpacking.EditorTools
 
         struct CampPrefabs
         {
-            public GameObject Tent, FireRing, Stove, Firewood, Snare, BerryBush, TradingPost, ClearingMarker, GroundPack, TentBag, Chair;
+            public GameObject Tent, FireRing, Stove, Firewood, Snare, BerryBush, TradingPost, ClearingMarker, GroundPack, TentBag, Chair, Lantern;
         }
 
         /// <summary>
@@ -389,6 +402,7 @@ namespace Backpacking.EditorTools
                 GroundPack = GetOrCreatePrefab("Ground Pack (detailed)", BuildGroundPack),
                 TentBag = GetOrCreatePrefab("Tent Bag (detailed)", BuildTentBag),
                 Chair = GetOrCreatePrefab("Camp Chair", BuildChair),
+                Lantern = GetOrCreatePrefab("Camp Lantern", BuildLantern),
                 // Renamed when the fire got layered flames, coals and smoke, so the old prefab isn't reused.
                 FireRing = GetOrCreatePrefab("Fire Ring (layered)", BuildFireRing),
                 // Renamed when the gear got detailed models, so the old primitive-built prefabs aren't reused.

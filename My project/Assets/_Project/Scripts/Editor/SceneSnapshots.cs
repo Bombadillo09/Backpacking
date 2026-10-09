@@ -182,6 +182,84 @@ namespace Backpacking.EditorTools
             return result;
         }
 
+        /// <summary>
+        /// The rivers, a footbridge, the crags and a lantern lit at night: "run:Backpacking.EditorTools.SceneSnapshots.RenderLandscape",
+        /// or -executeMethod Backpacking.EditorTools.SceneSnapshots.RenderLandscapeBatch.
+        /// </summary>
+        public static string RenderLandscape()
+        {
+            EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            var terrain = Object.FindAnyObjectByType<Terrain>();
+            var views = new List<(string name, Vector3 from, Vector3 at)>();
+            Vector3 Ground(Vector3 at) => new(at.x, terrain.SampleHeight(at) + terrain.transform.position.y, at.z);
+
+            Transform rivers = GameObject.Find("Rivers")?.transform;
+            if (rivers != null)
+            {
+                Transform bridge = null;
+                foreach (Transform child in rivers)
+                    if (child.name == "Footbridge" && bridge == null)
+                        bridge = child;
+                if (bridge != null)
+                {
+                    views.Add(("river-bridge", bridge.position - bridge.forward * 9f + bridge.right * 5f + Vector3.up * 2.2f, bridge.position));
+                    views.Add(("river-bridge-on", bridge.position - bridge.forward * 3f + Vector3.up * 1.7f, bridge.position + bridge.forward * 3f + bridge.right * 4f - Vector3.up * 0.6f));
+                }
+                // Partway down each river and a stream, looking along the water.
+                int shown = 0;
+                foreach (Transform river in rivers)
+                {
+                    if (river.name == "Footbridge" || shown >= 3)
+                        continue;
+                    var stretches = new List<Transform>();
+                    foreach (Transform part in river)
+                        if (part.GetComponent<Camp.WaterSource>() != null)
+                            stretches.Add(part);
+                    if (stretches.Count < 10)
+                        continue;
+                    Transform middle = stretches[stretches.Count / 2];
+                    Vector3 bank = Ground(middle.position + middle.right * 9f);
+                    views.Add(($"water-{shown}-{river.name.ToLowerInvariant()}", bank + Vector3.up * 1.7f - middle.forward * 6f, middle.position + middle.forward * 14f));
+                    shown++;
+                }
+            }
+            Transform crags = GameObject.Find("Crags")?.transform;
+            if (crags != null && crags.childCount > 0)
+                for (int i = 0; i < 2; i++)
+                {
+                    Transform rock = crags.GetChild(crags.childCount * (i + 1) / 3);
+                    Vector3 from = Ground(rock.position + new Vector3(45f, 0f, 30f)) + Vector3.up * 1.8f;
+                    views.Add(($"crag-{i}", from, rock.position + Vector3.up * 3f));
+                }
+
+            Light sun = GameObject.Find("Sun")?.GetComponent<Light>();
+            if (sun != null)
+                sun.transform.rotation = Quaternion.Euler(40f, 140f, 0f);
+            string result = Render(views, "landscape");
+
+            // A lantern at night, by the house.
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/_Project/Prefabs/Camp/Camp Lantern.prefab");
+            GameObject home = GameObject.Find("Road/Home");
+            if (prefab != null && home != null && sun != null)
+            {
+                Vector3 place = Ground(home.transform.TransformPoint(new Vector3(-8f, 0f, 1f)));
+                var lantern = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+                lantern.transform.position = place;
+                lantern.GetComponentInChildren<Light>().enabled = true;
+                sun.enabled = false;
+                RenderSettings.ambientLight = new Color(0.04f, 0.05f, 0.08f);
+                RenderSettings.ambientIntensity = 0.15f;
+                result += " " + Render(new List<(string, Vector3, Vector3)>
+                {
+                    ("lantern-night", place + new Vector3(2.5f, 1.6f, 2.5f), place + Vector3.up * 0.2f),
+                    ("lantern-close", place + new Vector3(0.5f, 0.45f, 0.5f), place + Vector3.up * 0.16f),
+                }, "lantern");
+            }
+            return result;
+        }
+
+        public static void RenderLandscapeBatch() => Debug.Log(RenderLandscape());
+
         static string Render(List<(string name, Vector3 from, Vector3 at)> views, string what)
         {
             Directory.CreateDirectory(Folder);

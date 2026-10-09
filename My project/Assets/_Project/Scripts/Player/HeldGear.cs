@@ -19,6 +19,8 @@ namespace Backpacking.Player
             null, "tent", "sleepingbag", "mat", "airmat", "stove", "gas", "matches", "firewood", "snare", "chair", "filter",
             "pelt", "hide", "boots", "garment-base", "garment-fleece", "garment-shell", "garment-down", "garment-pants", "garment-hat",
             "water", "bandage", "antibiotics", "bow", "rod", "fishing", "flashlight", "machete",
+            // New pictures go at the end: co-op sends them by number.
+            "lantern",
         };
 
         public static byte IconCode(string icon)
@@ -184,6 +186,17 @@ namespace Backpacking.Player
                     parts.Add(PrimitiveType.Cylinder, new Vector3(0f, 0.045f, 0f), Vector3.zero, new Vector3(0.1f, 0.045f, 0.1f), paint);
                     if (icon == "stove")
                         parts.Add(PrimitiveType.Cylinder, new Vector3(0f, 0.11f, 0f), Vector3.zero, new Vector3(0.11f, 0.02f, 0.11f), parts.Tint(new Color(0.7f, 0.7f, 0.72f), 0.7f));
+                    break;
+                }
+                case "lantern":
+                {
+                    // Carried by its bail, hanging below the hand.
+                    Material enamel = parts.Tint(new Color(0.12f, 0.32f, 0.2f), 0.55f);
+                    parts.Rod(Vector3.zero, new Vector3(0f, -0.06f, 0f), 0.003f, parts.Tint(new Color(0.18f, 0.18f, 0.19f), 0.5f));
+                    parts.Add(PrimitiveType.Cylinder, new Vector3(0f, -0.07f, 0f), Vector3.zero, new Vector3(0.11f, 0.008f, 0.11f), enamel);
+                    parts.Add(PrimitiveType.Sphere, new Vector3(0f, -0.14f, 0f), Vector3.zero, new Vector3(0.085f, 0.12f, 0.085f),
+                        parts.Tint(new Color(1f, 0.92f, 0.75f), 0.9f, new Color(1.2f, 0.9f, 0.5f)));
+                    parts.Add(PrimitiveType.Cylinder, new Vector3(0f, -0.22f, 0f), Vector3.zero, new Vector3(0.12f, 0.04f, 0.12f), enamel);
                     break;
                 }
                 case "matches":

@@ -94,7 +94,11 @@ namespace Backpacking.EditorTools
                 Biome biome = SampleBiome(u, v, height01, steepness);
                 float patchNoise = Mathf.PerlinNoise(u * 120f + 7f, v * 120f + 3f);
 
-                float rock = Mathf.InverseLerp(28f, 40f, steepness);
+                // The steepest slope round this texel, so a cliff narrower than a texel still shows as rock.
+                float texel = 0.5f / (res - 1f);
+                float steepest = Mathf.Max(steepness, Mathf.Max(Mathf.Max(data.GetSteepness(u + texel, v), data.GetSteepness(u - texel, v)),
+                    Mathf.Max(data.GetSteepness(u, v + texel), data.GetSteepness(u, v - texel))));
+                float rock = Mathf.InverseLerp(28f, 40f, steepest);
                 float snow = Mathf.InverseLerp(0.6f, 0.7f, height01) * (1f - rock);
                 float alpine = biome.Alpine * (1f - snow) * (1f - rock);
                 float forestGround = biome.Forest * (1f - rock) * (1f - alpine);
@@ -108,7 +112,9 @@ namespace Backpacking.EditorTools
                 // A soft worn band under the trail's dirt strip.
                 float worn = 0.8f * (1f - Mathf.InverseLerp(1f, 4.5f, TrailDistance(u, v)));
                 weights[DirtLayer] = dirt + worn + RoadGround(u, v);
-                weights[RockLayer] = rock;
+                // Wet stones and gravel along the rivers' edges.
+                float shore = 0.9f * (1f - Mathf.InverseLerp(-1f, 3f, RiverEdgeDistance(u, v)));
+                weights[RockLayer] = rock + shore;
                 weights[SnowLayer] = snow;
                 weights[ForestFloorLayer] = forestGround - litter;
                 weights[AlpineLayer] = alpine;
@@ -240,6 +246,9 @@ namespace Backpacking.EditorTools
             }
             if (InsideLot(world) > -5f)
                 return true;
+            // No trees in the rivers or on their stony banks, nor at the bridges.
+            if (RiverEdgeDistance(world) < 2.5f || NearBridge(world, 3f))
+                return true;
             return false;
         }
 
@@ -313,7 +322,7 @@ namespace Backpacking.EditorTools
                 float height01 = data.GetInterpolatedHeight(u, v) / data.size.y;
                 Biome biome = SampleBiome(u, v, height01, steepness);
                 float bare = Mathf.Max(Mathf.InverseLerp(28f, 40f, steepness), Mathf.InverseLerp(0.6f, 0.7f, height01));
-                if (InLake(u, v, route))
+                if (InLake(u, v, route) || RiverEdgeDistance(u, v) < 0.5f)
                     bare = 1f;
                 forest[cell] = biome.Forest;
                 meadow[cell] = biome.Meadow;

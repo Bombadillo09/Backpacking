@@ -271,6 +271,8 @@ namespace Backpacking.Saving
             }
             if (instance.TryGetComponent(out CampChair chair))
                 state.chairStage = chair.Stage;
+            if (instance.TryGetComponent(out CampLantern lantern))
+                state.lanternOn = lantern.IsOn;
             state.owner = CampOwner.KeyOf(instance);
             state.ownerName = state.owner.Length > 0 && instance.TryGetComponent(out CampOwner owner) ? owner.ownerName : "";
             return state;
@@ -306,6 +308,8 @@ namespace Backpacking.Saving
             }
             if (instance.TryGetComponent(out CampChair chair) && (fresh || chair.Stage != item.chairStage))
                 chair.Setup(item.chairStage);
+            if (instance.TryGetComponent(out CampLantern lantern) && lantern.IsOn != item.lanternOn)
+                lantern.SetOn(item.lanternOn);
         }
 
         // ---------- One hiker (a co-op guest's) ----------

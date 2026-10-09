@@ -39,6 +39,8 @@ MonoBehaviour:
     icon: {fileID: 2800000, guid: 0c1f80d2b27fb094a87322f8b0eb7e3f, type: 3}
   - key: chair
     icon: {fileID: 2800000, guid: b1598eed5021e834a828aabc37c3215f, type: 3}
+  - key: lantern
+    icon: {fileID: 2800000, guid: e26a71f6831c1d44bae783f9f3a842c9, type: 3}
   - key: firewood
     icon: {fileID: 2800000, guid: 1fb0a43ffd8714149a4c6c64a1105a27, type: 3}
   - key: matches

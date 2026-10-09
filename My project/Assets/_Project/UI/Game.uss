@@ -805,6 +805,17 @@
     padding: 9px 12px;
 }
 
+.shop-tabs {
+    margin-bottom: 8px;
+}
+
+.shop-tab {
+    flex-grow: 1;
+    margin: 0 4px 0 0;
+    padding: 8px 12px;
+}
+
+.shop-tab.selected,
 .inventory-tab.selected {
     border-color: var(--accent);
     border-width: 2px;

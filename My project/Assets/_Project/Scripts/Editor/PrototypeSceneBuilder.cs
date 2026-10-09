@@ -77,6 +77,7 @@ namespace Backpacking.EditorTools
             }
             CreateRoute(route, terrain, prefabs.TradingPost);
             CreateTrail(terrain, art);
+            CreateRivers(terrain);
             CreateDrive(terrain);
             Light sun = CreateDirectionalLight("Sun", Color.white, 1.3f, LightShadows.Soft);
             Light moon = CreateDirectionalLight("Moon", new Color(0.6f, 0.7f, 1f), 0.12f, LightShadows.None);
@@ -156,6 +157,7 @@ namespace Backpacking.EditorTools
             ScatterGatherables(terrain, route, trailheadSpawn, prefabs, art);
             CreatePickup(terrain, player);
             ScatterBoulders(terrain, route, art);
+            DressCliffs(terrain, route, art);
             ScatterFallenLogs(terrain, route, art);
 
             EditorSceneManager.SaveScene(scene, ScenePath);
@@ -178,6 +180,10 @@ namespace Backpacking.EditorTools
             route = PlanRoute(heights);
             PlanDrive(heights, route);
             currentTrail = PlanTrail(route);
+            // Where the rivers will run, then the hills, mesas and cliffs (clear of them), then the channels cut.
+            PlanRivers(heights, route);
+            ShapeLandforms(heights, route);
+            CarveRivers(heights, route);
             data.SetHeights(0, 0, heights);
             DressTerrain(data, route, art);
 

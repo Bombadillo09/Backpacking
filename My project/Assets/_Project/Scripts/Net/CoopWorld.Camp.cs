@@ -47,7 +47,8 @@ namespace Backpacking.Net
     /// <summary>
     /// The shared camp: gear anyone sets up (tents, fire rings, stoves, snares, chairs) appears in every game, and what
     /// anyone does to it (pitching, lighting, adding wood, a snare's catch, packing it away) happens everywhere. So do
-    /// campsites cleared and brush cut, firewood picked up, berries picked and what the vendors have left. Each game
+    /// campsites cleared and brush cut, firewood picked up and berries picked (but not what the vendors have left:
+    /// each hiker can buy what's on the shelf). Each game
     /// watches its own world for changes and sends them; gear is numbered by whoever set it up, and belongs to them
     /// (<see cref="CampOwner"/>).
     /// </summary>
@@ -184,6 +185,7 @@ namespace Backpacking.Net
         static bool Differs(PlacedItemState a, PlacedItemState b) =>
             a.kind != b.kind || a.stage != b.stage || a.chairStage != b.chairStage || a.matLaidOut != b.matLaidOut || a.bagLaidOut != b.bagLaidOut
             || a.burning != b.burning || a.hasCatch != b.hasCatch || a.tentModel != b.tentModel || Tent.Signature(a.beds) != Tent.Signature(b.beds)
+            || a.lanternOn != b.lanternOn
             || (a.position - b.position).sqrMagnitude > 0.0004f || Quaternion.Angle(a.rotation, b.rotation) > 1f
             || a.fuelHours > b.fuelHours + 0.05f || Mathf.Abs(a.fuelHours - b.fuelHours) > 0.5f;
 
@@ -271,9 +273,7 @@ namespace Backpacking.Net
             foreach (KeyValuePair<string, BerryBush> bush in bushes)
                 if (bush.Value != null && !float.IsInfinity(bush.Value.PickedAtHour))
                     things["b:" + bush.Key] = bush.Value.PickedAtHour.ToString("R", CultureInfo.InvariantCulture);
-            foreach (KeyValuePair<string, Vendor> vendor in vendors)
-                if (vendor.Value != null)
-                    things["v:" + vendor.Key] = string.Join(",", vendor.Value.CaptureStock());
+            // Vendors' stock isn't shared: each hiker can buy what's on the shelf (it's counted in their own game).
             return things;
         }
 

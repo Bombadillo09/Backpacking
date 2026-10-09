@@ -305,6 +305,46 @@ namespace Backpacking.UI
             Check(tutorial != null && tutorial.IsRunning, "the tutorial starts at the trailhead");
             if (TripLog.Current != null)
                 log.AppendLine("      journal:\n        " + string.Join("\n        ", TripLog.Current.CaptureState().entries.Select(entry => entry.text)));
+            if (tutorial != null)
+                tutorial.Stop();
+
+            // A lantern: set down, lit, turned off, picked up again.
+            backpack.AddLantern();
+            var placer = player.GetComponent<Camp.CampPlacer>();
+            Check(placer.RequirementProblem(Camp.CampItem.Lantern) == null, "a lantern can come out with the pack on");
+            backpack.LanternInPack = false;
+            GameObject lantern = placer.Spawn(Camp.CampItem.Lantern, player.transform.position + player.transform.forward * 1.5f, Quaternion.identity);
+            yield return null;
+            var lamp = lantern.GetComponent<Camp.CampLantern>();
+            Check(lamp != null && lamp.IsOn && lantern.GetComponentInChildren<Light>().enabled, "set down, the lantern is lit");
+            var lanternOptions = new System.Collections.Generic.List<InteractionOption>();
+            lamp.GetOptions(interactor, lanternOptions);
+            lanternOptions[0].Execute();
+            Check(!lamp.IsOn && !lantern.GetComponentInChildren<Light>().enabled, $"\"{lanternOptions[0].Label}\" turns it off");
+            lanternOptions[1].Execute();
+            yield return null;
+            Check(lantern == null && backpack.LanternInPack, "picked up, it's back on the pack");
+
+            // Into a river: it's deep enough to wade, slows you, soaks you and floods your boots.
+            Camp.WaterSource river = Camp.WaterSource.All.FirstOrDefault(water => water.Flowing && water.DisplayName == "River");
+            Check(river != null, $"there's a river ({Camp.WaterSource.All.Count(water => water.Flowing)} stretches of running water)");
+            if (river != null)
+            {
+                float wetBefore = player.GetComponent<Vitals>().Wetness;
+                // Down onto the bed in the middle of the river.
+                Vector3 middle = river.transform.position;
+                if (Physics.Raycast(middle + Vector3.up * 3f, Vector3.down, out RaycastHit bed, 20f, ~0, QueryTriggerInteraction.Ignore))
+                    middle = bed.point;
+                Teleport(player, middle + Vector3.up * 0.1f);
+                yield return new WaitForSeconds(3f);
+                var wading = player.GetComponent<Wading>();
+                var vitals = player.GetComponent<Vitals>();
+                Check(wading.Depth > 0.4f, $"waist-ish deep in the river ({wading.Depth:0.00} m)");
+                Check(player.WaterSpeedMultiplier < 0.9f, $"wading is slow ({player.WaterSpeedMultiplier * 100f:0}% speed)");
+                Check(vitals.Wetness > wetBefore + 20f && vitals.BootsFlooded > 0.5f && vitals.FeetWet,
+                    $"it soaks you ({wetBefore:0} -> {vitals.Wetness:0} wet) and floods your boots ({vitals.BootsFlooded:0.00})");
+                Teleport(player, middle + river.transform.right * 25f + Vector3.up * 2f);
+            }
         }
 
         /// <summary>The whole game view with its UI (screens are drawn over the camera, so a camera render misses them).</summary>

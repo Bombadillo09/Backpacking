@@ -168,7 +168,26 @@ namespace Backpacking.Survival
         /// <summary>Wet or blistered feet: an infection is brewing.</summary>
         public bool FeetAtRisk => FeetWet || HasBlisters;
         /// <summary>Wet feet: soaked clothes in boots that let water in. Bare feet dry off.</summary>
-        public bool FeetWet => wetness > 40f && !backpack.BootsWaterproof && !BootsOff;
+        public bool FeetWet => ((wetness > 40f && !backpack.BootsWaterproof) || BootsFlooded > 0.3f) && !BootsOff;
+        /// <summary>How full of water your boots are, 0–1, from wading: even waterproof boots fill over the top. They dry slowly.</summary>
+        public float BootsFlooded { get; private set; }
+
+        /// <summary>
+        /// Wading <paramref name="depth"/> metres deep for <paramref name="seconds"/>: water over your boot tops floods
+        /// them (ordinary boots let it in anyway), and the deeper you go, the more of you is soaked.
+        /// </summary>
+        public void Wade(float depth, float seconds)
+        {
+            if (depth <= 0.03f)
+                return;
+            const float bootTop = 0.18f;
+            if (depth > bootTop || !backpack.BootsWaterproof)
+                BootsFlooded = Mathf.Min(1f, BootsFlooded + seconds * (depth > bootTop ? 2f : 0.4f));
+            // Ankle-deep wets your legs a little; waist-deep soaks you through.
+            float soakedTo = Mathf.Lerp(20f, Max, Mathf.InverseLerp(0.1f, 1f, depth));
+            if (wetness < soakedTo)
+                wetness = Mathf.Min(soakedTo, wetness + seconds * 25f);
+        }
         /// <summary>How close an infection is, 0 (no risk) to 1 (setting in).</summary>
         public float InfectionRisk => Mathf.Clamp01(infectionRisk / hoursToInfection);
 
@@ -505,6 +524,8 @@ namespace Backpacking.Survival
             float soaking = rain * soakingRate * (backpack.WearingWaterproof ? shellLeakage : 1f);
             float drying = (rain > 0.05f ? 0f : dryingRate) + fireWarmth * fireDryingPerDegree;
             wetness = Mathf.Clamp(wetness + (soaking - drying) * hours, 0f, Max);
+            // Boots full of water take a few hours to dry, quicker by a fire or with them off.
+            BootsFlooded = Mathf.Max(0f, BootsFlooded - hours * (0.3f + fireWarmth * 0.05f + (BootsOff ? 0.4f : 0f)));
             WarnOnce(ref warnedWet, Max - wetness, Max - 50f, "You're getting soaked. Put on your rain shell or find shelter.");
             float bagWasWet = backpack.BagWetness;
             backpack.WeatherTheBag(weather != null && !InVehicle ? weather.RainIntensity : 0f, hours, fireWarmth);

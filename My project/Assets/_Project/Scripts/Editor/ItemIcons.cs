@@ -115,6 +115,7 @@ namespace Backpacking.EditorTools
                 ("snare", () => Mesh((gear.stake, Tint(plain, new Color(0.33f, 0.22f, 0.13f)), Vector3.zero, Vector3.zero, Vector3.one),
                     (gear.noose, Tint(plain, new Color(0.72f, 0.56f, 0.28f)), Vector3.zero, Vector3.zero, Vector3.one)), default),
                 ("chair", ChairPacked, default),
+                ("lantern", () => Prefab("Assets/_Project/Prefabs/Camp/Camp Lantern.prefab"), default),
                 ("firewood", () => Firewood(plain, Tint), default),
                 ("matches", () => Mesh(
                     (Built(b => b.Box(Vector3.zero, Vector3.right, Vector3.up, Vector3.forward, new Vector3(0.028f, 0.008f, 0.018f)), "Matchbox"), Tint(plain, new Color(0.75f, 0.12f, 0.1f)), Vector3.zero, Vector3.zero, Vector3.one),

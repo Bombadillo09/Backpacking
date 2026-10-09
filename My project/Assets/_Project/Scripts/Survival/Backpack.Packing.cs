@@ -144,6 +144,7 @@ namespace Backpacking.Survival
             matches = firewood = snares = arrows = antibiotics = bandages = 0;
             hasFishingKit = hasGoodRod = hasBow = hasWaterFilter = hasMachete = hasFlashlight = false;
             hasChair = chairInPack = false;
+            hasLantern = lanternInPack = false;
             hotbar = new List<HotbarSlot>();
             NormaliseHotbar();
             food.Clear();
@@ -221,6 +222,8 @@ namespace Backpacking.Survival
             Add("antibiotics", "Antibiotics", "antibiotics", antibiotics, 0.05f, 0.03f, PackZone.Lid);
             if (hasChair && chairInPack)
                 Add("chair", "Camp chair", "chair", 1, 2.5f, chairWeight, PackZone.Top, strappable: true);
+            if (hasLantern && lanternInPack)
+                Add("lantern", "Camp lantern", "lantern", 1, 1.5f, lanternWeight, PackZone.Top, strappable: true);
             Add("firewood", "Firewood", "firewood", firewood, 2f, firewoodWeight, PackZone.Straps, strappable: true);
             Add("pelts", "Rabbit pelt", "pelt", pelts, 1.5f, peltWeight, PackZone.Bottom, strappable: true);
             Add("hides", "Deer hide", "hide", hides, 10f, hideWeight, PackZone.Straps, strapOnly: true);
@@ -433,6 +436,14 @@ namespace Backpacking.Survival
                         return "There's already a chair there";
                     to.AddChair();
                     hasChair = chairInPack = false;
+                    break;
+                case "lantern":
+                    if (!hasLantern || !lanternInPack)
+                        return "No lantern here";
+                    if (to.hasLantern)
+                        return "There's already a lantern there";
+                    to.AddLantern();
+                    hasLantern = lanternInPack = false;
                     break;
                 case "firewood":
                     if (!TrySpend(ref firewood, 1))
@@ -715,6 +726,13 @@ namespace Backpacking.Survival
         /// Rain soaks a sleeping bag strapped outside the pack; it dries slowly when it stops, faster by a fire.
         /// Called by the vitals with how hard it's raining where you are (0 under cover).
         /// </summary>
+        /// <summary>Wets the sleeping bag by <paramref name="amount"/> (0–1): the pack dragged through a river.</summary>
+        public void SoakBag(float amount)
+        {
+            if (HasSleepingBag && !bagOut)
+                bagWetness = Mathf.Min(1f, bagWetness + amount);
+        }
+
         public void WeatherTheBag(float rain, float hours, float fireWarmth)
         {
             if (!HasSleepingBag || hours <= 0f)

@@ -4,14 +4,40 @@ using UnityEngine;
 
 namespace Backpacking.Camp
 {
-    /// <summary>A lake or stream. Water from here is untreated until boiled.</summary>
+    /// <summary>
+    /// A lake, river or stream: a thin trigger at the water's surface (a stretch of a river is tilted down its
+    /// slope). Water from here is untreated until boiled. Wade in and it gets you wet (see Survival.Wading).
+    /// </summary>
     public class WaterSource : MonoBehaviour, IInteractable
     {
         [SerializeField] string displayName = "Lake";
+        [Tooltip("A river or stream: the water runs (it sounds of rushing water, not lapping).")]
+        [SerializeField] bool flowing;
         [SerializeField] float fillMinutes = 2f;
         [SerializeField] float drinkLitres = 0.25f;
 
+        static readonly List<WaterSource> all = new();
+
         public string DisplayName => displayName;
+        public bool Flowing => flowing;
+        public static IReadOnlyList<WaterSource> All => all;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics() => all.Clear();
+
+        void OnEnable() => all.Add(this);
+        void OnDisable() => all.Remove(this);
+
+        /// <summary>Height of the water's surface over a point (on the plane of this stretch).</summary>
+        public float SurfaceAt(Vector3 point)
+        {
+            Vector3 up = transform.up;
+            Vector3 origin = transform.position;
+            if (up.y < 0.05f)
+                return origin.y;
+            // On the plane through the trigger's centre, square to its up.
+            return origin.y - ((point.x - origin.x) * up.x + (point.z - origin.z) * up.z) / up.y;
+        }
 
         public void GetOptions(Interactor interactor, List<InteractionOption> options)
         {
