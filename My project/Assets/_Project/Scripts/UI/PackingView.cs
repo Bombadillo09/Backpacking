@@ -40,10 +40,15 @@ namespace Backpacking.UI
         Backpack truckBed;
         // Whose pack is on the left: a friend's name, or null for the truck bed.
         string otherOwner;
+        // Handing things to a friend: the left is what you're giving them.
+        bool gift;
+        System.Action onClose;
         string listKey, selected;
         float nextRefresh;
 
         public static PackingView Current { get; private set; }
+        /// <summary>What's on the left: the truck bed, a friend's pack, or a box of things for a friend.</summary>
+        public Backpack Other => truckBed;
         public bool IsOpen { get; private set; }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -76,9 +81,9 @@ namespace Backpacking.UI
             selection = UIBuild.Box("row").With(
                 UIBuild.Box("grow").With(selectedLabel, bindings.Text(SelectionReason, "reason")),
                 zoneButtons,
-                bindings.Visible(bindings.Enabled(Labelled(UIBuild.Button("", () => ToTruck(all: false)), () => otherOwner != null ? $"To {otherOwner}'s pack" : "To the truck"),
+                bindings.Visible(bindings.Enabled(Labelled(UIBuild.Button("", () => ToTruck(all: false)), () => gift ? $"Give to {otherOwner}" : otherOwner != null ? $"To {otherOwner}'s pack" : "To the truck"),
                     () => SelectedItem() != null), () => truckBed != null),
-                bindings.Visible(bindings.Enabled(Labelled(UIBuild.Button("", () => ToTruck(all: true)), () => otherOwner != null ? "All to their pack" : "All to the truck"),
+                bindings.Visible(bindings.Enabled(Labelled(UIBuild.Button("", () => ToTruck(all: true)), () => gift ? "Give them all" : otherOwner != null ? "All to their pack" : "All to the truck"),
                     () => SelectedItem()?.Count > 1), () => truckBed != null));
 
             VisualElement panel = UIBuild.Box("panel").With(
@@ -107,14 +112,17 @@ namespace Backpacking.UI
         /// Opens the screen: with a truck bed to pack from, a friend's pack (<paramref name="owner"/> is whose), or with
         /// null to rearrange the pack on the trail.
         /// </summary>
-        public void Open(Backpack from, string owner = null)
+        public void Open(Backpack from, string owner = null, bool gift = false, System.Action onClose = null)
         {
             if (IsOpen || screen == null)
                 return;
             truckBed = from;
             otherOwner = from != null ? owner : null;
-            title.text = otherOwner != null ? $"Going through {otherOwner}'s pack" : from != null ? "Packing at the truck" : "Repacking";
-            truckHeading.text = otherOwner != null ? $"{otherOwner.ToUpperInvariant()}'S PACK" : "TRUCK BED";
+            this.gift = gift && otherOwner != null;
+            this.onClose = onClose;
+            title.text = this.gift ? $"Giving things to {otherOwner}: put them on the left, then Done"
+                : otherOwner != null ? $"Going through {otherOwner}'s pack" : from != null ? "Packing at the truck" : "Repacking";
+            truckHeading.text = this.gift ? $"FOR {otherOwner.ToUpperInvariant()}" : otherOwner != null ? $"{otherOwner.ToUpperInvariant()}'S PACK" : "TRUCK BED";
             truckColumn.SetVisible(from != null);
             selected = null;
             listKey = null;
@@ -135,6 +143,9 @@ namespace Backpacking.UI
             screen.SetVisible(false);
             PlayerControlLock.Unlock(this);
             GameUI.ReleaseEscape(this);
+            System.Action closed = onClose;
+            onClose = null;
+            closed?.Invoke();
         }
 
         void OnDisable() => Close();
@@ -179,7 +190,7 @@ namespace Backpacking.UI
                 foreach (PackItem item in inTruck)
                     truckList.Add(TruckRow(item));
                 if (inTruck.Count == 0)
-                    truckList.Add(UIBuild.Text(otherOwner != null ? "Nothing in it you can take." : "Nothing in the truck bed. What you buy at the outdoor store is carried out here.", "small"));
+                    truckList.Add(UIBuild.Text(gift ? "Select something in your pack, then Give." : otherOwner != null ? "Nothing in it you can take." : "Nothing in the truck bed. What you buy at the outdoor store is carried out here.", "small"));
             }
 
             packList.Clear();

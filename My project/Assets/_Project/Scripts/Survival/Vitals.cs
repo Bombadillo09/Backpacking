@@ -279,6 +279,18 @@ namespace Backpacking.Survival
         }
 
         /// <summary>Sets every vital at once, e.g. after a rescue. Also dries you off and cures sickness.</summary>
+        /// <summary>Helped back onto your feet by a friend: weak, but not dying, and over the worst of whatever brought you down.</summary>
+        public void Revive()
+        {
+            health = Mathf.Max(health, 35f);
+            satiety = Mathf.Max(satiety, criticalThreshold + 10f);
+            hydration = Mathf.Max(hydration, criticalThreshold + 10f);
+            warmth = Mathf.Max(warmth, criticalThreshold + 15f);
+            energy = Mathf.Max(energy, criticalThreshold + 10f);
+            incapacitated = false;
+            collapseArmed = true;
+        }
+
         public void Recover(float newHealth, float newSatiety, float newHydration, float newWarmth, float newEnergy)
         {
             health = newHealth;

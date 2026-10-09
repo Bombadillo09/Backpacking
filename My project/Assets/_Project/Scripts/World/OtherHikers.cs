@@ -13,6 +13,7 @@ namespace Backpacking.World
         public float speed;
         public bool crouching;
         public bool sprinting;
+        public string name;
     }
 
     /// <summary>
@@ -26,7 +27,11 @@ namespace Backpacking.World
         public static IReadOnlyList<OtherHiker> All => all;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() => all.Clear();
+        static void ResetStatics()
+        {
+            all.Clear();
+            Feed = null;
+        }
 
         public static void Set(OtherHiker hiker)
         {
@@ -42,6 +47,21 @@ namespace Backpacking.World
         public static void Remove(ulong id) => all.RemoveAll(hiker => hiker.id == id);
 
         public static void Clear() => all.Clear();
+
+        /// <summary>
+        /// Feeds a friend a share of a meal cooked here: (their id, food, drink). Set by co-op; null alone.
+        /// </summary>
+        public static System.Action<ulong, float, float> Feed;
+
+        /// <summary>The friends within <paramref name="radius"/> metres.</summary>
+        public static List<OtherHiker> Within(Vector3 position, float radius)
+        {
+            var near = new List<OtherHiker>();
+            foreach (OtherHiker hiker in all)
+                if ((hiker.position - position).sqrMagnitude < radius * radius)
+                    near.Add(hiker);
+            return near;
+        }
 
         public static bool AnyWithin(Vector3 position, float radius)
         {

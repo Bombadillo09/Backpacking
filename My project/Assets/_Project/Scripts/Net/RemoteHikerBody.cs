@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using Backpacking.Camp;
 using Backpacking.Character;
+using Backpacking.Interaction;
 using Backpacking.Player;
 using Backpacking.UI;
 using Backpacking.Vehicles;
@@ -11,9 +13,11 @@ namespace Backpacking.Net
     /// <summary>
     /// Another player's hiker, as seen in this game: their body from their profile, animated from what their game
     /// sends (walking, crouching, sitting, busy at a task, swinging the machete, riding in the truck), with their
-    /// pack and what's strapped to it, and their name above them. Solid, so you bump into each other.
+    /// pack and what's strapped to it, and their name above them. Solid, so you bump into each other. Look at them
+    /// and press E to look after them: hand them things or money, give them a drink, bandage a cut, give
+    /// antibiotics, or help them up when they're down (see CoopWorld.Help).
     /// </summary>
-    public class RemoteHikerBody : MonoBehaviour
+    public class RemoteHikerBody : MonoBehaviour, IInteractable
     {
         /// <summary>Every remote hiker is scaled to this eye height.</summary>
         public const float EyeHeight = 1.68f;
@@ -44,6 +48,30 @@ namespace Backpacking.Net
         bool hidden;
 
         public HikerState State => state;
+        public string DisplayName => hiker != null ? hiker.HikerName : "Hiker";
+
+        public void GetOptions(Interactor interactor, List<InteractionOption> options)
+        {
+            CoopWorld world = CoopWorld.Current;
+            if (world == null || hiker == null)
+                return;
+            ulong friend = hiker.OwnerClientId;
+            string name = hiker.HikerName;
+            Survival.Backpack backpack = interactor.Backpack;
+            if (state.Has(HikerState.Flag.Downed))
+                options.Add(new InteractionOption($"Help {name} up", () => world.HelpUp(friend, name)));
+            if (state.Has(HikerState.Flag.Bleeding))
+                options.Add(new InteractionOption($"Bandage {name}'s cut (1 of your {backpack.Bandages} bandages)", () => world.Bandage(friend, name),
+                    backpack.Bandages <= 0 ? "You have no bandages" : null));
+            if (state.Has(HikerState.Flag.Infected) && !state.Has(HikerState.Flag.OnAntibiotics))
+                options.Add(new InteractionOption($"Give {name} a course of antibiotics", () => world.GiveAntibiotics(friend),
+                    backpack.Antibiotics <= 0 ? "You have no antibiotics" : null));
+            options.Add(new InteractionOption($"Hand {name} something from your pack", () => world.OpenGift(friend, name),
+                !backpack.HasPack ? "You have no pack to give from" : null));
+            options.Add(new InteractionOption($"Give {name} a drink ({backpack.SipLitres:0.00} L of your water)", () => world.GiveDrink(friend),
+                backpack.SafeWater < backpack.SipLitres ? "You have no safe water" : null));
+            options.Add(new InteractionOption($"Give {name} $10", () => world.GiveMoney(friend, 10), backpack.Money < 10 ? "You have less than $10" : null));
+        }
         public CharacterAppearance Appearance => appearance;
 
         public static RemoteHikerBody Create(CoopHiker hiker, CharacterLibrary library)

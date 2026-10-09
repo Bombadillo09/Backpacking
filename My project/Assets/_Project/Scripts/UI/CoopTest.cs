@@ -26,8 +26,10 @@ namespace Backpacking.UI
     /// rides as the host's passenger and is carried along; the shared truck bed; the clock speeding up only when
     /// both ask; a fire the host lit before the guest joined; the guest's stove, theirs alone to pack away; the host's
     /// rabbits and deer shown in the guest's game, one shot and taken there; the late joiner's starter kit; sharing a
-    /// tent; the host's pack set down, gone through by the guest (jerky out, trail mix in); and the guest's hiker kept
-    /// by the host when they leave. They take turns by watching each other's moves (the door, the seats, the clock). Results go to
+    /// tent; the host's pack set down, gone through by the guest (jerky out, trail mix in); an arrow shot by the host and
+    /// picked up by the guest; things and money handed over; a ping; a cut bandaged and the host helped up when down; a
+    /// lantern borrowed; the host's tent bag seen; the guest's flashlight beam; a shared meal; and the guest's hiker kept
+    /// by the host (and saved) when they leave. They take turns by watching each other's moves (the door, the seats, the clock). Results go to
     /// Logs/cooptest-host.log and cooptest-guest.log (next to the build for the guest); FAIL lines are problems.
     /// </summary>
     public class CoopTest : MonoBehaviour
@@ -102,6 +104,7 @@ namespace Backpacking.UI
             logPath = Path.Combine(Path.GetDirectoryName(Application.dataPath) ?? ".", "cooptest-guest.log");
 #endif
             Application.runInBackground = true;
+            Saving.SaveSystem.TestRun = true;
             log.AppendLine($"=== Co-op test, {(guest ? "guest" : "host")}, {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
             Flush();
             yield return new WaitForSecondsRealtime(1f);
@@ -332,6 +335,79 @@ namespace Backpacking.UI
             handling.PickUp();
             Note("picked the pack up again");
 
+            // An arrow, shot at the ground near the guest: they see it land, and pick it up.
+            backpack.AddArrows(2);
+            Vector3 eye = player.transform.position + Vector3.up * 1.6f;
+            Vector3 target = other.Body.transform.position + other.Body.transform.right * 2f;
+            Hunting.Arrow arrow = null;
+            int arrowId = 0;
+            // (An arrow breaks now and then on landing: shoot again.)
+            for (int shot = 0; shot < 5 && (arrow == null || arrow.GetComponent<BoxCollider>() == null); shot++)
+            {
+                arrow = Hunting.Arrow.Shoot(eye, (target - eye).normalized * 25f, player.transform);
+                arrowId = arrow.NetId;
+                Hunting.Arrow flying = arrow;
+                yield return Until(() => flying == null || flying.GetComponent<BoxCollider>() != null, 10f, _ => { });
+                yield return new WaitForSecondsRealtime(0.5f);
+            }
+            Check(arrow != null && arrowId != 0, $"shot an arrow (number {arrowId}), and it landed");
+            if (arrow != null)
+            {
+                yield return Until(() => arrow == null, 60f, r => ok = r);
+                Check(ok, "the guest picked the arrow up, and it's gone here too");
+            }
+
+            // Handed things: a trail mix and $10 from the guest.
+            int trailBefore = backpack.CountFood(FoodKind.TrailMix), moneyBefore = backpack.Money;
+            yield return Until(() => backpack.CountFood(FoodKind.TrailMix) > trailBefore && backpack.Money >= moneyBefore + 10, 60f, r => ok = r);
+            Check(ok, $"the guest handed over trail mix ({trailBefore} -> {backpack.CountFood(FoodKind.TrailMix)}) and money (${moneyBefore} -> ${backpack.Money})");
+
+            // A ping from the guest, on the map and compass too.
+            yield return Until(() => Pings.Current != null && Pings.Current.Active.Any(ping => ping.who == "Guesty"), 30f, r => ok = r);
+            Check(ok && MapPins.All.Any(pin => pin.kind == PinKind.Ping) && MapPins.All.Any(pin => pin.kind == PinKind.Friend && pin.label == "Guesty"),
+                $"the guest's ping shows, and the map has them and it ({string.Join(", ", MapPins.All.Select(pin => pin.label))})");
+
+            // A cut: the guest bandages it.
+            var vitals = player.GetComponent<Vitals>();
+            vitals.Cut();
+            yield return Until(() => !vitals.IsBleeding, 90f, r => ok = r);
+            Check(ok, "the guest bandaged the host's cut");
+
+            // Down: the guest helps the host up.
+            Note($"going down: {OtherHikers.All.Count} friends, nearest {OtherHikers.All.Select(h => Vector3.Distance(h.position, player.transform.position)).DefaultIfEmpty(-1f).Min():0} m, "
+                 + $"rescue {(Rescue.Current != null ? Rescue.Current.InProgress ? "busy" : "ready" : "missing")}");
+            Rescue.Current.GoDown("testing");
+            Check(Rescue.Current.Downed, "the host is down, waiting for help (a friend's near)");
+            yield return Until(() => !Rescue.Current.Downed, 80f, r => ok = r);
+            Check(ok && vitals.Health >= 35f && !Rescue.Current.InProgress, $"the guest helped the host up ({vitals.Health:0} health)");
+
+            // A lantern set down: the guest borrows it.
+            backpack.AddLantern();
+            backpack.LanternInPack = false;
+            Vector3 lanternPlace = player.transform.position + player.transform.forward * 1.5f;
+            lanternPlace.y = GroundCover.HeightAt(lanternPlace);
+            placer.Spawn(CampItem.Lantern, lanternPlace, Quaternion.identity);
+            yield return Until(() => !backpack.HasLantern && FindObjectsByType<CampLantern>(FindObjectsSortMode.None).Length == 0, 60f, r => ok = r);
+            Check(ok, "the guest borrowed the host's lantern: it's off the ground and out of the host's kit");
+
+            // The tent bag out on the ground, for the guest to see; then packed again.
+            backpack.AddTent("Test tent", TentModel.OnePerson, 4f, 1.2f);
+            handling.SetDown();
+            Check(handling.TakeOutTent(), "took the tent bag out");
+            yield return new WaitForSecondsRealtime(6f);
+            handling.PackTentBag();
+            handling.PickUp();
+
+            // The guest's flashlight: its beam, here.
+            yield return Until(() => other.Body.GetComponentsInChildren<Light>().Any(light => light.enabled && light.type == LightType.Spot)
+                                     || FindObjectsByType<Light>(FindObjectsSortMode.None).Any(light => light.enabled && light.name.StartsWith("Flashlight Beam (co-op)")), 40f, r => ok = r);
+            Check(ok, "the guest's flashlight beam shows here");
+
+            // A meal shared with the guest.
+            yield return new WaitForSecondsRealtime(2f);
+            OtherHikers.Feed?.Invoke(other.OwnerClientId, 35f, 8f);
+            Note("shared a meal with the guest");
+
             // The guest leaves when it's done.
             yield return Until(() => CoopSession.PlayerCount < 2, 90f, r => ok = r);
             Check(ok, "the guest left, and the host carries on");
@@ -340,6 +416,8 @@ namespace Backpacking.UI
             Saving.HikerSave kept = saves.Guests.Values.FirstOrDefault();
             Check(ok, $"the host kept the guest's hiker for when they rejoin ({saves.Guests.Count} kept"
                       + (kept != null ? $", ${kept.backpack?.money} and {kept.backpack?.food?.Count} kinds of food" : "") + ")");
+            Check(File.Exists(saves.SaveFile) && (DateTime.Now - File.GetLastWriteTime(saves.SaveFile)).TotalSeconds < 30
+                  && File.ReadAllText(saves.SaveFile).Contains("Guesty"), $"saved as they left, with their hiker ({saves.SaveFile})");
             yield return new WaitForSecondsRealtime(1f);
             Check(Other() == null, "their hiker is gone");
             CoopSession.Instance.Leave();
@@ -556,6 +634,102 @@ namespace Backpacking.UI
                 yield return Until(() => CoopWorld.Current.FriendsPackOf(host.OwnerClientId) == null, 60f, r => ok = r);
                 Check(ok, "when the host picks their pack up, it's gone from the ground here");
             }
+
+            // The host's arrow: it flies here, lands, and we pick it up.
+            int arrowsBefore = backpack.Arrows;
+            Hunting.Arrow ghost = null;
+            yield return Until(() => (ghost = FindObjectsByType<Hunting.Arrow>(FindObjectsSortMode.None).FirstOrDefault(a => a.Ghost && a.GetComponent<BoxCollider>() != null)) != null,
+                30f, r => ok = r);
+            Check(ok, $"the host's arrow flew and landed here ({(ghost != null ? ghost.NetId.ToString() : "none")})");
+            if (ghost != null)
+            {
+                var arrowOptions = new System.Collections.Generic.List<InteractionOption>();
+                ghost.GetOptions(player.GetComponent<Interactor>(), arrowOptions);
+                arrowOptions.FirstOrDefault(option => option.Label == "Pick up the arrow").Execute?.Invoke();
+                Check(backpack.Arrows == arrowsBefore + 1, "picked it up: it's ours now");
+            }
+            yield return new WaitForSecondsRealtime(2f);
+
+            // Hand the host a trail mix and $10.
+            CoopWorld.Current.OpenGift(host.OwnerClientId, host.HikerName);
+            Backpack box = PackingView.Current != null ? PackingView.Current.Other : null;
+            Check(box != null && PackingView.Current.IsOpen, "the packing screen opens to hand the host things");
+            if (box != null)
+            {
+                string moved = backpack.MoveOne("food-TrailMix", box);
+                Check(moved == null, $"put a trail mix in for them ({moved ?? "ok"})");
+                PackingView.Current.Close();
+            }
+            backpack.AddMoney(20);
+            CoopWorld.Current.GiveMoney(host.OwnerClientId, 10);
+            yield return new WaitForSecondsRealtime(3f);
+
+            // Point something out.
+            Pings.Current.Point(player.transform.position + player.transform.forward * 20f, "here");
+            yield return new WaitForSecondsRealtime(3f);
+
+            // The host's cut: bandage it.
+            yield return Until(() => host.State.Has(HikerState.Flag.Bleeding), 30f, r => ok = r);
+            Check(ok, "the host is bleeding");
+            IEnumerator Help(string startsWith)
+            {
+                var help = new System.Collections.Generic.List<InteractionOption>();
+                host.Body.GetOptions(player.GetComponent<Interactor>(), help);
+                InteractionOption option = help.FirstOrDefault(o => o.Label.StartsWith(startsWith));
+                Check(option.Label != null && option.Enabled, $"the host offers: {string.Join(" / ", help.Select(o => o.Label))}");
+                option.Execute?.Invoke();
+                yield return Until(() => !player.GetComponent<PlayerActivity>().IsBusy, 60f, _ => { });
+            }
+            backpack.AddBandages(3);
+            yield return Help("Bandage");
+            yield return Until(() => !host.State.Has(HikerState.Flag.Bleeding), 20f, r => ok = r);
+            Check(ok, "bandaged the host's cut");
+
+            // The host goes down: help them up.
+            yield return Until(() => host.State.Has(HikerState.Flag.Downed), 30f, r => ok = r);
+            Check(ok, "the host is down");
+            yield return Help("Help");
+            yield return Until(() => !host.State.Has(HikerState.Flag.Downed), 20f, r => ok = r);
+            Check(ok, "helped the host up");
+
+            // The host's lantern: borrow it.
+            CampLantern lantern = null;
+            yield return Until(() => (lantern = FindObjectsByType<CampLantern>(FindObjectsSortMode.None).FirstOrDefault(l => CampOwner.IsOthers(l.gameObject, out _))) != null,
+                30f, r => ok = r);
+            Check(ok, "the host's lantern is here, lit");
+            if (lantern != null)
+            {
+                var lanternOptions = new System.Collections.Generic.List<InteractionOption>();
+                lantern.GetOptions(player.GetComponent<Interactor>(), lanternOptions);
+                InteractionOption borrow = lanternOptions.FirstOrDefault(option => option.Label.StartsWith("Borrow"));
+                Check(borrow.Label != null && borrow.Enabled, $"it offers: {string.Join(" / ", lanternOptions.Select(o => o.Label))}");
+                borrow.Execute?.Invoke();
+                Check(backpack.HasLantern && backpack.LanternInPack, "borrowed it: it's on our pack");
+            }
+
+            // The host's tent bag on the ground.
+            yield return Until(() => CoopWorld.Current.FriendsTentBagOf(host.OwnerClientId) != null, 30f, r => ok = r);
+            Check(ok, $"the host's tent bag shows on the ground here ({CoopWorld.Current.FriendsTentBagOf(host.OwnerClientId)?.DisplayName})");
+            yield return Until(() => CoopWorld.Current.FriendsTentBagOf(host.OwnerClientId) == null, 30f, r => ok = r);
+            Check(ok, "and it's gone when they pack it again");
+
+            // Our flashlight, on, for the host to see.
+            backpack.AddFlashlight();
+            var hotbar = player.GetComponentInChildren<Hotbar>() ?? FindAnyObjectByType<Hotbar>();
+            int slot = Enumerable.Range(0, backpack.Hotbar.Count).FirstOrDefault(i => backpack.Hotbar[i].kind == HotbarKind.Flashlight);
+            typeof(Hotbar).GetMethod("Select", Private).Invoke(hotbar, new object[] { slot });
+            typeof(Hotbar).GetProperty("FlashlightOn").SetValue(hotbar, true);
+            yield return new WaitForSecondsRealtime(1f);
+            Check(hotbar.Shining, "our flashlight is on, in hand");
+
+            // A meal from the host.
+            var myVitals = player.GetComponent<Vitals>();
+            // Hungry first, so the meal shows.
+            myVitals.Recover(myVitals.Health, 30f, myVitals.Hydration, myVitals.Warmth, myVitals.Energy);
+            float fed = myVitals.Satiety;
+            yield return Until(() => myVitals.Satiety > fed + 20f, 40f, r => ok = r);
+            Check(ok, $"the host shared a meal with us ({fed:0} -> {myVitals.Satiety:0} food)");
+            typeof(Hotbar).GetProperty("FlashlightOn").SetValue(hotbar, false);
             yield return new WaitForSecondsRealtime(2f);
 
             Check(CoopSession.IsGuest, "still a guest");

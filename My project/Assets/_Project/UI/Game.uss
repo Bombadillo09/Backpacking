@@ -922,3 +922,25 @@
     flex-grow: 1;
     font-size: 17px;
 }
+
+.ping-tag {
+    font-size: 16px;
+    color: rgb(255, 196, 120);
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    white-space: nowrap;
+}
+
+.map-pin-label {
+    position: absolute;
+    -unity-font-style: bold;
+    white-space: nowrap;
+}
+
+.compass-pin {
+    position: absolute;
+    font-size: 13px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    translate: -50% -50%;
+}

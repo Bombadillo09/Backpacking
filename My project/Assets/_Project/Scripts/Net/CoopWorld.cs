@@ -103,6 +103,9 @@ namespace Backpacking.Net
             SpawnWildlife();
             SpawnHikers();
             SpawnPacks();
+            SpawnHelp();
+            SpawnArrows();
+            SpawnPings();
             if (IsServer)
             {
                 NetworkManager.OnClientDisconnectCallback += OnClientLeft;
@@ -127,6 +130,9 @@ namespace Backpacking.Net
             DespawnWildlife();
             DespawnHikers();
             DespawnPacks();
+            DespawnHelp();
+            DespawnArrows();
+            DespawnPings();
             OtherHikers.Clear();
             if (NetworkManager != null)
                 NetworkManager.OnClientDisconnectCallback -= OnClientLeft;
@@ -355,6 +361,10 @@ namespace Backpacking.Net
 
         void OnClientLeft(ulong clientId)
         {
+            // Their hiker came over as they left: keep it on disk straight away.
+            string leaving = CoopHiker.Of(clientId) is { } hiker ? hiker.HikerName : "A friend";
+            if (saves != null && guestKeys.ContainsKey(clientId))
+                saves.AutoSave($"{leaving} left");
             wanted.Remove(clientId);
             guestKeys.Remove(clientId);
             TruckSeats next = seats.Value;

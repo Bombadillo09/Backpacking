@@ -8,7 +8,8 @@ namespace Backpacking.Navigation
 {
     /// <summary>
     /// The paper map, opened with M. Shows a topographic rendering of the terrain, a lettered grid,
-    /// a scale bar and the named destinations. Your own position is hidden unless enabled.
+    /// a scale bar and the named destinations. Your own position is hidden unless enabled; friends on a co-op trip
+    /// (blue) and anything someone has pointed out (orange) are marked, with names.
     /// </summary>
     public class MapView : MonoBehaviour
     {
@@ -34,6 +35,7 @@ namespace Backpacking.Navigation
         VisualElement screen, paper;
         VisualElement playerMarker;
         readonly List<(NavigationPoint point, VisualElement marker)> markers = new();
+        readonly Dictionary<string, (VisualElement dot, Label label)> pins = new();
         float laidOutSide, mapMargin, mapSize;
 
         public bool IsOpen { get; private set; }
@@ -64,6 +66,49 @@ namespace Backpacking.Navigation
                     marker.style.backgroundColor = point.Visited ? VisitedColour : UnvisitedColour;
             if (playerMarker != null)
                 Place(playerMarker, player.position, laidOutSide * 0.014f);
+            UpdatePins();
+        }
+
+        /// <summary>Friends and pings (see World.MapPins): a dot and a name each, kept where they are now.</summary>
+        void UpdatePins()
+        {
+            var seen = new HashSet<string>();
+            float size = laidOutSide * 0.016f, labelSize = laidOutSide * 0.016f;
+            foreach (MapPin pin in MapPins.All)
+            {
+                seen.Add(pin.id);
+                if (!pins.TryGetValue(pin.id, out var shown) || shown.dot.parent != paper)
+                {
+                    VisualElement dot = UIBuild.Box("map-marker");
+                    Label label = UIBuild.Text("", "map-pin-label");
+                    paper.Add(dot);
+                    paper.Add(label);
+                    shown = (dot, label);
+                    pins[pin.id] = shown;
+                }
+                shown.dot.style.width = shown.dot.style.height = size;
+                shown.dot.style.backgroundColor = pin.colour;
+                shown.dot.style.borderTopLeftRadius = shown.dot.style.borderTopRightRadius =
+                    shown.dot.style.borderBottomLeftRadius = shown.dot.style.borderBottomRightRadius = pin.kind == PinKind.Friend ? size / 2f : 0f;
+                shown.dot.style.rotate = new Rotate(new Angle(pin.kind == PinKind.Ping ? 45f : 0f));
+                Place(shown.dot, pin.position, size);
+                Vector2 at = MapPosition(pin.position);
+                shown.label.text = pin.label;
+                shown.label.style.fontSize = labelSize;
+                shown.label.style.color = pin.colour * 0.8f;
+                shown.label.style.left = at.x + size;
+                shown.label.style.top = at.y - labelSize * 0.6f;
+            }
+            var gone = new List<string>();
+            foreach (string id in pins.Keys)
+                if (!seen.Contains(id))
+                    gone.Add(id);
+            foreach (string id in gone)
+            {
+                pins[id].dot.RemoveFromHierarchy();
+                pins[id].label.RemoveFromHierarchy();
+                pins.Remove(id);
+            }
         }
 
         void SetOpen(bool open)

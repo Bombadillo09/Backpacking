@@ -19,6 +19,8 @@ namespace Backpacking.Net
     public partial class CoopWorld
     {
         const float HikerSaveEvery = 20f;
+        /// <summary>The host saves this often (real seconds) while friends are on the trip.</summary>
+        const float AutoSaveEvery = 300f;
         /// <summary>A returning hiker more than this far from everyone (the host loaded an older save, say) starts beside the host instead.</summary>
         const float RejoinRange = 250f;
 
@@ -32,7 +34,7 @@ namespace Backpacking.Net
 
         // The host's record of each guest's key.
         readonly Dictionary<ulong, string> guestKeys = new();
-        float nextHikerSave;
+        float nextHikerSave, nextAutoSave;
         ArrivalGuide arrival;
 
         void SpawnHikers()
@@ -49,7 +51,19 @@ namespace Backpacking.Net
 
         void UpdateHikers()
         {
-            if (IsServer || !synced || Time.unscaledTime < nextHikerSave)
+            if (IsServer)
+            {
+                // Every few minutes with friends here, so a crash doesn't lose the trip (theirs included).
+                if (nextAutoSave <= 0f || CoopSession.PlayerCount < 2)
+                    nextAutoSave = Time.unscaledTime + AutoSaveEvery;
+                else if (Time.unscaledTime >= nextAutoSave && saves != null)
+                {
+                    nextAutoSave = Time.unscaledTime + AutoSaveEvery;
+                    saves.AutoSave("Autosave");
+                }
+                return;
+            }
+            if (!synced || Time.unscaledTime < nextHikerSave)
                 return;
             nextHikerSave = Time.unscaledTime + HikerSaveEvery;
             SendHiker();

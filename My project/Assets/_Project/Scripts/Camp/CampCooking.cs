@@ -58,6 +58,32 @@ namespace Backpacking.Camp
                 });
             }, mealProblem));
 
+            // With friends round the fire: a meal each for everyone here, cooked together.
+            List<World.OtherHiker> friends = World.OtherHikers.Within(interactor.transform.position, 8f);
+            if (friends.Count > 0 && World.OtherHikers.Feed != null)
+            {
+                int meals = friends.Count + 1;
+                float minutes = mealMinutes + 2f * friends.Count;
+                string shareProblem = backpack.CountFood(FoodKind.TrailMeal) < meals ? $"Needs {meals} dehydrated meals"
+                    : backpack.TotalWater < MealWaterLitres * meals ? $"Needs {MealWaterLitres * meals:0.0} L of water"
+                    : fuelProblem(minutes);
+                options.Add(new InteractionOption($"Cook a meal for everyone here ({meals} meals, {minutes:0} min)", () =>
+                {
+                    for (int i = 0; i < meals; i++)
+                        backpack.TryTakeFood(FoodKind.TrailMeal);
+                    backpack.TryUseCookingWater(MealWaterLitres * meals);
+                    useFuel(minutes);
+                    interactor.Activity.Begin("Cooking for everyone", minutes, () =>
+                    {
+                        interactor.Vitals.Eat(MealSatiety);
+                        interactor.Vitals.Drink(MealHydration);
+                        foreach (World.OtherHiker friend in friends)
+                            World.OtherHikers.Feed?.Invoke(friend.id, MealSatiety, MealHydration);
+                        Notifications.Post("Hot food all round.");
+                    });
+                }, shareProblem));
+            }
+
             int raw = backpack.CountConvertible(Cookable);
             float cookMinutes = CookBaseMinutes + raw * CookMinutesPerPiece;
             options.Add(new InteractionOption($"Cook fish & meat ({raw} pieces, {cookMinutes:0} min)", () =>

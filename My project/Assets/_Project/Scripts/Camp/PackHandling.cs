@@ -45,6 +45,7 @@ namespace Backpacking.Camp
         public float Reach => reach;
         /// <summary>The pack lying on the ground, to show friends' packs in co-op.</summary>
         public GameObject GroundPackPrefab => groundPackPrefab;
+        public GameObject TentBagPrefab => tentBagPrefab;
         public Backpack Backpack => backpack;
 
         /// <summary>The pack is on your back, or near enough to reach into.</summary>

@@ -12,7 +12,9 @@ namespace Backpacking.Survival
     /// <summary>
     /// What happens when the body gives out. Running out of energy makes you pass out where you stand.
     /// Running out of health means a search party carries you to the nearest trading post you've reached.
-    /// You lose time and pay for the rescue, then the game saves so it sticks.
+    /// You lose time and pay for the rescue, then the game saves so it sticks. With friends near on a co-op trip,
+    /// you go down first: for a minute and a half one of them can help you up (look at you, E); if no one does,
+    /// the search party comes.
     /// </summary>
     public class Rescue : MonoBehaviour
     {
@@ -32,6 +34,10 @@ namespace Backpacking.Survival
         [SerializeField] float minimumHoursLost = 10f;
         [Tooltip("Hour of the morning you're back on your feet.")]
         [SerializeField, Range(0f, 24f)] float wakeHour = 8f;
+        [Tooltip("Real seconds a friend has to help you up before the search party comes.")]
+        [SerializeField] float downSeconds = 90f;
+        [Tooltip("How near a friend must be (metres) for you to go down rather than be carried off straight away.")]
+        [SerializeField] float friendRange = 250f;
 
         [Header("Condition After Rescue")]
         [SerializeField] float healthAfter = 40f;
@@ -43,16 +49,49 @@ namespace Backpacking.Survival
         const float FadeOutSeconds = 2.5f;
         const float FadeInSeconds = 1.5f;
 
-        enum Stage { None, FadingOut, Report, FadingIn }
+        enum Stage { None, Down, FadingOut, Report, FadingIn }
 
         Stage stage;
         float stageStartTime;
         string cause;
         string report;
         VisualElement blackout, reportPanel;
-        Label reportText;
+        Label reportText, downText;
 
         public bool InProgress => stage != Stage.None;
+        /// <summary>Down and waiting for a friend to help them up.</summary>
+        public bool Downed => stage == Stage.Down;
+        public static Rescue Current { get; private set; }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics() => Current = null;
+
+        void Awake() => Current = this;
+
+        void OnDestroy()
+        {
+            if (Current == this)
+                Current = null;
+        }
+
+        /// <summary>A friend got you back on your feet.</summary>
+        public void HelpUp(string by)
+        {
+            if (stage != Stage.Down)
+                return;
+            vitals.Revive();
+            PlayerControlLock.Unlock(this);
+            SetStage(Stage.None);
+            Notifications.Post($"{by} gets you back on your feet. You're weak: eat, drink and get warm.", 6f);
+            Trip.TripLog.Note($"Went down, {cause}. {by} got me back up.");
+        }
+
+        /// <summary>Goes down as if the body gave out (for the co-op test).</summary>
+        public void GoDown(string why)
+        {
+            cause = why;
+            GoDownOrBeRescued();
+        }
 
         void OnEnable()
         {
@@ -87,15 +126,32 @@ namespace Backpacking.Survival
                 : vitals.IsStarving ? "weak from starvation"
                 : "too sick to stand";
 
+            GoDownOrBeRescued();
+        }
+
+        void GoDownOrBeRescued()
+        {
+            if (stage != Stage.None)
+                return;
             GameUI.CloseAllScreens();
             activity.Interrupt();
             PlayerControlLock.Lock(this, needsCursor: false);
+            // A friend near enough to come and help: wait for them.
+            if (World.OtherHikers.AnyWithin(player.transform.position, friendRange))
+            {
+                SetStage(Stage.Down);
+                Notifications.Post($"You're down, {cause}. A friend can help you up: they look at you and press E.", 8f);
+                return;
+            }
             SetStage(Stage.FadingOut);
         }
 
         void Update()
         {
             float elapsed = Time.unscaledTime - stageStartTime;
+            // No one came in time (or everyone left): the search party it is.
+            if (stage == Stage.Down && (elapsed >= downSeconds || World.OtherHikers.All.Count == 0))
+                SetStage(Stage.FadingOut);
             if (stage == Stage.FadingOut && elapsed >= FadeOutSeconds)
             {
                 CarryToSafety();
@@ -207,14 +263,20 @@ namespace Backpacking.Survival
             blackout = UIBuild.Layer("blackout", "centred").With(reportPanel);
             blackout.SetVisible(false);
             GameUI.Current.Menus.Add(blackout);
+            downText = UIBuild.Text("", "coop-wait", "shadowed");
+            downText.SetVisible(false);
+            GameUI.Current.Hud.Add(downText.IgnoreMouse());
         }
 
         void LateUpdate()
         {
             if (blackout == null)
                 return;
-            blackout.SetVisible(stage != Stage.None);
-            if (stage == Stage.None)
+            downText.SetVisible(stage == Stage.Down);
+            if (stage == Stage.Down)
+                downText.SetText($"You're down, {cause}. A friend can help you up. The search party comes in {Mathf.CeilToInt(downSeconds - (Time.unscaledTime - stageStartTime))} s.");
+            blackout.SetVisible(stage != Stage.None && stage != Stage.Down);
+            if (stage == Stage.None || stage == Stage.Down)
                 return;
 
             float elapsed = Time.unscaledTime - stageStartTime;

@@ -16,7 +16,7 @@ namespace Backpacking.Net
     public struct HikerState : INetworkSerializable
     {
         [Flags]
-        public enum Flag : ushort
+        public enum Flag : uint
         {
             Grounded = 1,
             Crouching = 2,
@@ -32,6 +32,13 @@ namespace Backpacking.Net
             Machete = 2048,
             Sprinting = 4096,
             Flashlight = 8192,
+            /// <summary>An open cut: a friend can bandage it.</summary>
+            Bleeding = 16384,
+            /// <summary>An infection: a friend can give antibiotics (unless already taking a course).</summary>
+            Infected = 32768,
+            OnAntibiotics = 65536,
+            /// <summary>Down and out (see Survival.Rescue): a friend can help them up.</summary>
+            Downed = 131072,
         }
 
         public Vector3 position;
@@ -61,7 +68,7 @@ namespace Backpacking.Net
             serializer.SerializeValue(ref yaw);
             serializer.SerializeValue(ref pitch);
             serializer.SerializeValue(ref speed);
-            ushort bits = (ushort)flags;
+            uint bits = (uint)flags;
             serializer.SerializeValue(ref bits);
             flags = (Flag)bits;
             serializer.SerializeValue(ref seat);
@@ -92,6 +99,7 @@ namespace Backpacking.Net
         FirstPersonController player;
         PlayerActivity activity;
         Backpack backpack;
+        Vitals vitals;
         PlayerAvatar avatar;
         RemoteHikerBody body;
         Hunting.Bow bow;
@@ -150,7 +158,10 @@ namespace Backpacking.Net
             Undergrowth.Swung -= OnSwung;
             Hotbar.Used -= OnUsed;
             if (!IsOwner)
+            {
                 World.OtherHikers.Remove(OwnerClientId);
+                World.MapPins.Remove($"hiker-{OwnerClientId}");
+            }
             if (body != null)
                 Destroy(body.gameObject);
         }
@@ -162,6 +173,7 @@ namespace Backpacking.Net
                 return;
             activity = player.GetComponent<PlayerActivity>();
             backpack = player.GetComponent<Backpack>();
+            vitals = player.GetComponent<Vitals>();
             avatar = player.GetComponent<PlayerAvatar>();
             bow = player.GetComponentInChildren<Hunting.Bow>();
             if (bow == null)
@@ -193,6 +205,12 @@ namespace Backpacking.Net
                     speed = latest.speed,
                     crouching = latest.Has(HikerState.Flag.Crouching),
                     sprinting = latest.Has(HikerState.Flag.Sprinting),
+                    name = HikerName,
+                });
+                World.MapPins.Set(new World.MapPin
+                {
+                    id = $"hiker-{OwnerClientId}", label = HikerName, kind = World.PinKind.Friend, position = body.transform.position,
+                    colour = new Color(0.15f, 0.4f, 0.9f),
                 });
             }
         }
@@ -276,6 +294,17 @@ namespace Backpacking.Net
             HotbarSlot inHand = Hotbar.Current != null ? Hotbar.Current.Held : new HotbarSlot(HotbarKind.Empty);
             if (Hotbar.Current != null && Hotbar.Current.Shining)
                 flags |= HikerState.Flag.Flashlight;
+            if (vitals != null)
+            {
+                if (vitals.IsBleeding)
+                    flags |= HikerState.Flag.Bleeding;
+                if (vitals.IsInfected)
+                    flags |= HikerState.Flag.Infected;
+                if (vitals.OnAntibiotics)
+                    flags |= HikerState.Flag.OnAntibiotics;
+            }
+            if (Rescue.Current != null && Rescue.Current.Downed)
+                flags |= HikerState.Flag.Downed;
             state.flags = flags;
             state.held = (byte)inHand.kind;
             state.heldFood = inHand.kind switch

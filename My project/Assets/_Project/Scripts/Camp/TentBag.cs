@@ -6,14 +6,23 @@ namespace Backpacking.Camp
 {
     /// <summary>
     /// The tent in its stuff sack, lying on the ground: out of the pack and ready to unpack where you want to
-    /// pitch, or taken down and waiting to go back in. Made by <see cref="PackHandling"/>.
+    /// pitch, or taken down and waiting to go back in. Made by <see cref="PackHandling"/>. A friend's (co-op) is just
+    /// there to see: it's theirs to unpack.
     /// </summary>
     public class TentBag : MonoBehaviour, IInteractable
     {
-        public string DisplayName => "Tent bag";
+        /// <summary>Whose it is, if it's a friend's.</summary>
+        public string OwnerName { get; set; }
+
+        public string DisplayName => OwnerName != null ? $"{OwnerName}'s tent bag" : "Tent bag";
 
         public void GetOptions(Interactor interactor, List<InteractionOption> options)
         {
+            if (OwnerName != null)
+            {
+                options.Add(new InteractionOption($"{OwnerName}'s tent, in its bag", () => { }, $"Only {OwnerName} can unpack it"));
+                return;
+            }
             PackHandling handling = PackHandling.Current;
             if (handling == null)
                 return;

@@ -56,10 +56,20 @@ namespace Backpacking.Saving
         /// <summary>The scene's pickups (firewood, the things to take from home) by their save id (null once collected).</summary>
         public IReadOnlyDictionary<string, GameObject> Pickups => pickupsAtStart;
 
-        string SavePath => Path.Combine(Application.persistentDataPath, fileName);
+        string SavePath => Path.Combine(Application.persistentDataPath, TestRun ? "test-" + fileName : fileName);
+
+        /// <summary>An automatic test is running: saves go to a separate file, so the player's own trip is left alone.</summary>
+        public static bool TestRun { get; set; }
+
+        /// <summary>Where saves are written right now (for the tests).</summary>
+        public string SaveFile => SavePath;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() => loadOnSceneStart = false;
+        static void ResetStatics()
+        {
+            loadOnSceneStart = false;
+            TestRun = false;
+        }
 
         void Awake()
         {
@@ -128,6 +138,25 @@ namespace Backpacking.Saving
             {
                 Debug.LogError($"Couldn't write save file {SavePath}: {exception}");
                 Notifications.Post("Couldn't save the game. See the console for details.");
+            }
+        }
+
+        /// <summary>
+        /// Saves without being asked (hosting a co-op trip: when a friend leaves, and every few minutes), with a quiet
+        /// note saying why. Guests don't save; their hiker is in the host's save.
+        /// </summary>
+        public void AutoSave(string why)
+        {
+            if (Net.CoopSession.IsGuest)
+                return;
+            try
+            {
+                File.WriteAllText(SavePath, JsonUtility.ToJson(Capture(), true));
+                Notifications.Post($"{why}: game saved.", 2.5f);
+            }
+            catch (Exception exception)
+            {
+                Debug.LogError($"Couldn't write save file {SavePath}: {exception}");
             }
         }
 

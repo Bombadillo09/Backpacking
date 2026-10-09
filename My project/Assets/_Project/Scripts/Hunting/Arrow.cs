@@ -12,6 +12,8 @@ namespace Backpacking.Hunting
     /// <summary>
     /// An arrow in flight: it falls as it goes, and either sticks in an animal, sticks in the ground or a tree where
     /// it can be picked up again, breaks on rock, or is lost in a lake. Animals near where it lands are startled.
+    /// On a co-op trip friends see it fly as a ghost (it passes through animals and people; the shooter's game
+    /// decides where it lands), and whoever picks it up gets it.
     /// </summary>
     public class Arrow : MonoBehaviour, IInteractable
     {
@@ -25,6 +27,20 @@ namespace Backpacking.Hunting
         Vector3 velocity;
         Transform shooter;
         TrailRenderer trail;
+
+        public Vector3 Velocity => velocity;
+
+        /// <summary>Its number on a co-op trip (0 alone).</summary>
+        public int NetId { get; set; }
+        /// <summary>A friend's arrow as seen here: it hurts nothing, and lands where their game says.</summary>
+        public bool Ghost { get; private set; }
+
+        /// <summary>This player loosed an arrow (co-op tells the others).</summary>
+        public static event System.Action<Arrow> Loosed;
+        /// <summary>This player's arrow stopped: lying where it can be picked up (true), or gone (broken, lost, in an animal).</summary>
+        public static event System.Action<Arrow, bool> Settled;
+        /// <summary>An arrow was picked up here.</summary>
+        public static event System.Action<Arrow> PickedUp;
         float flightTime;
         bool flying;
         readonly List<Collider> passed = new();
@@ -35,7 +51,13 @@ namespace Backpacking.Hunting
         public static bool Trace { get; set; }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() => lying.Clear();
+        static void ResetStatics()
+        {
+            lying.Clear();
+            Loosed = null;
+            Settled = null;
+            PickedUp = null;
+        }
 
         /// <summary>Looses an arrow from <paramref name="from"/>. The shooter's own colliders are ignored.</summary>
         public static Arrow Shoot(Vector3 from, Vector3 velocity, Transform shooter)
@@ -47,7 +69,44 @@ namespace Backpacking.Hunting
             arrow.shooter = shooter;
             arrow.flying = true;
             arrow.trail = BowDesign.AddFlightTrail(model);
+            Loosed?.Invoke(arrow);
             return arrow;
+        }
+
+        /// <summary>A friend's arrow, flying the same way theirs did.</summary>
+        public static Arrow ShootGhost(Vector3 from, Vector3 velocity, int netId)
+        {
+            GameObject model = BowDesign.Arrow();
+            model.transform.SetPositionAndRotation(from, Quaternion.LookRotation(velocity));
+            var arrow = model.AddComponent<Arrow>();
+            arrow.velocity = velocity;
+            arrow.flying = true;
+            arrow.Ghost = true;
+            arrow.NetId = netId;
+            arrow.trail = BowDesign.AddFlightTrail(model);
+            return arrow;
+        }
+
+        /// <summary>Where a friend's arrow ended up in their game: lying there, ready to pick up.</summary>
+        public void SettleAt(Vector3 position, Quaternion rotation)
+        {
+            if (flying)
+                StopTrail();
+            flying = false;
+            transform.SetParent(null, true);
+            transform.SetPositionAndRotation(position, rotation);
+            if (GetComponent<BoxCollider>() == null)
+                LieAbout();
+        }
+
+        /// <summary>Gone in a friend's game (broken, lost, in an animal, picked up).</summary>
+        public void Vanish() => Destroy(gameObject);
+
+        void Gone()
+        {
+            if (!Ghost)
+                Settled?.Invoke(this, false);
+            Destroy(gameObject);
         }
 
         void Update()
@@ -57,7 +116,7 @@ namespace Backpacking.Hunting
             flightTime += Time.deltaTime;
             if (flightTime > MaxFlightSeconds)
             {
-                Destroy(gameObject);
+                Gone();
                 return;
             }
 
@@ -93,8 +152,20 @@ namespace Backpacking.Hunting
                     Debug.Log($"[Arrow] touches {other.name} (trigger {other.isTrigger}, animal {other.GetComponentInParent<Animal>() != null}) at {hit.point:F2}");
                 if (passed.Contains(other) || (shooter != null && other.transform.IsChildOf(shooter)))
                     continue;
+                // Friends on a co-op trip aren't targets.
+                if (other.GetComponentInParent<Net.RemoteHikerBody>() != null)
+                {
+                    passed.Add(other);
+                    continue;
+                }
 
                 Animal animal = other.GetComponentInParent<Animal>();
+                if (animal != null && Ghost)
+                {
+                    // The shooter's game says whether it hit.
+                    passed.Add(other);
+                    continue;
+                }
                 if (animal != null)
                 {
                     if (!animal.TakeArrow(hit.point, direction))
@@ -104,13 +175,15 @@ namespace Backpacking.Hunting
                     }
                     StickIn(hit.point, direction, animal.transform, 0.25f);
                     PlayAt(Sounds.ArrowHit(), hit.point, 0.6f);
+                    Settled?.Invoke(this, false);
                     return true;
                 }
                 if (other.GetComponent<WaterSource>() != null)
                 {
                     // Into the lake: gone.
-                    Animal.StartleNear(hit.point, 15f);
-                    Destroy(gameObject);
+                    if (!Ghost)
+                        Animal.StartleNear(hit.point, 15f);
+                    Gone();
                     return true;
                 }
                 // Other triggers (interaction zones, arrows lying about) don't stop it.
@@ -118,31 +191,44 @@ namespace Backpacking.Hunting
                     continue;
 
                 PlayAt(Sounds.ArrowHit(), hit.point, 1f);
+                if (Ghost)
+                {
+                    // Stuck where it hit, until the shooter's game says where it really lies.
+                    StickIn(hit.point, direction, null, 0.15f);
+                    return true;
+                }
                 Animal.StartleNear(hit.point, 18f);
                 bool stone = other is not TerrainCollider || GroundCover.At(hit.point) == Surface.Hard;
                 if (Random.value < (stone ? 0.35f : 0.08f))
                 {
                     if (shooter != null && (hit.point - shooter.position).sqrMagnitude < 40f * 40f)
                         Notifications.Post(stone ? "The arrow shattered on the rock." : "The arrow snapped.", 2.5f);
-                    Destroy(gameObject);
+                    Gone();
                     return true;
                 }
                 StickIn(hit.point, direction, null, stone ? 0.04f : 0.15f);
                 LieAbout();
+                Settled?.Invoke(this, true);
                 return true;
             }
             return false;
         }
 
-        void StickIn(Vector3 point, Vector3 direction, Transform parent, float depth)
+        void StopTrail()
         {
-            flying = false;
             // The streak fades out behind it, then goes.
             if (trail != null)
             {
                 trail.emitting = false;
                 Destroy(trail, trail.time + 0.1f);
             }
+            trail = null;
+        }
+
+        void StickIn(Vector3 point, Vector3 direction, Transform parent, float depth)
+        {
+            flying = false;
+            StopTrail();
             transform.SetPositionAndRotation(point + direction * depth, Quaternion.LookRotation(direction));
             if (parent != null)
                 transform.SetParent(parent, true);
@@ -178,6 +264,7 @@ namespace Backpacking.Hunting
             options.Add(new InteractionOption("Pick up the arrow", () =>
             {
                 interactor.Backpack.AddArrows(1);
+                PickedUp?.Invoke(this);
                 Destroy(gameObject);
             }));
         }

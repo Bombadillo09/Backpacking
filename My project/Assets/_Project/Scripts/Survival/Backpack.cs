@@ -607,6 +607,9 @@ namespace Backpacking.Survival
             lanternInPack = true;
         }
 
+        /// <summary>The lantern's gone: a friend borrowed it while it was set down.</summary>
+        public void LoseLantern() => hasLantern = lanternInPack = false;
+
         /// <summary>Puts something on the hotbar: in the given slot, or the first empty one. Moves it if it's already on.</summary>
         public bool AssignHotbar(HotbarSlot item, int slot = -1)
         {
@@ -851,6 +854,9 @@ namespace Backpacking.Survival
         }
 
         public void PourOutUntreatedWater() => untreatedWater = 0f;
+
+        /// <summary>Pours some safe water out of the bottle (into a friend's cup).</summary>
+        public void PourSafeWater(float litres) => safeWater = Mathf.Max(0f, safeWater - litres);
 
         /// <summary>Fills the bottle at a tap: clean water, so any untreated water is poured away first. Returns the litres added.</summary>
         public float FillWithTapWater()

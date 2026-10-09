@@ -32,6 +32,9 @@ namespace Backpacking.Net
         }
 
         readonly Dictionary<ulong, FriendsPack> friendsPacks = new();
+        readonly Dictionary<ulong, TentBag> friendsTentBags = new();
+        bool tentBagShown;
+        Vector3 tentBagSent;
         PackHandling handling;
         PlayerAvatar avatar;
         bool packShown;
@@ -51,6 +54,10 @@ namespace Backpacking.Net
                 if (friend.pack != null)
                     Destroy(friend.pack.gameObject);
             friendsPacks.Clear();
+            foreach (TentBag bag in friendsTentBags.Values)
+                if (bag != null)
+                    Destroy(bag.gameObject);
+            friendsTentBags.Clear();
         }
 
         /// <summary>Their pack, if it's on the ground here (for the co-op test).</summary>
@@ -61,6 +68,7 @@ namespace Backpacking.Net
             if (!synced || Time.unscaledTime < nextPackCheck)
                 return;
             nextPackCheck = Time.unscaledTime + PackCheckEvery;
+            SendOwnTentBag();
             SendOwnPack();
 
             List<ulong> gone = null;
@@ -81,11 +89,70 @@ namespace Backpacking.Net
                 friend.pack.ShowGear(friend.contents, false, false);
                 PackContentsRpc(json, LocalName(), RpcTarget.Single(owner, RpcTargetUse.Temp));
             }
+            List<ulong> bagsGone = null;
+            foreach ((ulong owner, TentBag bag) in friendsTentBags)
+                if (bag == null || CoopHiker.Of(owner) == null)
+                    (bagsGone ??= new List<ulong>()).Add(owner);
+            if (bagsGone != null)
+                foreach (ulong owner in bagsGone)
+                    TentBagGoneRpcLocal(owner);
             if (gone == null)
                 return;
             foreach (ulong owner in gone)
                 RemoveFriendsPack(owner);
         }
+
+        /// <summary>This player's tent bag lying on the ground, for the others to see (sent with the pack's resends).</summary>
+        void SendOwnTentBag()
+        {
+            TentBag bag = handling != null ? handling.TentBag : null;
+            if (bag == null)
+            {
+                if (tentBagShown)
+                {
+                    tentBagShown = false;
+                    TentBagGoneRpc(NetworkManager.LocalClientId);
+                }
+                return;
+            }
+            bool moved = (bag.transform.position - tentBagSent).sqrMagnitude > 0.0004f;
+            if (tentBagShown && !moved && Time.unscaledTime < nextPackResend)
+                return;
+            tentBagShown = true;
+            tentBagSent = bag.transform.position;
+            if (handling.IsWorn || handling.Pack == null)
+                nextPackResend = Time.unscaledTime + PackResendEvery;
+            TentBagRpc(NetworkManager.LocalClientId, bag.transform.position, bag.transform.eulerAngles.y, (int)handling.Backpack.TentModel, LocalName());
+        }
+
+        [Rpc(SendTo.NotMe)]
+        void TentBagRpc(ulong owner, Vector3 position, float yaw, int model, string ownerName)
+        {
+            if (owner == NetworkManager.LocalClientId || handling == null || handling.TentBagPrefab == null)
+                return;
+            if (!friendsTentBags.TryGetValue(owner, out TentBag bag) || bag == null)
+            {
+                bag = Instantiate(handling.TentBagPrefab).GetComponent<TentBag>();
+                bag.name = $"Co-op tent bag ({ownerName})";
+                friendsTentBags[owner] = bag;
+            }
+            bag.OwnerName = ownerName;
+            bag.transform.SetPositionAndRotation(position, Quaternion.Euler(0f, yaw, 0f));
+            bag.SetModel((TentModel)model);
+        }
+
+        [Rpc(SendTo.NotMe)]
+        void TentBagGoneRpc(ulong owner) => TentBagGoneRpcLocal(owner);
+
+        void TentBagGoneRpcLocal(ulong owner)
+        {
+            if (friendsTentBags.TryGetValue(owner, out TentBag bag) && bag != null)
+                Destroy(bag.gameObject);
+            friendsTentBags.Remove(owner);
+        }
+
+        /// <summary>Their tent bag, if it's lying on the ground here (for the co-op test).</summary>
+        public TentBag FriendsTentBagOf(ulong owner) => friendsTentBags.TryGetValue(owner, out TentBag bag) ? bag : null;
 
         /// <summary>Tells the others where this player's pack is lying and what's in it, or that it's been picked up.</summary>
         void SendOwnPack()

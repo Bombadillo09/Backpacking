@@ -6,7 +6,8 @@ namespace Backpacking.Navigation
 {
     /// <summary>
     /// A handheld compass shown in the corner of the screen. The dial turns with the player so its
-    /// needle always points to world north (+Z); the red index line at the top reads the current heading.
+    /// needle always points to world north (+Z); the red index line at the top reads the current heading. Round its
+    /// rim, a mark points the way to each friend on a co-op trip (their initial, blue) and each pinged spot (orange).
     /// </summary>
     public class Compass : MonoBehaviour
     {
@@ -21,6 +22,7 @@ namespace Backpacking.Navigation
         Texture2D dial;
         VisualElement root, face;
         Label readout;
+        readonly System.Collections.Generic.Dictionary<string, Label> pinMarks = new();
 
         public bool IsOpen { get; private set; }
 
@@ -80,6 +82,39 @@ namespace Backpacking.Navigation
             face.style.rotate = new Rotate(new Angle(-displayedHeading, AngleUnit.Degree));
             float heading = Mathf.Repeat(displayedHeading, 360f);
             readout.SetText($"{Mathf.RoundToInt(heading) % 360:000}°  {CardinalName(heading)}");
+            UpdatePinMarks();
+        }
+
+        /// <summary>A mark on the rim for each friend and ping, on its bearing from here.</summary>
+        void UpdatePinMarks()
+        {
+            var seen = new System.Collections.Generic.HashSet<string>();
+            foreach (World.MapPin pin in World.MapPins.All)
+            {
+                seen.Add(pin.id);
+                if (!pinMarks.TryGetValue(pin.id, out Label mark))
+                {
+                    mark = UIBuild.Text("", "compass-pin", "shadowed");
+                    root.Add(mark);
+                    pinMarks[pin.id] = mark;
+                }
+                Vector3 to = pin.position - holder.position;
+                float bearing = Mathf.Atan2(to.x, to.z) * Mathf.Rad2Deg;
+                float relative = (bearing - displayedHeading) * Mathf.Deg2Rad;
+                mark.text = pin.kind == World.PinKind.Friend ? pin.label.Substring(0, Mathf.Min(1, pin.label.Length)) : "•";
+                mark.style.color = pin.colour;
+                mark.style.left = Length.Percent(50f + Mathf.Sin(relative) * 47f);
+                mark.style.top = Length.Percent(50f - Mathf.Cos(relative) * 47f);
+            }
+            var gone = new System.Collections.Generic.List<string>();
+            foreach (string id in pinMarks.Keys)
+                if (!seen.Contains(id))
+                    gone.Add(id);
+            foreach (string id in gone)
+            {
+                pinMarks[id].RemoveFromHierarchy();
+                pinMarks.Remove(id);
+            }
         }
 
         void OnDestroy()
