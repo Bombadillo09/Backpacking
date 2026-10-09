@@ -25,7 +25,7 @@ namespace Backpacking.UI
         const string ControlsText =
             "WASD|Left stick|Walk\nMouse|Right stick|Look around\nShift|Left stick press|Sprint\n" +
             "C|Right stick press|Crouch\nSpace|A|Jump\nE|Y|Interact, place gear, hook a fish\n" +
-            "Tab|View|Backpack, leave a shop\nJ|Backpack > Journal|Trip journal\nV|RB|First or third person\nM|D-pad up|Map\nQ|D-pad down|Compass\nHold T|Hold LB|Fast-forward time\n" +
+            "Tab|View|Backpack, leave a shop\nJ|Backpack > Journal|Trip journal\nV|RB|First or third person\nM|D-pad up|Map\nQ|D-pad down|Compass\nHold T|Hold LB|Fast-forward time\nG / Middle-click|-|Point something out (ping)\n" +
             "Right-click|B|Back, cancel placing, stop fishing\nEsc|Start|Close screen, pause\nF5 / F9|-|Quick-save / quick-load";
 
         enum Page { None, Title, Pause, Settings, Controls, Confirm, Creator, Join }
