@@ -173,7 +173,12 @@ namespace Backpacking.Net
                 return;
             if (IsOwner)
                 SendOwnState();
-            else if (body != null && latest.position != Vector3.zero)
+        }
+
+        void LateUpdate()
+        {
+            // After their body has moved this frame.
+            if (IsSpawned && !IsOwner && body != null && latest.position != Vector3.zero)
             {
                 // The world (animals, snares, wildlife) takes them into account.
                 World.OtherHikers.Set(new World.OtherHiker

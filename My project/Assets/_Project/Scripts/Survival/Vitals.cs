@@ -231,6 +231,8 @@ namespace Backpacking.Survival
         public bool InSleepingBag { get; set; }
         /// <summary>Set while asleep on your sleeping mat.</summary>
         public bool OnMat { get; set; }
+        /// <summary>How much the tent you're sleeping in keeps you warm (set by it); unset, your own tent's.</summary>
+        public float? SleepShelter { get; set; }
         /// <summary>Set while sitting in the truck's cab: out of the rain and wind, with the heater on.</summary>
         public bool InVehicle { get; set; }
 
@@ -519,7 +521,7 @@ namespace Backpacking.Survival
             bool inTent = IsSleeping && IsSheltered;
             WindChill = weather != null && !inTent && !InVehicle ? weather.WindKmh * windChillPerKmh : 0f;
             float soaked = wetness / Max;
-            FeltTemperature = air + fire + (inTent ? backpack.TentShelter : 0f) + (InVehicle ? CabHeater : 0f) - WindChill - soaked * soakedChill;
+            FeltTemperature = air + fire + (inTent ? SleepShelter ?? backpack.TentShelter : 0f) + (InVehicle ? CabHeater : 0f) - WindChill - soaked * soakedChill;
 
             float insulation = (backpack.ClothingInsulation + backpack.BootsWarmth + HikerTraits.InsulationBonus) * (1f - soakedInsulationLoss * soaked);
             // In the bag, a mat stops the ground drawing the heat out of you. A wet bag loses most of its warmth.

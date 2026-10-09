@@ -100,6 +100,8 @@ namespace Backpacking.Saving
         public ChairStage chairStage = ChairStage.Ready;
         /// <summary>For a pitched tent, whether your mat and sleeping bag are laid out in it.</summary>
         public bool matLaidOut, bagLaidOut;
+        /// <summary>For a pitched tent, whose bedding is laid out in each place. Empty in older saves (see matLaidOut).</summary>
+        public List<TentBed> beds = new();
         /// <summary>For a tent, which model (-1 in older saves: the one in your pack).</summary>
         public int tentModel = -1;
         /// <summary>Whose it is: empty for the save's own hiker, else a co-op friend's key and name.</summary>

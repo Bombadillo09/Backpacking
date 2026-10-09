@@ -65,6 +65,17 @@ namespace Backpacking.Camp
             }
         }
 
+        /// <summary>How many sleep in it.</summary>
+        public static int Sleeps(TentModel model) => model == TentModel.OnePerson ? 1 : 2;
+
+        /// <summary>How much warmer than outside it is to sleep in, in °C (as the shop sells it).</summary>
+        public static float Shelter(TentModel model) => model switch
+        {
+            TentModel.OnePerson => 4f,
+            TentModel.TwoPerson => 5f,
+            _ => 9f,
+        };
+
         public static Spec Of(TentModel model) => model switch
         {
             // A narrow trekking tent: one hoop pole near the head and a short strut at the foot.

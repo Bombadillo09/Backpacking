@@ -183,7 +183,7 @@ namespace Backpacking.Net
         /// <summary>Changed enough to tell the others. A fire burning down is the same everywhere (the clock is shared), so only wood added counts.</summary>
         static bool Differs(PlacedItemState a, PlacedItemState b) =>
             a.kind != b.kind || a.stage != b.stage || a.chairStage != b.chairStage || a.matLaidOut != b.matLaidOut || a.bagLaidOut != b.bagLaidOut
-            || a.burning != b.burning || a.hasCatch != b.hasCatch || a.tentModel != b.tentModel
+            || a.burning != b.burning || a.hasCatch != b.hasCatch || a.tentModel != b.tentModel || Tent.Signature(a.beds) != Tent.Signature(b.beds)
             || (a.position - b.position).sqrMagnitude > 0.0004f || Quaternion.Angle(a.rotation, b.rotation) > 1f
             || a.fuelHours > b.fuelHours + 0.05f || Mathf.Abs(a.fuelHours - b.fuelHours) > 0.5f;
 

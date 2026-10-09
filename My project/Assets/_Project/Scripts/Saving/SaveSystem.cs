@@ -262,6 +262,7 @@ namespace Backpacking.Saving
                 state.stage = tent.Stage;
                 state.matLaidOut = tent.MatLaidOut;
                 state.bagLaidOut = tent.BagLaidOut;
+                state.beds = tent.CaptureBeds();
                 state.tentModel = (int)tent.Model;
             }
             if (instance.TryGetComponent(out CampChair chair))
@@ -292,10 +293,12 @@ namespace Backpacking.Saving
                 TentModel model = item.tentModel >= 0 ? (TentModel)item.tentModel : backpack.TentModel;
                 if (fresh || tent.Model != model || tent.Stage != item.stage)
                     tent.Setup(model, item.stage);
-                if (fresh && mine)
-                    tent.RestoreBed(item.matLaidOut, item.bagLaidOut, backpack);
-                else
-                    tent.ShowBed(item.matLaidOut, item.bagLaidOut, backpack);
+                List<TentBed> beds = item.beds;
+                // Older saves only had your own bedding, in your own tent.
+                if ((beds == null || beds.Count == 0) && mine && (item.matLaidOut || item.bagLaidOut))
+                    beds = new List<TentBed> { new() { key = CampOwner.LocalKey, mat = item.matLaidOut, bag = item.bagLaidOut } };
+                if (fresh || Tent.Signature(beds) != Tent.Signature(tent.CaptureBeds()))
+                    tent.SetBeds(beds, backpack);
             }
             if (instance.TryGetComponent(out CampChair chair) && (fresh || chair.Stage != item.chairStage))
                 chair.Setup(item.chairStage);

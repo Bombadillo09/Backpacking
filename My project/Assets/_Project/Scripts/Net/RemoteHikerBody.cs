@@ -1,3 +1,4 @@
+using Backpacking.Camp;
 using Backpacking.Character;
 using Backpacking.Player;
 using Backpacking.UI;
@@ -37,6 +38,10 @@ namespace Backpacking.Net
         float seated;
         byte swings;
         int seatShown = -1;
+        // Asleep in a tent: which tent and place, and whether they're hidden in their sleeping bag.
+        Tent sleepingIn;
+        int sleepingSlot = -1;
+        bool hidden;
 
         public HikerState State => state;
         public CharacterAppearance Appearance => appearance;
@@ -79,6 +84,8 @@ namespace Backpacking.Net
         void OnDestroy()
         {
             nameTag?.RemoveFromHierarchy();
+            if (sleepingIn != null)
+                sleepingIn.SetSleeper(sleepingSlot, false);
         }
 
         /// <summary>A new state from their game.</summary>
@@ -144,14 +151,64 @@ namespace Backpacking.Net
                 transform.position = Vector3.Lerp(transform.position, predicted, ease);
             yaw = Mathf.LerpAngle(yaw, state.yaw, ease);
             transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+            UpdateSleeping();
         }
+
+        /// <summary>
+        /// Asleep in a tent: in their sleeping bag, they're hidden and the bag looks filled out; without one, they lie
+        /// on their back along their place, head at the head end.
+        /// </summary>
+        void UpdateSleeping()
+        {
+            Tent tent = null;
+            if (state.Has(HikerState.Flag.Sleeping))
+                foreach (Tent candidate in Tent.All)
+                    if (candidate != null && candidate.Contains(transform.position))
+                    {
+                        tent = candidate;
+                        break;
+                    }
+            int slot = tent != null ? tent.SlotAt(transform.position) : -1;
+            bool inBag = tent != null && tent.Beds[slot].bag;
+            if (sleepingIn != tent || sleepingSlot != slot)
+            {
+                if (sleepingIn != null)
+                    sleepingIn.SetSleeper(sleepingSlot, false);
+                sleepingIn = tent;
+                sleepingSlot = slot;
+            }
+            if (tent != null)
+                tent.SetSleeper(slot, inBag);
+            SetHidden(inBag);
+
+            if (tent == null)
+            {
+                appearance.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+                return;
+            }
+            // Facing down the bed from the head end (as the seat does), tipped onto their back, feet toward the foot.
+            transform.rotation = Quaternion.Euler(0f, tent.transform.eulerAngles.y + 180f, 0f);
+            yaw = transform.eulerAngles.y;
+            appearance.transform.SetLocalPositionAndRotation(new Vector3(0f, 0.17f, 1.25f), Quaternion.Euler(-90f, 0f, 0f));
+        }
+
+        void SetHidden(bool hide)
+        {
+            if (hide == hidden)
+                return;
+            hidden = hide;
+            foreach (Renderer part in appearance.GetComponentsInChildren<Renderer>(true))
+                part.enabled = !hide;
+        }
+
+        bool Lying => sleepingIn != null;
 
         void UpdateAnimation()
         {
             Animator animator = appearance.Animator;
             if (animator == null)
                 return;
-            bool sitting = state.Has(HikerState.Flag.Seated);
+            bool sitting = state.Has(HikerState.Flag.Seated) && !Lying;
             bool inChair = state.Has(HikerState.Flag.InChair);
             bool busy = state.Has(HikerState.Flag.Busy);
             animator.SetFloat(SpeedId, state.seat >= 0 ? 0f : state.speed, 0.1f, Time.deltaTime);
@@ -170,10 +227,10 @@ namespace Backpacking.Net
             {
                 seated = Mathf.MoveTowards(seated, sitting ? 1f : 0f, Time.deltaTime * 2.5f);
                 pose.Seated = inChair ? 0f : seated;
-                pose.GroundFeet = state.seat < 0 && state.Has(HikerState.Flag.Grounded) && !busy;
+                pose.GroundFeet = state.seat < 0 && state.Has(HikerState.Flag.Grounded) && !busy && !Lying;
                 // The head turns where they're looking.
                 Vector3 eyes = transform.position + Vector3.up * EyeHeight;
-                pose.LookTarget = busy ? null : eyes + Quaternion.Euler(state.pitch, state.yaw, 0f) * Vector3.forward * 20f;
+                pose.LookTarget = busy || Lying ? null : eyes + Quaternion.Euler(state.pitch, state.yaw, 0f) * Vector3.forward * 20f;
             }
 
             bool packOn = state.Has(HikerState.Flag.PackOnBack);

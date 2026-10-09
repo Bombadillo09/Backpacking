@@ -281,6 +281,39 @@ namespace Backpacking.UI
             yield return Until(() => stove == null, 60f, r => ok = r);
             Check(ok, "when the guest packs their stove away, it's gone here too");
 
+            // Sharing a tent: pitch a dome, get in, and wait for the guest to bed down beside us.
+            Vector3 tentPlace = truck.transform.position - truck.transform.right * 6f + truck.transform.forward * 5f;
+            tentPlace.y = GroundCover.HeightAt(tentPlace);
+            var tent = placer.Spawn(CampItem.Tent, tentPlace, Quaternion.LookRotation(truck.transform.right)).GetComponent<Tent>();
+            tent.Setup(TentModel.TwoPerson, TentStage.Pitched);
+            yield return new WaitForSecondsRealtime(1f);
+            var hostInteractor = player.GetComponent<Interactor>();
+            tent.CrawlIn(hostInteractor);
+            Check(tent.PlayerInside, "the host pitched a dome tent and crawled in");
+            yield return Until(() => tent.Beds.Count > 1 && tent.Beds[1].bag && tent.Beds[1].mat, 60f, r => ok = r);
+            Check(ok, $"the guest's mat and bag are laid out in the other place ({tent.Beds[1].name})");
+            yield return Until(() => other.State.Has(HikerState.Flag.Sleeping), 30f, r => ok = r);
+            yield return new WaitForSecondsRealtime(1f);
+            bool hidden = other.Body.GetComponentsInChildren<Renderer>().All(part => !part.enabled);
+            Check(ok && hidden, "the guest is asleep in their bag beside the host (shown as a filled bag)");
+            Snap("host-sees-tent-mate", tent.transform.position + Vector3.up * 0.75f + tent.transform.forward * 0.4f,
+                tent.transform.position - tent.transform.forward * 0.4f);
+            tent.CrawlOut(player);
+            var tentOptions = new System.Collections.Generic.List<InteractionOption>();
+            tent.GetOptions(hostInteractor, tentOptions);
+            InteractionOption takeDown = tentOptions.FirstOrDefault(option => option.Label.StartsWith("Take down"));
+            Check(takeDown.Label != null && !takeDown.Enabled && takeDown.DisabledReason.Contains("Guesty"),
+                $"the tent can't come down with the guest's bedding in it ({takeDown.DisabledReason})");
+            yield return Until(() => tent.Beds.All(place => place.Empty) && !other.State.Has(HikerState.Flag.Sleeping)
+                                     && !tent.Contains(other.Body.transform.position), 60f, r => ok = r);
+            Check(ok, "the guest packed their bedding and crawled out");
+            yield return new WaitForSecondsRealtime(0.5f);
+            tentOptions.Clear();
+            tent.GetOptions(hostInteractor, tentOptions);
+            takeDown = tentOptions.FirstOrDefault(option => option.Label.StartsWith("Take down"));
+            Check(takeDown.Label != null && takeDown.Enabled, $"now the tent can come down ({takeDown.DisabledReason ?? "yes"}; "
+                                                             + $"guest at {tent.transform.InverseTransformPoint(other.Body.transform.position):F2}, others {World.OtherHikers.All.Count})");
+
             // The guest leaves when it's done.
             yield return Until(() => CoopSession.PlayerCount < 2, 90f, r => ok = r);
             Check(ok, "the guest left, and the host carries on");
@@ -433,6 +466,50 @@ namespace Backpacking.UI
                 InteractionOption packAway = stoveOptions.FirstOrDefault(option => option.Label == "Pack the stove away");
                 Check(packAway.Label != null && packAway.Enabled, "our own stove can be packed away");
                 packAway.Execute?.Invoke();
+            }
+            yield return new WaitForSecondsRealtime(3f);
+
+            // The host's dome: crawl in beside them, bed down, sleep a little, then pack up and out.
+            Tent tent = null;
+            yield return Until(() => (tent = Tent.All.FirstOrDefault(t => t.IsPitched && CampOwner.IsOthers(t.gameObject, out _))) != null
+                                     && host.Body != null && tent.Contains(host.Body.transform.position), 60f, r => ok = r);
+            Check(ok, "the host's tent is up, with the host inside");
+            if (tent != null)
+            {
+                var interactor = player.GetComponent<Interactor>();
+                var activity = player.GetComponent<PlayerActivity>();
+                var vitals = player.GetComponent<Vitals>();
+                tent.CrawlIn(interactor);
+                Check(tent.PlayerInside && player.Mounted, "crawled into the host's tent");
+                IEnumerator Choose(string startsWith)
+                {
+                    var inside = new System.Collections.Generic.List<InteractionOption>();
+                    tent.GetInsideOptions(interactor, inside);
+                    InteractionOption option = inside.FirstOrDefault(o => o.Label.StartsWith(startsWith));
+                    if (option.Label == null || !option.Enabled)
+                    {
+                        Check(false, $"no '{startsWith}' inside ({string.Join(" / ", inside.Select(o => o.Label + (o.Enabled ? "" : " [" + o.DisabledReason + "]")))})");
+                        yield break;
+                    }
+                    option.Execute();
+                    yield return Until(() => !activity.IsBusy || activity.IsSleeping, 20f, _ => { });
+                }
+                yield return Choose("Lay out your");
+                yield return Choose("Unroll your sleeping bag");
+                Check(tent.MatLaidOut && tent.BagLaidOut, "laid out our mat and bag beside the host");
+                yield return Choose("Get into your sleeping bag");
+                yield return new WaitForSecondsRealtime(1f);
+                float expected = TentDesign.Shelter(TentModel.TwoPerson) + Tent.SharedWarmth;
+                Check(activity.IsSleeping && vitals.InSleepingBag && Mathf.Approximately(vitals.SleepShelter ?? 0f, expected),
+                    $"asleep in our bag, {vitals.SleepShelter:0} °C warmer with the host in the tent (expected {expected:0})");
+                yield return new WaitForSecondsRealtime(6f);
+                activity.Interrupt();
+                yield return new WaitForSecondsRealtime(0.5f);
+                yield return Choose("Stuff the sleeping bag");
+                yield return Choose("Roll up the mat");
+                Check(!backpack.MatLaidOut && !backpack.BagLaidOut, "packed our bedding away");
+                tent.CrawlOut(player);
+                Check(!player.Mounted, "crawled out");
             }
             yield return new WaitForSecondsRealtime(3f);
 
