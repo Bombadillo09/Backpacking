@@ -124,7 +124,7 @@ namespace Backpacking.EditorTools
             Vector2 Normalised(float u, float v) => new(u * TerrainSize - half, v * TerrainSize - half);
             RouteStop trailhead = route.Stops[0];
 
-            home = new Place { Name = "Home", Centre = Normalised(0.2f, 0.046f), LotRadius = 14f, MeadowRadius = 45f };
+            home = new Place { Name = "Home", Centre = Normalised(0.2775f, 0.048f), LotRadius = 14f, MeadowRadius = 45f };
             store = new Place { Name = TripLog.Outfitter, Centre = Normalised(0.355f, 0.05f), LotRadius = 18f, MeadowRadius = 55f };
             parking = new Place { Name = "Trailhead parking", Centre = Normalised(trailhead.U, trailhead.V) + new Vector2(0f, -32f), LotRadius = 13f, MeadowRadius = 40f };
 
@@ -441,100 +441,6 @@ namespace Backpacking.EditorTools
             root.transform.SetParent(parent, false);
             root.transform.SetPositionAndRotation(OnGround(terrain, xz), Quaternion.LookRotation(new Vector3(facing.x, 0f, facing.y)));
             return root;
-        }
-
-        // ---------- Home ----------
-
-        /// <summary>The cabin stands this far back from the middle of the home lot, behind the end of the road.</summary>
-        const float HomeCabinBack = 9f;
-        const float CabinFloorTop = 0.3f;
-
-        /// <summary>Where the trip starts: inside the cabin, facing the door. Null if there's no home.</summary>
-        static Vector3? HomeSpawn(Terrain terrain, out Quaternion facing)
-        {
-            facing = Quaternion.identity;
-            if (home == null)
-                return null;
-            Vector2 along = home.RoadDirection;
-            Vector3 cabin = OnGround(terrain, home.Centre - along * HomeCabinBack);
-            facing = Quaternion.LookRotation(new Vector3(along.x, 0f, along.y));
-            return cabin + Vector3.up * (CabinFloorTop + 0.05f) + facing * new Vector3(0.3f, 0f, 0.3f);
-        }
-
-        /// <summary>
-        /// A one-room timber cabin at the end of the road: bed, table, kitchen counter and a lamp. The door faces
-        /// down the road (local +Z).
-        /// </summary>
-        static void CreateHome(Place place, Terrain terrain, Transform parent)
-        {
-            Vector2 along = place.RoadDirection;
-            GameObject cabin = PlaceBuilding("Home", place, new Vector2(-HomeCabinBack, 0f), along, terrain, parent);
-            AddSaveId(cabin, "home");
-
-            Material walls = GetOrCreateMaterial("CabinWalls", new Color(0.5f, 0.36f, 0.24f));
-            Material floor = GetOrCreateMaterial("CabinFloor", new Color(0.62f, 0.47f, 0.32f));
-            Material roof = GetOrCreateMaterial("RoofShingles", new Color(0.25f, 0.22f, 0.2f));
-            Material glass = GetOrCreateMaterial("WindowGlass", new Color(0.12f, 0.16f, 0.2f), 0.9f);
-            Material trim = GetOrCreateMaterial("CabinTrim", new Color(0.88f, 0.85f, 0.78f));
-            Material bedding = GetOrCreateMaterial("Bedding", new Color(0.85f, 0.84f, 0.8f));
-            Material blanket = GetOrCreateMaterial("Blanket", new Color(0.55f, 0.15f, 0.12f));
-            Material rug = GetOrCreateMaterial("Rug", new Color(0.3f, 0.4f, 0.5f));
-            Material metal = GetOrCreateMaterial("DarkMetal", new Color(0.18f, 0.18f, 0.19f), 0.5f);
-
-            const float width = 6f, depth = 5f, floorTop = CabinFloorTop, wallHeight = 2.6f, wall = 0.15f;
-            const float doorX = 0.8f, doorWidth = 1.1f, doorHeight = 2.1f;
-            BuildRoom(cabin, width, depth, floorTop, wallHeight, wall, doorX, doorWidth, doorHeight, walls, floor);
-            // Step up to the door.
-            AddSolid(PrimitiveType.Cube, cabin, new Vector3(doorX, 0.08f, depth / 2f + 0.4f), Quaternion.identity, new Vector3(1.6f, 0.16f, 0.6f), floor);
-
-            // Pitched roof along the cabin's width, with gable ends.
-            float top = floorTop + wallHeight;
-            const float rise = 1.1f;
-            float halfSpan = depth / 2f + 0.1f;
-            float slope = Mathf.Atan2(rise, halfSpan) * Mathf.Rad2Deg;
-            float slab = Mathf.Sqrt(halfSpan * halfSpan + rise * rise) + 0.35f;
-            AddVisual(PrimitiveType.Cube, cabin, new Vector3(0f, top + rise / 2f + 0.06f, halfSpan / 2f), Quaternion.Euler(slope, 0f, 0f), new Vector3(width + 0.6f, 0.12f, slab), roof);
-            AddVisual(PrimitiveType.Cube, cabin, new Vector3(0f, top + rise / 2f + 0.06f, -halfSpan / 2f), Quaternion.Euler(-slope, 0f, 0f), new Vector3(width + 0.6f, 0.12f, slab), roof);
-            AddGable(cabin, -width / 2f + wall / 2f, top, halfSpan, rise, wall, walls);
-            AddGable(cabin, width / 2f - wall / 2f, top, halfSpan, rise, wall, walls);
-
-            // Windows: one each side of the door, one in each side wall, one at the back.
-            float frontWall = depth / 2f - wall / 2f, sideWall = width / 2f - wall / 2f;
-            AddWindow(cabin, new Vector3(-1.6f, floorTop + 1.5f, frontWall), 0f, new Vector2(1.1f, 0.9f), glass, trim);
-            AddWindow(cabin, new Vector3(-sideWall, floorTop + 1.5f, 0.6f), 90f, new Vector2(1f, 0.9f), glass, trim);
-            AddWindow(cabin, new Vector3(sideWall, floorTop + 1.5f, -0.4f), 90f, new Vector2(1f, 0.9f), glass, trim);
-            AddWindow(cabin, new Vector3(1.4f, floorTop + 1.5f, -frontWall), 0f, new Vector2(1.2f, 0.9f), glass, trim);
-
-            // Bed in the back-left corner.
-            var bed = new Vector3(-width / 2f + 0.65f, floorTop, -depth / 2f + 1.15f);
-            AddSolid(PrimitiveType.Cube, cabin, bed + new Vector3(0f, 0.18f, 0f), Quaternion.identity, new Vector3(1f, 0.36f, 2f), floor);
-            AddVisual(PrimitiveType.Cube, cabin, bed + new Vector3(0f, 0.44f, 0f), Quaternion.identity, new Vector3(0.95f, 0.18f, 1.95f), bedding);
-            AddVisual(PrimitiveType.Cube, cabin, bed + new Vector3(0f, 0.54f, 0.25f), Quaternion.identity, new Vector3(0.98f, 0.05f, 1.4f), blanket);
-            AddVisual(PrimitiveType.Cube, cabin, bed + new Vector3(0f, 0.58f, -0.75f), Quaternion.identity, new Vector3(0.6f, 0.1f, 0.35f), bedding);
-
-            // Table and chair on the right, kitchen counter along the back wall.
-            var table = new Vector3(1.7f, floorTop, -0.2f);
-            AddSolid(PrimitiveType.Cube, cabin, table + new Vector3(0f, 0.74f, 0f), Quaternion.identity, new Vector3(1.2f, 0.05f, 0.8f), floor);
-            foreach (Vector2 leg in new[] { new Vector2(-0.52f, -0.32f), new Vector2(0.52f, -0.32f), new Vector2(-0.52f, 0.32f), new Vector2(0.52f, 0.32f) })
-                AddVisual(PrimitiveType.Cube, cabin, table + new Vector3(leg.x, 0.36f, leg.y), Quaternion.identity, new Vector3(0.06f, 0.72f, 0.06f), floor);
-            var chair = table + new Vector3(-0.2f, 0f, 0.75f);
-            AddSolid(PrimitiveType.Cube, cabin, chair + new Vector3(0f, 0.45f, 0f), Quaternion.identity, new Vector3(0.45f, 0.05f, 0.45f), floor);
-            AddVisual(PrimitiveType.Cube, cabin, chair + new Vector3(0f, 0.22f, 0f), Quaternion.identity, new Vector3(0.4f, 0.44f, 0.4f), floor);
-            AddVisual(PrimitiveType.Cube, cabin, chair + new Vector3(0f, 0.75f, 0.2f), Quaternion.identity, new Vector3(0.45f, 0.55f, 0.05f), floor);
-            AddSolid(PrimitiveType.Cube, cabin, new Vector3(1.9f, floorTop + 0.45f, -depth / 2f + 0.4f), Quaternion.identity, new Vector3(1.8f, 0.9f, 0.6f), trim);
-            AddVisual(PrimitiveType.Cube, cabin, new Vector3(1.5f, floorTop + 0.92f, -depth / 2f + 0.4f), Quaternion.identity, new Vector3(0.5f, 0.04f, 0.4f), metal);
-            AddVisual(PrimitiveType.Cube, cabin, new Vector3(-0.4f, floorTop + 0.005f, 0.4f), Quaternion.identity, new Vector3(2f, 0.01f, 1.4f), rug);
-
-            AddLamp(cabin, new Vector3(0f, top - 0.3f, 0f), 7f, 1.6f);
-
-            // A mailbox by the road, across from where the truck is parked.
-            Vector2 side = new(-along.y, along.x);
-            Vector2 mailboxXZ = place.Centre + along * 4f - side * (RoadHalfWidth + 1.2f);
-            var mailbox = new GameObject("Mailbox");
-            mailbox.transform.SetParent(parent, false);
-            mailbox.transform.SetPositionAndRotation(OnGround(terrain, mailboxXZ), Quaternion.LookRotation(new Vector3(side.x, 0f, side.y)));
-            AddSolid(PrimitiveType.Cube, mailbox, new Vector3(0f, 0.55f, 0f), Quaternion.identity, new Vector3(0.1f, 1.1f, 0.1f), floor);
-            AddVisual(PrimitiveType.Cube, mailbox, new Vector3(0f, 1.2f, 0.05f), Quaternion.identity, new Vector3(0.25f, 0.25f, 0.5f), metal);
         }
 
         /// <summary>

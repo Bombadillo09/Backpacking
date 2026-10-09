@@ -103,6 +103,9 @@ namespace Backpacking.Camp
                 controller.enabled = true;
         }
 
+        /// <summary>Boots off or on while sitting somewhere else, such as inside the tent.</summary>
+        public void SetBootsOff(bool off) => BootsOff = off;
+
         /// <summary>Stands up, putting your boots back on if they're off.</summary>
         public void StandUp()
         {
@@ -125,15 +128,17 @@ namespace Backpacking.Camp
         void Update()
         {
             bool menus = PlayerControlLock.CursorNeeded;
-            // Driving: the truck seats you. Your feet rest as they would in a chair, boots on.
+            // In the truck you sit as in a chair, boots on. In a tent you sit on the floor and your boots can come
+            // off (the tent's options do that).
             if (player.Mounted)
             {
                 IsSeated = false;
-                BootsOff = false;
+                if (!player.MountedOnGround)
+                    BootsOff = false;
                 SmokingFeet = false;
                 vitals.Seated = true;
-                vitals.InChair = true;
-                vitals.BootsOff = false;
+                vitals.InChair = !player.MountedOnGround;
+                vitals.BootsOff = BootsOff;
                 vitals.SmokingFeet = false;
                 hint?.SetVisible(false);
                 return;

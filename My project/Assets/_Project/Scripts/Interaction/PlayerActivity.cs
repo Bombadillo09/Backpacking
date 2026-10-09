@@ -66,15 +66,18 @@ namespace Backpacking.Interaction
             return true;
         }
 
-        /// <summary>Sleeps until morning, or naps during the day. Wakes early if too cold.</summary>
-        public bool Sleep(bool inTent)
+        /// <summary>
+        /// Sleeps until morning, or naps during the day. Wakes early if too cold. In the sleeping bag and on the mat
+        /// only if they're laid out.
+        /// </summary>
+        public bool Sleep(bool inTent, bool inBag = true, bool onMat = true)
         {
             float hour = timeOfDay.Hour;
             bool night = hour >= 18f || hour < wakeHour;
             if (!Begin("Sleeping", 0f, null))
                 return false;
 
-            StartSleeping(night ? Mathf.Repeat(wakeHour - hour, 24f) : napHours, inTent, inBag: true);
+            StartSleeping(night ? Mathf.Repeat(wakeHour - hour, 24f) : napHours, inTent, inBag, onMat);
             return true;
         }
 
@@ -86,7 +89,7 @@ namespace Backpacking.Interaction
         {
             Interrupt();
             Begin("Passed out", 0f, null);
-            StartSleeping(passOutHours, inTent: false, inBag: false);
+            StartSleeping(passOutHours, inTent: false, inBag: false, onMat: false);
             unconscious = true;
             Notifications.Post("You collapse from exhaustion.");
         }
@@ -98,8 +101,9 @@ namespace Backpacking.Interaction
                 Finish();
         }
 
-        void StartSleeping(float hours, bool inTent, bool inBag)
+        void StartSleeping(float hours, bool inTent, bool inBag, bool onMat)
         {
+            vitals.OnMat = onMat;
             sleeping = true;
             durationHours = hours;
             vitals.IsSleeping = true;
@@ -149,6 +153,7 @@ namespace Backpacking.Interaction
                 vitals.IsSleeping = false;
                 vitals.IsSheltered = false;
                 vitals.InSleepingBag = false;
+                vitals.OnMat = false;
                 sleeping = false;
                 unconscious = false;
             }

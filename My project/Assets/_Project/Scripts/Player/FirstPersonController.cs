@@ -80,9 +80,8 @@ namespace Backpacking.Player
         bool invertY;
         float mountedYaw;
         Vector3 mountedEye;
-
-        /// <summary>How far you can turn your head from facing forward in a vehicle seat, in degrees.</summary>
-        const float MountedYawLimit = 120f;
+        /// <summary>How far you can turn your head from facing forward while mounted, in degrees.</summary>
+        float mountedYawLimit = 120f;
 
         public bool IsGrounded => controller.isGrounded;
         public bool IsSprinting { get; private set; }
@@ -107,6 +106,8 @@ namespace Backpacking.Player
         /// <summary>The vehicle seat you're sitting in, or null. See <see cref="MountAt"/>.</summary>
         public Transform Mount { get; private set; }
         public bool Mounted => Mount != null;
+        /// <summary>Mounted sitting on the ground (inside a tent) rather than in a seat.</summary>
+        public bool MountedOnGround { get; private set; }
 
         /// <summary>Scales all movement speeds, e.g. when exhausted. Set by other systems.</summary>
         public float SpeedMultiplier { get; set; } = 1f;
@@ -209,7 +210,7 @@ namespace Backpacking.Player
         /// </summary>
         Vector3 ThirdPersonOffset(Vector3 eye, Quaternion look)
         {
-            Vector3 offset = Mounted ? MountedThirdPersonOffset : thirdPersonOffset;
+            Vector3 offset = Mounted && !MountedOnGround ? MountedThirdPersonOffset : thirdPersonOffset;
             float wanted = offset.magnitude;
             Vector3 direction = offset / wanted;
             Vector3 origin = transform.TransformPoint(eye);
@@ -235,7 +236,7 @@ namespace Backpacking.Player
                 delta.y = -delta.y;
 
             if (Mounted)
-                mountedYaw = Mathf.Clamp(mountedYaw + delta.x, -MountedYawLimit, MountedYawLimit);
+                mountedYaw = Mathf.Clamp(mountedYaw + delta.x, -mountedYawLimit, mountedYawLimit);
             else
                 transform.Rotate(0f, delta.x, 0f);
             pitch = Mathf.Clamp(pitch - delta.y, -maxPitch, maxPitch);
@@ -245,11 +246,14 @@ namespace Backpacking.Player
         static readonly Vector3 MountedThirdPersonOffset = new(0.6f, 1.1f, -6.5f);
 
         /// <summary>
-        /// Sits you in a vehicle seat: you ride along with it, facing forward, eyes at <paramref name="eye"/>
-        /// (local to the seat). Walking stops; you can still look around. <see cref="Dismount"/> to get out.
+        /// Sits you in a seat (a vehicle's, or on the ground in a tent with <paramref name="onGround"/>): you move with
+        /// it, facing its forward, eyes at <paramref name="eye"/> (local to the seat), able to turn your head up to
+        /// <paramref name="yawLimit"/> degrees either way. Walking stops. <see cref="Dismount"/> to get up.
         /// </summary>
-        public void MountAt(Transform seat, Vector3 eye)
+        public void MountAt(Transform seat, Vector3 eye, float yawLimit = 120f, bool onGround = false)
         {
+            mountedYawLimit = yawLimit;
+            MountedOnGround = onGround;
             controller.enabled = false;
             horizontalVelocity = Vector3.zero;
             verticalVelocity = 0f;
@@ -264,14 +268,18 @@ namespace Backpacking.Player
             Seated = true;
         }
 
-        /// <summary>Gets out of the vehicle, standing at <paramref name="position"/> facing <paramref name="facing"/>.</summary>
-        public void Dismount(Vector3 position, Quaternion facing)
+        /// <summary>
+        /// Gets up, standing at <paramref name="position"/> facing <paramref name="facing"/>, turned further by where you
+        /// were looking if <paramref name="keepLook"/>.
+        /// </summary>
+        public void Dismount(Vector3 position, Quaternion facing, bool keepLook = true)
         {
             if (!Mounted)
                 return;
             transform.SetParent(null, true);
-            transform.SetPositionAndRotation(position, Quaternion.Euler(0f, facing.eulerAngles.y + mountedYaw, 0f));
+            transform.SetPositionAndRotation(position, Quaternion.Euler(0f, facing.eulerAngles.y + (keepLook ? mountedYaw : 0f), 0f));
             Mount = null;
+            MountedOnGround = false;
             mountedYaw = 0f;
             Seated = false;
             seatedAmount = 0f;

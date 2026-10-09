@@ -229,6 +229,8 @@ namespace Backpacking.Survival
         public bool IsSheltered { get; set; }
         /// <summary>Set while asleep in the sleeping bag. Passing out on the ground leaves you in your clothes.</summary>
         public bool InSleepingBag { get; set; }
+        /// <summary>Set while asleep on your sleeping mat.</summary>
+        public bool OnMat { get; set; }
         /// <summary>Set while sitting in the truck's cab: out of the rain and wind, with the heater on.</summary>
         public bool InVehicle { get; set; }
 
@@ -329,7 +331,7 @@ namespace Backpacking.Survival
 
             // A mat between you and the ground makes for better sleep.
             if (IsSleeping)
-                energy = Mathf.Min(Max, energy + sleepRecovery * (InSleepingBag ? backpack.MatRecovery : 1f) * hours);
+                energy = Mathf.Min(Max, energy + sleepRecovery * (OnMat ? backpack.MatRecovery : 1f) * hours);
             else
             {
                 // Being frozen or starving wears you out much faster.
@@ -522,8 +524,8 @@ namespace Backpacking.Survival
             float insulation = (backpack.ClothingInsulation + backpack.BootsWarmth + HikerTraits.InsulationBonus) * (1f - soakedInsulationLoss * soaked);
             // In the bag, a mat stops the ground drawing the heat out of you. A wet bag loses most of its warmth.
             ComfortTemperature = IsSleeping && InSleepingBag && backpack.HasSleepingBag
-                ? backpack.SleepingBagComfort + backpack.BagWetness * WetBagLoss - backpack.MatWarmth
-                : neutralTemperature - insulation - bodyHeat - (IsSleeping ? backpack.MatWarmth : 0f);
+                ? backpack.SleepingBagComfort + backpack.BagWetness * WetBagLoss - (OnMat ? backpack.MatWarmth : 0f)
+                : neutralTemperature - insulation - bodyHeat - (IsSleeping && OnMat ? backpack.MatWarmth : 0f);
 
             float difference = FeltTemperature - ComfortTemperature;
             float rate = difference < 0f ? coolingRate : warmingRate;

@@ -48,6 +48,7 @@ namespace Backpacking.EditorTools
             BuildCab(truck, paint, black, interior, glass, trim);
             BuildFront(truck, paint, black, trim, headlight);
             BuildBed(truck, paint, bedLiner, trim, taillight, black);
+            BuildDetails(truck, paint, black, trim, interior, headlight, taillight);
 
             // Solid parts, on the truck's rigidbody. The bed is open, so gear (and you) can be put in it.
             AddBox(truck, new Vector3(0f, 1.27f, 0.47f), new Vector3(1.95f, 1.38f, 1.65f));
@@ -158,8 +159,13 @@ namespace Backpacking.EditorTools
         /// <summary>Barely tinted, so the view out isn't hazy; the shine still shows it's glass.</summary>
         static void SetGlassTint(Material material)
         {
-            material.SetColor("_BaseColor", new Color(0.6f, 0.7f, 0.75f, 0.07f));
-            material.SetFloat("_Smoothness", 0.92f);
+            material.SetColor("_BaseColor", new Color(0.7f, 0.78f, 0.82f, 0.04f));
+            // Sky reflections and highlights are what made the glass look milky; leave just a faint tint.
+            material.SetFloat("_Smoothness", 0.5f);
+            material.SetFloat("_SpecularHighlights", 0f);
+            material.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
+            material.SetFloat("_EnvironmentReflections", 0f);
+            material.EnableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
             EditorUtility.SetDirty(material);
         }
 
@@ -253,6 +259,96 @@ namespace Backpacking.EditorTools
                 AddVisual(PrimitiveType.Cube, truck, new Vector3(x, 0.55f, 0f), Quaternion.identity, new Vector3(0.1f, 0.14f, 5.2f), black);
         }
 
+        /// <summary>
+        /// The small things that make it read as a real truck: door seams, handles and window seals, wheel-arch
+        /// flares and mud flaps, marker lights, number plates, wipers, an antenna, the exhaust and a tow hitch;
+        /// inside, gauges, a radio, a gear lever, sun visors, a rear-view mirror and seat belts.
+        /// </summary>
+        static void BuildDetails(GameObject truck, Material paint, Material black, Material chrome, Material interior, Material headlight, Material taillight)
+        {
+            Material amber = GetOrCreateEmissiveMaterial("TruckMarker", new Color(1f, 0.55f, 0.1f));
+            Material plate = GetOrCreateMaterial("NumberPlate", new Color(0.92f, 0.9f, 0.82f));
+            Material gauge = GetOrCreateEmissiveMaterial("TruckGauge", new Color(0.55f, 0.85f, 0.6f));
+            Material rubber = GetOrCreateMaterial("TruckRubber", new Color(0.03f, 0.03f, 0.03f), 0.1f);
+
+            foreach (float side in new[] { -1f, 1f })
+            {
+                float x = side * 0.978f;
+                // Door shut lines, front and back, and along the sill.
+                foreach (float z in new[] { 1.24f, -0.3f })
+                    AddVisual(PrimitiveType.Cube, truck, new Vector3(x, 0.86f, z), Quaternion.identity, new Vector3(0.006f, 0.8f, 0.012f), rubber);
+                AddVisual(PrimitiveType.Cube, truck, new Vector3(x, 0.47f, 0.47f), Quaternion.identity, new Vector3(0.006f, 0.012f, 1.55f), rubber);
+                // Handle, keyhole, the rubber seal at the bottom of the window.
+                AddVisual(PrimitiveType.Cube, truck, new Vector3(side * 0.99f, 1.13f, -0.08f), Quaternion.identity, new Vector3(0.025f, 0.035f, 0.17f), chrome);
+                AddVisual(PrimitiveType.Cube, truck, new Vector3(side * 0.983f, 1.25f, 0.47f), Quaternion.identity, new Vector3(0.02f, 0.025f, 1.6f), rubber);
+                // Mirror arm.
+                AddVisual(PrimitiveType.Cube, truck, new Vector3(side * 1.0f, 1.32f, 1.15f), Quaternion.identity, new Vector3(0.1f, 0.02f, 0.03f), black);
+                // Black flares round the wheel arches.
+                foreach (float axle in new[] { AxleZ, -AxleZ })
+                    for (int k = 0; k < 5; k++)
+                    {
+                        float angle = Mathf.Lerp(20f, 160f, k / 4f) * Mathf.Deg2Rad;
+                        var at = new Vector3(side * 0.93f, WheelRadius + 0.05f + Mathf.Sin(angle) * 0.47f, axle + Mathf.Cos(angle) * 0.47f);
+                        AddVisual(PrimitiveType.Cube, truck, at, Quaternion.Euler(-(angle * Mathf.Rad2Deg - 90f), 0f, 0f), new Vector3(0.12f, 0.035f, 0.2f), black);
+                    }
+                // Mud flaps behind each wheel.
+                AddVisual(PrimitiveType.Cube, truck, new Vector3(side * 0.84f, 0.3f, AxleZ - 0.52f), Quaternion.identity, new Vector3(0.26f, 0.32f, 0.015f), rubber);
+                AddVisual(PrimitiveType.Cube, truck, new Vector3(side * 0.84f, 0.3f, -AxleZ - 0.52f), Quaternion.identity, new Vector3(0.26f, 0.32f, 0.015f), rubber);
+                // Side markers: amber at the front, red at the back.
+                AddVisual(PrimitiveType.Cube, truck, new Vector3(side * 0.965f, 0.98f, 2.45f), Quaternion.identity, new Vector3(0.02f, 0.05f, 0.1f), amber);
+                AddVisual(PrimitiveType.Cube, truck, new Vector3(side * 0.98f, 1.0f, -2.45f), Quaternion.identity, new Vector3(0.02f, 0.05f, 0.1f), taillight);
+                // Indicators beside the headlights, and chrome rings round them.
+                AddVisual(PrimitiveType.Cube, truck, new Vector3(side * 0.9f, 0.86f, 2.655f), Quaternion.identity, new Vector3(0.12f, 0.06f, 0.02f), amber);
+                AddVisual(PrimitiveType.Cylinder, truck, new Vector3(side * 0.75f, 1.0f, 2.652f), Quaternion.Euler(90f, 0f, 0f), new Vector3(0.24f, 0.01f, 0.24f), chrome);
+                // Tie-down hooks on the bed rails.
+                foreach (float z in new[] { -0.6f, -2.4f })
+                    AddVisual(PrimitiveType.Cube, truck, new Vector3(side * 0.9f, 1.25f, z), Quaternion.identity, new Vector3(0.03f, 0.06f, 0.06f), chrome);
+                // Wipers resting at the bottom of the windscreen.
+                AddVisual(PrimitiveType.Cube, truck, new Vector3(side * 0.42f - 0.05f, 1.29f, 1.2f), Quaternion.Euler(-25f, side * 8f, 0f), new Vector3(0.6f, 0.015f, 0.02f), black);
+                // Sun visors and seat belts inside.
+                AddVisual(PrimitiveType.Cube, truck, new Vector3(side * 0.45f, 1.88f, 1.0f), Quaternion.Euler(-10f, 0f, 0f), new Vector3(0.6f, 0.02f, 0.2f), interior);
+                AddVisual(PrimitiveType.Cube, truck, new Vector3(side * 0.42f, 1.15f, -0.17f), Quaternion.Euler(0f, 0f, side * 35f), new Vector3(0.05f, 0.75f, 0.01f), black);
+            }
+
+            // Grille surround, hood bulge, the bonnet's front edge.
+            AddVisual(PrimitiveType.Cube, truck, new Vector3(0f, 1.15f, 2.66f), Quaternion.identity, new Vector3(1.34f, 0.03f, 0.03f), chrome);
+            AddVisual(PrimitiveType.Cube, truck, new Vector3(0f, 0.8f, 2.66f), Quaternion.identity, new Vector3(1.34f, 0.03f, 0.03f), chrome);
+            AddVisual(PrimitiveType.Cube, truck, new Vector3(0f, 1.26f, 1.9f), Quaternion.identity, new Vector3(0.75f, 0.03f, 1.2f), paint);
+            AddVisual(PrimitiveType.Cube, truck, new Vector3(0f, 1.24f, 2.64f), Quaternion.identity, new Vector3(1.9f, 0.012f, 0.012f), black);
+            // Number plates and the tailgate's handle and shut lines.
+            AddVisual(PrimitiveType.Cube, truck, new Vector3(0f, 0.66f, 2.8f), Quaternion.identity, new Vector3(0.34f, 0.16f, 0.02f), plate);
+            AddVisual(PrimitiveType.Cube, truck, new Vector3(0f, 0.92f, -2.66f), Quaternion.identity, new Vector3(0.34f, 0.16f, 0.02f), plate);
+            AddVisual(PrimitiveType.Cube, truck, new Vector3(0f, 1.24f, -2.66f), Quaternion.identity, new Vector3(0.22f, 0.05f, 0.03f), black);
+            foreach (float x in new[] { -0.92f, 0.92f })
+                AddVisual(PrimitiveType.Cube, truck, new Vector3(x, 1.08f, -2.66f), Quaternion.identity, new Vector3(0.01f, 0.5f, 0.01f), rubber);
+            // Roof markers and a third brake light.
+            for (int i = -1; i <= 1; i++)
+                AddVisual(PrimitiveType.Cube, truck, new Vector3(i * 0.3f, 1.99f, 1.12f), Quaternion.identity, new Vector3(0.1f, 0.03f, 0.05f), amber);
+            AddVisual(PrimitiveType.Cube, truck, new Vector3(0f, 1.9f, -0.39f), Quaternion.identity, new Vector3(0.35f, 0.05f, 0.03f), taillight);
+            // Back window: a sliding pane's frame.
+            AddVisual(PrimitiveType.Cube, truck, new Vector3(0f, 1.6f, -0.37f), Quaternion.identity, new Vector3(0.03f, 0.55f, 0.02f), black);
+            // Antenna on the front wing, exhaust and tow hitch at the back.
+            AddVisual(PrimitiveType.Cylinder, truck, new Vector3(0.9f, 1.65f, 1.55f), Quaternion.identity, new Vector3(0.008f, 0.4f, 0.008f), black);
+            AddVisual(PrimitiveType.Cylinder, truck, new Vector3(0.62f, 0.38f, -2.6f), Quaternion.Euler(90f, 0f, 0f), new Vector3(0.07f, 0.2f, 0.07f), chrome);
+            AddVisual(PrimitiveType.Cube, truck, new Vector3(0f, 0.52f, -2.88f), Quaternion.identity, new Vector3(0.08f, 0.08f, 0.3f), black);
+            AddVisual(PrimitiveType.Sphere, truck, new Vector3(0f, 0.6f, -3f), Quaternion.identity, Vector3.one * 0.06f, chrome);
+
+            // The dashboard: two dials in front of the driver, a radio in the middle, a glovebox opposite.
+            Quaternion facingDriver = Quaternion.Euler(-70f, 0f, 0f);
+            foreach (float x in new[] { -0.52f, -0.32f })
+            {
+                AddVisual(PrimitiveType.Cylinder, truck, new Vector3(x, CabFloor + 0.63f, 1.0f), facingDriver, new Vector3(0.13f, 0.01f, 0.13f), black);
+                AddVisual(PrimitiveType.Cylinder, truck, new Vector3(x, CabFloor + 0.632f, 0.995f), facingDriver, new Vector3(0.1f, 0.01f, 0.1f), gauge);
+            }
+            AddVisual(PrimitiveType.Cube, truck, new Vector3(0f, CabFloor + 0.52f, 1.0f), Quaternion.Euler(-15f, 0f, 0f), new Vector3(0.24f, 0.07f, 0.02f), gauge);
+            AddVisual(PrimitiveType.Cube, truck, new Vector3(0.45f, CabFloor + 0.5f, 0.985f), Quaternion.identity, new Vector3(0.4f, 0.16f, 0.01f), interior);
+            // Gear lever on the floor between the seats.
+            AddVisual(PrimitiveType.Cylinder, truck, new Vector3(0.05f, CabFloor + 0.3f, 0.55f), Quaternion.Euler(-15f, 0f, 0f), new Vector3(0.02f, 0.3f, 0.02f), black);
+            AddVisual(PrimitiveType.Sphere, truck, new Vector3(0.05f, CabFloor + 0.6f, 0.47f), Quaternion.identity, Vector3.one * 0.06f, black);
+            // Rear-view mirror.
+            AddVisual(PrimitiveType.Cube, truck, new Vector3(0f, 1.8f, 1.05f), Quaternion.identity, new Vector3(0.24f, 0.07f, 0.02f), black);
+        }
+
         /// <summary>A tyre and hub. The returned transform is moved to the wheel's pose every frame.</summary>
         static Transform BuildWheel(GameObject truck, string name, Vector3 position, Material tyre, Material hub)
         {
@@ -260,7 +356,25 @@ namespace Backpacking.EditorTools
             wheel.transform.SetParent(truck.transform, false);
             wheel.transform.position = position;
             AddVisual(PrimitiveType.Cylinder, wheel, Vector3.zero, Quaternion.Euler(0f, 0f, 90f), new Vector3(WheelRadius * 2f, 0.13f, WheelRadius * 2f), tyre);
+            // Tread: raised blocks round the tyre.
+            const int blocks = 18;
+            for (int i = 0; i < blocks; i++)
+            {
+                Quaternion around = Quaternion.Euler(i * 360f / blocks, 0f, 0f);
+                AddVisual(PrimitiveType.Cube, wheel, around * new Vector3(0f, WheelRadius, 0f), around, new Vector3(0.135f, 0.02f, 0.07f), tyre);
+            }
             AddVisual(PrimitiveType.Cylinder, wheel, Vector3.zero, Quaternion.Euler(0f, 0f, 90f), new Vector3(0.48f, 0.135f, 0.48f), hub);
+            // Hub cap and five lug nuts on each face.
+            foreach (float side in new[] { -1f, 1f })
+            {
+                AddVisual(PrimitiveType.Cylinder, wheel, new Vector3(side * 0.068f, 0f, 0f), Quaternion.Euler(0f, 0f, 90f), new Vector3(0.16f, 0.01f, 0.16f), hub);
+                for (int i = 0; i < 5; i++)
+                {
+                    Quaternion around = Quaternion.Euler(i * 72f, 0f, 0f);
+                    AddVisual(PrimitiveType.Cylinder, wheel, new Vector3(side * 0.072f, 0f, 0f) + around * new Vector3(0f, 0.1f, 0f), Quaternion.Euler(0f, 0f, 90f),
+                        new Vector3(0.025f, 0.01f, 0.025f), tyre);
+                }
+            }
             return wheel.transform;
         }
 

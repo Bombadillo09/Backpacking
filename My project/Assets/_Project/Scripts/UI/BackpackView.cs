@@ -249,11 +249,11 @@ namespace Backpacking.UI
                 }, TentBagButtonProblem));
             }
             if (backpack.HasSleepingBag)
-                Add("CAMP GEAR", "sleepingbag", "sleepingbag", () => backpack.SleepingBagName, () => $"{backpack.SleepingBagComfort:0} °C",
+                Add("CAMP GEAR", "sleepingbag", "sleepingbag", () => backpack.SleepingBagName, () => backpack.BagLaidOut ? "in the tent" : $"{backpack.SleepingBagComfort:0} °C",
                     () => $"Keeps you warm asleep down to about {backpack.SleepingBagComfort:0} °C (lower with a sleeping mat)."
                           + (backpack.BagWetness > 0.15f ? $"\nIt's {backpack.BagWetness * 100f:0}% wet, and far less warm until it dries. A fire helps." : ""));
             if (backpack.HasMat)
-                Add("CAMP GEAR", "mat", backpack.MatRecovery >= 1.4f ? "airmat" : "mat", () => backpack.MatName, () => "",
+                Add("CAMP GEAR", "mat", backpack.MatRecovery >= 1.4f ? "airmat" : "mat", () => backpack.MatName, () => backpack.MatLaidOut ? "in the tent" : "",
                     () => $"+{backpack.MatWarmth:0} °C asleep, and {(backpack.MatRecovery - 1f) * 100f:0}% more energy back from sleep.");
             if (backpack.OwnsStove)
             {

@@ -99,6 +99,7 @@ namespace Backpacking.Survival
         public List<ZoneEntry> zones = new();
         public bool ownsStove = true;
         public float bagWetness;
+        public bool matOut, bagOut;
     }
 
     /// <summary>
@@ -327,7 +328,8 @@ namespace Backpacking.Survival
         {
             get
             {
-                float weight = packWeight + sleepingBagWeight + TotalWater + (HasMat ? matWeight : 0f);
+                // Anything laid out in the tent isn't being carried.
+                float weight = packWeight + (bagOut ? 0f : sleepingBagWeight) + TotalWater + (HasMat && !matOut ? matWeight : 0f);
                 if (hasTent)
                     weight += tentWeight;
                 if (hasStove)
@@ -782,6 +784,8 @@ namespace Backpacking.Survival
             zones = new List<ZoneEntry>(zones),
             ownsStove = ownsStove,
             bagWetness = bagWetness,
+            matOut = matOut,
+            bagOut = bagOut,
         };
 
         public void RestoreState(BackpackState state)
@@ -832,6 +836,8 @@ namespace Backpacking.Survival
             zones = new List<ZoneEntry>(state.zones ?? new List<ZoneEntry>());
             ownsStove = state.ownsStove || state.hasStove;
             bagWetness = state.bagWetness;
+            matOut = state.matOut;
+            bagOut = state.bagOut;
             balanceCheckedAt = -1f;
         }
 

@@ -29,8 +29,11 @@ namespace Backpacking.EditorTools
             if (home != null)
             {
                 Transform t = home.transform;
-                views.Add(("home-outside", t.TransformPoint(new Vector3(-4f, 1.7f, 11f)), t.TransformPoint(new Vector3(0f, 1.6f, 0f))));
-                views.Add(("home-inside", t.TransformPoint(new Vector3(0.8f, 1.9f, 2f)), t.TransformPoint(new Vector3(-1.5f, 0.9f, -1.6f))));
+                views.Add(("home-outside", t.TransformPoint(new Vector3(-5f, 2f, 14f)), t.TransformPoint(new Vector3(0f, 1.6f, 0f))));
+                views.Add(("home-living", t.TransformPoint(new Vector3(0.3f, 1.7f, 3f)), t.TransformPoint(new Vector3(-3f, 0.8f, 1.3f))));
+                views.Add(("home-kitchen", t.TransformPoint(new Vector3(-0.5f, 1.7f, 0.8f)), t.TransformPoint(new Vector3(3.3f, 1f, 2.4f))));
+                views.Add(("home-bedroom", t.TransformPoint(new Vector3(0.4f, 1.7f, -0.4f)), t.TransformPoint(new Vector3(-2.2f, 0.6f, -2.6f))));
+                views.Add(("home-bathroom", t.TransformPoint(new Vector3(1.3f, 1.7f, -0.4f)), t.TransformPoint(new Vector3(3.3f, 0.8f, -2.6f))));
             }
             GameObject store = GameObject.Find($"Road/{Trip.TripLog.Outfitter}");
             if (store != null)
@@ -58,7 +61,7 @@ namespace Backpacking.EditorTools
             {
                 Transform t = truck.transform;
                 views.Add(("truck", t.TransformPoint(new Vector3(-4.5f, 1.8f, 5.5f)), t.TransformPoint(new Vector3(0f, 1f, 0f))));
-                views.Add(("truck-back", t.TransformPoint(new Vector3(3f, 2.6f, -7f)), t.TransformPoint(new Vector3(0f, 0.9f, -1f))));
+                views.Add(("truck-back", t.TransformPoint(new Vector3(-6f, 2.4f, -5f)), t.TransformPoint(new Vector3(0f, 0.9f, -1f))));
                 // From the driver's eyes, looking out of the windscreen.
                 Vector3 eye = t.TransformPoint(new Vector3(-0.42f, 0.58f + 1.12f, 0.12f));
                 views.Add(("truck-cab", eye, eye + t.forward * 10f - t.up * 0.8f));

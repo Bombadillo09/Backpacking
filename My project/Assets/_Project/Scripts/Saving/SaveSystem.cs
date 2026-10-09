@@ -171,7 +171,8 @@ namespace Backpacking.Saving
             {
                 day = timeOfDay.Day,
                 hour = timeOfDay.Hour,
-                playerPosition = player.transform.position,
+                // Saved inside the tent (on waking, say), you come back standing at its door.
+                playerPosition = Tent.Occupied != null ? Tent.Occupied.ExitPosition : player.transform.position,
                 playerYaw = player.transform.eulerAngles.y,
                 vitals = vitals.CaptureState(),
                 backpack = backpack.CaptureState(),
@@ -228,7 +229,11 @@ namespace Backpacking.Saving
                 if (instance.TryGetComponent(out Snare snare))
                     state.hasCatch = snare.HasCatch;
                 if (instance.TryGetComponent(out Tent tent))
+                {
                     state.stage = tent.Stage;
+                    state.matLaidOut = tent.MatLaidOut;
+                    state.bagLaidOut = tent.BagLaidOut;
+                }
                 if (instance.TryGetComponent(out CampChair chair))
                     state.chairStage = chair.Stage;
                 data.placedItems.Add(state);
@@ -306,7 +311,10 @@ namespace Backpacking.Saving
                 if (instance.TryGetComponent(out Snare snare))
                     snare.HasCatch = item.hasCatch;
                 if (instance.TryGetComponent(out Tent tent))
+                {
                     tent.Setup(backpack.TentModel, item.stage);
+                    tent.RestoreBed(item.matLaidOut, item.bagLaidOut, backpack);
+                }
                 if (instance.TryGetComponent(out CampChair chair))
                     chair.Setup(item.chairStage);
             }

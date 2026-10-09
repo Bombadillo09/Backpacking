@@ -121,7 +121,7 @@ namespace Backpacking.Character
             seated = Mathf.MoveTowards(seated, player.Seated ? 1f : 0f, Time.deltaTime * 2.5f);
             // In a chair the sitting clip is already right (it's a chair pose); on the ground it's adjusted to sit on it.
             // A vehicle seat is a chair as far as the body is concerned.
-            bool inChair = player.Mounted || (RestMode.Current != null && RestMode.Current.InChair);
+            bool inChair = (player.Mounted && !player.MountedOnGround) || (RestMode.Current != null && RestMode.Current.InChair);
             pose.Seated = inChair ? 0f : seated;
             if (shownFirstPerson)
                 appearance.transform.localPosition = new Vector3(0f, 0f,
@@ -137,7 +137,7 @@ namespace Backpacking.Character
         /// <summary>Bare feet while the boots are off, and the boots and socks on the ground beside you.</summary>
         void UpdateBoots()
         {
-            bool off = RestMode.Current != null && RestMode.Current.IsSeated && RestMode.Current.BootsOff;
+            bool off = RestMode.Current != null && (RestMode.Current.IsSeated || player.MountedOnGround) && RestMode.Current.BootsOff;
             if (off == (bootsPile != null))
                 return;
             if (!off)

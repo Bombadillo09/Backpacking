@@ -78,5 +78,7 @@ namespace Backpacking.Saving
         /// <summary>For a tent, how far it's pitched. Saves from before staged pitching were fully pitched.</summary>
         public TentStage stage = TentStage.Pitched;
         public ChairStage chairStage = ChairStage.Ready;
+        /// <summary>For a pitched tent, whether your mat and sleeping bag are laid out in it.</summary>
+        public bool matLaidOut, bagLaidOut;
     }
 }

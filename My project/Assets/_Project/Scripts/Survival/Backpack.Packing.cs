@@ -60,6 +60,8 @@ namespace Backpacking.Survival
         [SerializeField] List<ZoneEntry> zones = new();
         [Tooltip("Owns a stove at all. HasStove is whether it's packed (false while it's set up at camp).")]
         [SerializeField] bool ownsStove = true;
+        [Tooltip("The mat and sleeping bag are laid out in the tent, not in the pack.")]
+        [SerializeField] bool matOut, bagOut;
 
         /// <summary>How wet the sleeping bag is, 0 dry to 1 soaked. A wet bag is far less warm.</summary>
         float bagWetness;
@@ -80,6 +82,21 @@ namespace Backpacking.Survival
         public bool OwnsTent => !string.IsNullOrEmpty(tentName);
         public bool HasSleepingBag => !string.IsNullOrEmpty(sleepingBagName);
         public float BagWetness => bagWetness;
+        public bool MatLaidOut => HasMat && matOut;
+        public bool BagLaidOut => HasSleepingBag && bagOut;
+
+        /// <summary>Takes the mat out of the pack to lay it out in the tent, or packs it again.</summary>
+        public void SetMatLaidOut(bool laidOut)
+        {
+            matOut = laidOut && HasMat;
+            balanceCheckedAt = -1f;
+        }
+
+        public void SetBagLaidOut(bool laidOut)
+        {
+            bagOut = laidOut && HasSleepingBag;
+            balanceCheckedAt = -1f;
+        }
 
         /// <summary>Puts on a different backpack. Everything that was in the old one goes into the new one.</summary>
         public void SetPack(PackModel model)
@@ -132,6 +149,7 @@ namespace Backpacking.Survival
             matName = "";
             matWarmth = matWeight = 0f;
             matRecovery = 1f;
+            matOut = bagOut = false;
             clothing = streetClothes
                 ? new List<Garment> { new("Cotton T-shirt", 1f, 0.2f, true), new("Jeans", 2f, 0.7f, true) }
                 : new List<Garment>();
@@ -162,10 +180,10 @@ namespace Backpacking.Survival
 
             if (hasTent && OwnsTent)
                 Add("tent", tentName, "tent", 1, TentLitres(tentModel), tentWeight, PackZone.Core, strappable: true);
-            if (HasSleepingBag)
+            if (HasSleepingBag && !bagOut)
                 Add("sleepingbag", sleepingBagName, "sleepingbag", 1, sleepingBagComfort <= -8f ? 14f : sleepingBagComfort <= 2f ? 9f : 6f,
                     sleepingBagWeight, PackZone.Bottom, strappable: true);
-            if (HasMat)
+            if (HasMat && !matOut)
             {
                 bool foam = matRecovery < 1.4f;
                 Add("mat", matName, foam ? "mat" : "airmat", 1, foam ? 12f : 1.5f, matWeight, PackZone.Core, strappable: true, strapOnly: foam);
@@ -257,8 +275,10 @@ namespace Backpacking.Survival
                 }
                 case "sleepingbag":
                 {
-                    if (!HasSleepingBag)
-                        return "No sleeping bag here";
+                    if (!HasSleepingBag || bagOut)
+                        return bagOut ? "It's laid out in your tent" : "No sleeping bag here";
+                    if (to.bagOut)
+                        return "The one there is laid out in the tent";
                     (string name, float comfort, float weight, float wet) theirs = (to.sleepingBagName, to.sleepingBagComfort, to.sleepingBagWeight, to.bagWetness);
                     to.SetSleepingBag(sleepingBagName, sleepingBagComfort, sleepingBagWeight);
                     to.bagWetness = bagWetness;
@@ -268,8 +288,10 @@ namespace Backpacking.Survival
                 }
                 case "mat":
                 {
-                    if (!HasMat)
-                        return "No mat here";
+                    if (!HasMat || matOut)
+                        return matOut ? "It's laid out in your tent" : "No mat here";
+                    if (to.matOut)
+                        return "The one there is laid out in the tent";
                     (string name, float warmth, float weight, float recovery) theirs = (to.matName, to.matWarmth, to.matWeight, to.matRecovery);
                     to.SetMat(matName, matWarmth, matWeight, matRecovery);
                     SetMat(theirs.name ?? "", theirs.warmth, theirs.weight, theirs.recovery > 0f ? theirs.recovery : 1f);
