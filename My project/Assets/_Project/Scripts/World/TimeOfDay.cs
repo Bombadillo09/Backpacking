@@ -132,7 +132,7 @@ namespace Backpacking.World
         [Tooltip("Direct sun kept under a full canopy (the leaves' own shadows do the rest).")]
         [SerializeField, Range(0f, 1f)] float canopySun = 0.8f;
         [Tooltip("Fog density multiplier under a full canopy.")]
-        [SerializeField] float canopyFog = 2.6f;
+        [SerializeField] float canopyFog = 3.2f;
         [Tooltip("Fog density multiplier in full mist.")]
         [SerializeField] float mistFog = 3.5f;
         [SerializeField] Color forestFog = new(0.36f, 0.42f, 0.38f);

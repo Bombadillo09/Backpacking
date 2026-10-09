@@ -967,6 +967,63 @@ namespace Backpacking.EditorTools
             return snow;
         }
 
+        /// <summary>
+        /// A light haze hanging among the trees: big, faint wisps drifting at head height in a ring round the player
+        /// (none right in front of the camera). ForestAtmosphere lets them gather only under the canopy.
+        /// </summary>
+        static ParticleSystem CreateForestHaze(Transform player)
+        {
+            var go = new GameObject("Forest Haze");
+            go.transform.SetParent(player, false);
+            go.transform.localPosition = new Vector3(0f, 1.3f, 0f);
+            // A circle emitter lies in its XY plane: tip it flat.
+            go.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+
+            var haze = go.AddComponent<ParticleSystem>();
+            haze.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            ParticleSystem.MainModule main = haze.main;
+            main.loop = true;
+            main.playOnAwake = true;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(14f, 22f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(0f, 0f);
+            main.startSize = new ParticleSystem.MinMaxCurve(7f, 13f);
+            main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+            main.startColor = new Color(1f, 1f, 1f, 0.1f);
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.maxParticles = 110;
+            ParticleSystem.EmissionModule emission = haze.emission;
+            emission.rateOverTime = 0f;
+            // Out between about 12 and 38 m, a metre or so up and down.
+            ParticleSystem.ShapeModule shape = haze.shape;
+            shape.shapeType = ParticleSystemShapeType.Circle;
+            shape.radius = 38f;
+            shape.radiusThickness = 0.68f;
+            shape.randomPositionAmount = 1.2f;
+            ParticleSystem.VelocityOverLifetimeModule drift = haze.velocityOverLifetime;
+            drift.enabled = true;
+            drift.space = ParticleSystemSimulationSpace.World;
+            drift.x = new ParticleSystem.MinMaxCurve(-0.15f, 0.15f);
+            drift.y = new ParticleSystem.MinMaxCurve(-0.02f, 0.03f);
+            drift.z = new ParticleSystem.MinMaxCurve(-0.15f, 0.15f);
+            ParticleSystem.RotationOverLifetimeModule turn = haze.rotationOverLifetime;
+            turn.enabled = true;
+            turn.z = new ParticleSystem.MinMaxCurve(-0.03f, 0.03f);
+            ParticleSystem.ColorOverLifetimeModule fade = haze.colorOverLifetime;
+            fade.enabled = true;
+            var gradient = new Gradient();
+            gradient.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.3f), new GradientAlphaKey(1f, 0.7f), new GradientAlphaKey(0f, 1f) });
+            fade.color = gradient;
+            var particleRenderer = go.GetComponent<ParticleSystemRenderer>();
+            particleRenderer.renderMode = ParticleSystemRenderMode.Billboard;
+            particleRenderer.shadowCastingMode = ShadowCastingMode.Off;
+            particleRenderer.receiveShadows = false;
+            // Never a wall across the screen, even if one drifts close.
+            particleRenderer.maxParticleSize = 0.3f;
+            particleRenderer.sharedMaterial = GetOrCreateFogWispMaterial();
+            return haze;
+        }
+
         /// <summary>Big, soft wisps of fog drifting past the player in thick fog or cloud.</summary>
         static ParticleSystem CreateFogWisps(Transform player)
         {

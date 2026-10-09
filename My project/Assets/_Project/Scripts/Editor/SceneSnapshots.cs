@@ -260,6 +260,41 @@ namespace Backpacking.EditorTools
 
         public static void RenderLandscapeBatch() => Debug.Log(RenderLandscape());
 
+        /// <summary>The haze among the trees, run on for a while at points on the trail in the woods, by day: -executeMethod ...RenderForestHazeBatch.</summary>
+        public static void RenderForestHazeBatch()
+        {
+            EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            var trail = Object.FindAnyObjectByType<TrailPath>();
+            ParticleSystem haze = GameObject.Find("Forest Haze")?.GetComponent<ParticleSystem>();
+            if (trail == null || haze == null)
+            {
+                Debug.Log("No trail or haze: rebuild first.");
+                return;
+            }
+            Light sun = GameObject.Find("Sun")?.GetComponent<Light>();
+            if (sun != null)
+                sun.transform.rotation = Quaternion.Euler(40f, 140f, 0f);
+            // Under the trees, the air is the woods' green-grey (as TimeOfDay sets it there).
+            RenderSettings.fogColor = new Color(0.36f, 0.42f, 0.38f);
+            RenderSettings.fogDensity *= 3.2f;
+            Transform player = haze.transform.parent;
+            var views = new List<(string, Vector3, Vector3)>();
+            IReadOnlyList<Vector3> points = trail.Points;
+            ParticleSystem.EmissionModule emission = haze.emission;
+            emission.rateOverTime = 5f;
+            ParticleSystem.MainModule main = haze.main;
+            main.startColor = new Color(0.59f, 0.68f, 0.62f, 0.1f);
+            for (int i = 0; i < 2; i++)
+            {
+                Vector3 at = points[points.Count * (i + 1) / 4];
+                Vector3 ahead = points[Mathf.Min(points.Count - 1, points.Count * (i + 1) / 4 + 3)];
+                player.position = at;
+                haze.Clear();
+                haze.Simulate(25f, true, true);
+                Debug.Log(Render(new List<(string, Vector3, Vector3)> { ($"forest-haze-{i}", at + Vector3.up * 1.7f, ahead + Vector3.up * 1.4f) }, "haze"));
+            }
+        }
+
         static string Render(List<(string name, Vector3 from, Vector3 at)> views, string what)
         {
             Directory.CreateDirectory(Folder);

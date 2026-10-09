@@ -117,6 +117,7 @@ namespace Backpacking.EditorTools
             SetField(atmosphere, "weather", weather);
             SetField(atmosphere, "player", player.transform);
             SetField(atmosphere, "motes", CreateMotes(player.transform));
+            SetField(atmosphere, "haze", CreateForestHaze(player.transform));
 
             var navigation = new GameObject("Navigation");
             var map = navigation.AddComponent<MapView>();

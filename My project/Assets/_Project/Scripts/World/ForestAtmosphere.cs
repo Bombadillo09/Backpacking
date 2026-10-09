@@ -5,7 +5,8 @@ namespace Backpacking.World
     /// <summary>
     /// How the air feels where the player is. Measures how closed the forest canopy is overhead from the
     /// terrain's trees, and tells <see cref="TimeOfDay"/> so the woods are shaded and hazy. Adds ground mist
-    /// at dawn and in damp, still weather, and specks drifting in the air under the trees by day.
+    /// at dawn and in damp, still weather, specks drifting in the air under the trees by day, and a light fog
+    /// hanging among the trees (only in the woods), the colour of the air: pale by day, dark at night.
     /// </summary>
     public class ForestAtmosphere : MonoBehaviour
     {
@@ -14,6 +15,10 @@ namespace Backpacking.World
         [SerializeField] Transform player;
         [Tooltip("Specks drifting in the air (pollen, dust). Optional.")]
         [SerializeField] ParticleSystem motes;
+        [Tooltip("Faint wisps of fog among the trees. Optional.")]
+        [SerializeField] ParticleSystem haze;
+        [Tooltip("Haze wisps per second under a full canopy (more in mist, fewer in wind).")]
+        [SerializeField] float hazePerSecond = 6f;
 
         [Header("Canopy")]
         [Tooltip("Trees per 100 m² that count as a fully closed canopy.")]
@@ -64,6 +69,19 @@ namespace Backpacking.World
             mist = Mathf.MoveTowards(mist, TargetMist(), step * 0.2f);
             timeOfDay.CanopyShade = canopy;
             timeOfDay.Mist = mist;
+
+            if (haze != null)
+            {
+                // Only in the woods; thicker in mist and damp, blown thin by wind.
+                float calm = weather != null ? 1f - 0.7f * Mathf.InverseLerp(8f, 35f, weather.WindKmh) : 1f;
+                ParticleSystem.EmissionModule emission = haze.emission;
+                emission.rateOverTime = hazePerSecond * Mathf.InverseLerp(0.35f, 0.9f, canopy) * calm * (1f + mist);
+                // Lit like the air around it, so it doesn't glow at night.
+                Color air = RenderSettings.fogColor;
+                ParticleSystem.MainModule main = haze.main;
+                main.startColor = new Color(Mathf.Min(1f, air.r * 1.5f + 0.05f), Mathf.Min(1f, air.g * 1.5f + 0.05f), Mathf.Min(1f, air.b * 1.5f + 0.05f),
+                    0.12f + 0.06f * mist);
+            }
 
             if (motes != null)
             {
