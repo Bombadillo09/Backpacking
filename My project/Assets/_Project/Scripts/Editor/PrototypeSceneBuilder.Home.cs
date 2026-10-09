@@ -53,16 +53,16 @@ namespace Backpacking.EditorTools
             // Outside walls, the front door at the left of the front wall.
             float front = halfDepth - outer / 2f, back = -halfDepth + outer / 2f, left = -halfWidth + outer / 2f, right = halfWidth - outer / 2f;
             const float doorX = -1.2f;
-            AddWall(house, new Vector2(-halfWidth, front), new Vector2(halfWidth, front), floorTop, height, outer, walls, (doorX + halfWidth, 1f, 2.1f));
-            AddWall(house, new Vector2(-halfWidth, back), new Vector2(halfWidth, back), floorTop, height, outer, walls);
-            AddWall(house, new Vector2(left, -halfDepth), new Vector2(left, halfDepth), floorTop, height, outer, walls);
-            AddWall(house, new Vector2(right, -halfDepth), new Vector2(right, halfDepth), floorTop, height, outer, walls);
+            AddTrimmedWall(house, new Vector2(-halfWidth, front), new Vector2(halfWidth, front), floorTop, height, outer, walls, trim, (doorX + halfWidth, 1f, 2.1f));
+            AddTrimmedWall(house, new Vector2(-halfWidth, back), new Vector2(halfWidth, back), floorTop, height, outer, walls, trim);
+            AddTrimmedWall(house, new Vector2(left, -halfDepth), new Vector2(left, halfDepth), floorTop, height, outer, walls, trim);
+            AddTrimmedWall(house, new Vector2(right, -halfDepth), new Vector2(right, halfDepth), floorTop, height, outer, walls, trim);
 
             // Inside: a wall across the middle with doors to the bedroom and the bathroom, and one between them.
             const float bedroomDoor = -1.6f, bathroomDoor = 2.2f, partition = 0.9f;
-            AddWall(house, new Vector2(-halfWidth + outer, 0f), new Vector2(halfWidth - outer, 0f), floorTop, height, inner, inside,
+            AddTrimmedWall(house, new Vector2(-halfWidth + outer, 0f), new Vector2(halfWidth - outer, 0f), floorTop, height, inner, inside, trim,
                 (bedroomDoor + halfWidth - outer, 0.9f, 2.05f), (bathroomDoor + halfWidth - outer, 0.8f, 2.05f));
-            AddWall(house, new Vector2(partition, -halfDepth + outer), new Vector2(partition, -inner / 2f), floorTop, height, inner, inside);
+            AddTrimmedWall(house, new Vector2(partition, -halfDepth + outer), new Vector2(partition, -inner / 2f), floorTop, height, inner, inside, trim);
 
             // Pitched roof along the width, gables at the ends, a chimney for the wood stove.
             const float rise = 1.5f;
@@ -88,6 +88,8 @@ namespace Backpacking.EditorTools
             FurnishKitchen(house, floorTop, wood, metal, trim);
             FurnishBedroom(house, floorTop, wood, trim);
             FurnishBathroom(house, floorTop, partition, trim);
+            DetailHouseOutside(house, floorTop, top, rise, walls, trim, wood, metal);
+            DetailHouseInside(house, floorTop, top, wood, metal, trim);
 
             AddLamp(house, new Vector3(-1.8f, top - 0.3f, 1.8f), 6f, 1.5f);
             AddLamp(house, new Vector3(2.4f, top - 0.3f, 1.8f), 5f, 1.3f);
@@ -157,8 +159,26 @@ namespace Backpacking.EditorTools
             // Bookshelf against the middle wall.
             Vector3 shelf = new(-3f, y, 0.3f);
             AddSolid(PrimitiveType.Cube, house, shelf + new Vector3(0f, 0.9f, 0f), Quaternion.identity, new Vector3(1.1f, 1.8f, 0.3f), wood);
+            // Books on its shelves, each its own height and colour.
+            Material[] spines =
+            {
+                books, GetOrCreateMaterial("BooksBlue", new Color(0.2f, 0.28f, 0.45f)), GetOrCreateMaterial("BooksGreen", new Color(0.25f, 0.4f, 0.25f)),
+                GetOrCreateMaterial("BooksCream", new Color(0.85f, 0.8f, 0.65f)), GetOrCreateMaterial("BooksBrown", new Color(0.4f, 0.28f, 0.18f)),
+            };
+            var random = new System.Random(Seed + 21);
             for (int row = 0; row < 3; row++)
-                AddVisual(PrimitiveType.Cube, house, shelf + new Vector3(0f, 0.45f + row * 0.55f, 0.08f), Quaternion.identity, new Vector3(0.95f, 0.25f, 0.2f), books);
+            {
+                float x = -0.5f;
+                while (x < 0.45f)
+                {
+                    float width = 0.035f + (float)random.NextDouble() * 0.04f, bookHeight = 0.17f + (float)random.NextDouble() * 0.1f;
+                    AddVisual(PrimitiveType.Cube, house, shelf + new Vector3(x + width / 2f, 0.33f + row * 0.55f + bookHeight / 2f, 0.1f), Quaternion.Euler(0f, 0f, random.NextDouble() < 0.1 ? 12f : 0f),
+                        new Vector3(width, bookHeight, 0.2f), spines[random.Next(spines.Length)]);
+                    x += width + 0.004f;
+                }
+                // The shelf board under each row.
+                AddVisual(PrimitiveType.Cube, house, shelf + new Vector3(0f, 0.32f + row * 0.55f, 0.12f), Quaternion.identity, new Vector3(1.05f, 0.025f, 0.12f), wood);
+            }
         }
 
         /// <summary>Front right: an L of counters with a sink under the window, a stove and a fridge, and a small table.</summary>
@@ -265,7 +285,15 @@ namespace Backpacking.EditorTools
         /// with doorways cut in it: each gap is its distance along the wall from <paramref name="a"/>, its width and height.
         /// </summary>
         static void AddWall(GameObject root, Vector2 a, Vector2 b, float floorTop, float height, float thickness, Material material,
-            params (float at, float width, float height)[] gaps)
+            params (float at, float width, float height)[] gaps) =>
+            AddTrimmedWall(root, a, b, floorTop, height, thickness, material, null, gaps);
+
+        /// <summary>
+        /// <see cref="AddWall"/> with <paramref name="trim"/> boards: a baseboard along the foot of both faces, and casing
+        /// round each doorway on both sides.
+        /// </summary>
+        static void AddTrimmedWall(GameObject root, Vector2 a, Vector2 b, float floorTop, float height, float thickness, Material material,
+            Material trim, params (float at, float width, float height)[] gaps)
         {
             Vector2 direction = b - a;
             float length = direction.magnitude;
@@ -279,6 +307,32 @@ namespace Backpacking.EditorTools
                 Vector2 middle = a + direction * ((from + to) / 2f);
                 AddSolid(PrimitiveType.Cube, root, new Vector3(middle.x, floorTop + (bottom + topOf) / 2f, middle.y), rotation,
                     new Vector3(thickness, topOf - bottom, to - from), material);
+                if (trim == null || bottom > 0f)
+                    return;
+                foreach (float face in new[] { -1f, 1f })
+                {
+                    Vector3 at = new Vector3(middle.x, floorTop + 0.05f, middle.y) + rotation * Vector3.right * face * (thickness / 2f + 0.008f);
+                    AddVisual(PrimitiveType.Cube, root, at, rotation, new Vector3(0.016f, 0.1f, to - from), trim);
+                }
+            }
+
+            void Casing(float at, float width, float gapHeight)
+            {
+                if (trim == null)
+                    return;
+                foreach (float face in new[] { -1f, 1f })
+                {
+                    Vector3 outward = rotation * Vector3.right * face * (thickness / 2f + 0.01f);
+                    foreach (float edge in new[] { at - width / 2f - 0.035f, at + width / 2f + 0.035f })
+                    {
+                        Vector2 side = a + direction * edge;
+                        AddVisual(PrimitiveType.Cube, root, new Vector3(side.x, floorTop + gapHeight / 2f, side.y) + outward, rotation,
+                            new Vector3(0.02f, gapHeight, 0.07f), trim);
+                    }
+                    Vector2 head = a + direction * at;
+                    AddVisual(PrimitiveType.Cube, root, new Vector3(head.x, floorTop + gapHeight + 0.035f, head.y) + outward, rotation,
+                        new Vector3(0.02f, 0.07f, width + 0.14f), trim);
+                }
             }
 
             float cursor = 0f;
@@ -288,6 +342,7 @@ namespace Backpacking.EditorTools
             {
                 Piece(cursor, at - width / 2f, 0f, height);
                 Piece(at - width / 2f, at + width / 2f, gapHeight, height);
+                Casing(at, width, gapHeight);
                 cursor = at + width / 2f;
             }
             Piece(cursor, length, 0f, height);

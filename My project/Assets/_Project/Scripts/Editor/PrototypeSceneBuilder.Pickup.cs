@@ -49,6 +49,14 @@ namespace Backpacking.EditorTools
             BuildFront(truck, paint, black, trim, headlight);
             BuildBed(truck, paint, bedLiner, trim, taillight, black);
             BuildDetails(truck, paint, black, trim, interior, headlight, taillight);
+            BuildMoreDetails(truck, paint, black, trim, interior);
+            // Glass casts no shadow (a transparent material still has a shadow pass), or the cab is dark and murky.
+            foreach (Renderer part in truck.GetComponentsInChildren<Renderer>())
+                if (part.sharedMaterial == glass)
+                {
+                    part.shadowCastingMode = ShadowCastingMode.Off;
+                    part.receiveShadows = false;
+                }
 
             // Solid parts, on the truck's rigidbody. The bed is open, so gear (and you) can be put in it.
             AddBox(truck, new Vector3(0f, 1.27f, 0.47f), new Vector3(1.95f, 1.38f, 1.65f));
@@ -159,7 +167,16 @@ namespace Backpacking.EditorTools
         /// <summary>Barely tinted, so the view out isn't hazy; the shine still shows it's glass.</summary>
         static void SetGlassTint(Material material)
         {
-            material.SetColor("_BaseColor", new Color(0.7f, 0.78f, 0.82f, 0.04f));
+            material.SetColor("_BaseColor", new Color(0.6f, 0.66f, 0.7f, 0.05f));
+            // URP's "preserve specular lighting" switches transparent materials to premultiplied blending (source One),
+            // which adds the glass's whole colour on top of the view: a milky sheet in game. Plain alpha blending instead.
+            material.SetFloat("_BlendModePreserveSpecular", 0f);
+            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            material.DisableKeyword("_ALPHAMODULATE_ON");
+            material.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+            material.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+            material.SetFloat("_SrcBlendAlpha", (float)BlendMode.One);
+            material.SetFloat("_DstBlendAlpha", (float)BlendMode.OneMinusSrcAlpha);
             // Sky reflections and highlights are what made the glass look milky; leave just a faint tint.
             material.SetFloat("_Smoothness", 0.5f);
             material.SetFloat("_SpecularHighlights", 0f);
@@ -306,7 +323,8 @@ namespace Backpacking.EditorTools
                 // Wipers resting at the bottom of the windscreen.
                 AddVisual(PrimitiveType.Cube, truck, new Vector3(side * 0.42f - 0.05f, 1.29f, 1.2f), Quaternion.Euler(-25f, side * 8f, 0f), new Vector3(0.6f, 0.015f, 0.02f), black);
                 // Sun visors and seat belts inside.
-                AddVisual(PrimitiveType.Cube, truck, new Vector3(side * 0.45f, 1.88f, 1.0f), Quaternion.Euler(-10f, 0f, 0f), new Vector3(0.6f, 0.02f, 0.2f), interior);
+                // Folded up flat against the roof, out of the way of the view.
+                AddVisual(PrimitiveType.Cube, truck, new Vector3(side * 0.45f, 1.9f, 1.02f), Quaternion.identity, new Vector3(0.6f, 0.015f, 0.2f), interior);
                 AddVisual(PrimitiveType.Cube, truck, new Vector3(side * 0.42f, 1.15f, -0.17f), Quaternion.Euler(0f, 0f, side * 35f), new Vector3(0.05f, 0.75f, 0.01f), black);
             }
 

@@ -111,6 +111,13 @@ namespace Backpacking.UI
             truck.GetIn();
             yield return new WaitForSeconds(0.5f);
             Check(player.Mounted && PlayerControlLock.MovementLocked, "in the driver's seat, walking locked");
+            yield return new WaitForSeconds(0.5f);
+            TentTest.Capture("play-truck-cab");
+            player.ThirdPerson = true;
+            yield return new WaitForSeconds(1f);
+            TentTest.Capture("play-truck-behind");
+            player.ThirdPerson = false;
+            yield return null;
             Vector3 storeLot = store.transform.position + (road.NearestOnRoad(store.transform.position) - store.transform.position) * 0.9f;
             Quaternion along = truck.transform.rotation;
             truck.RestoreState(new PickupState { position = storeLot + Vector3.up * 1f, rotation = along, driving = true });
@@ -120,6 +127,12 @@ namespace Backpacking.UI
             typeof(Pickup).GetMethod("TryGetOut", Private).Invoke(truck, null);
             yield return new WaitForSeconds(1f);
             Check(!player.Mounted && !PlayerControlLock.MovementLocked, "got out of the truck");
+            // Look back at the truck through its side window.
+            Vector3 toTruck = truck.transform.position - player.transform.position;
+            toTruck.y = 0f;
+            player.transform.rotation = Quaternion.LookRotation(toTruck);
+            yield return new WaitForSeconds(0.5f);
+            TentTest.Capture("play-truck-outside");
             // Walk up to the store's door.
             Teleport(player, store.transform.position + store.transform.forward * 3f);
             yield return new WaitForSeconds(1f);

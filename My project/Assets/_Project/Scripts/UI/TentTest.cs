@@ -200,7 +200,7 @@ namespace Backpacking.UI
         }
 
         /// <summary>The player's view, rendered off screen (works in batch mode).</summary>
-        static void Capture(string name)
+        public static void Capture(string name)
         {
             Camera view = Camera.main;
             if (view == null)
