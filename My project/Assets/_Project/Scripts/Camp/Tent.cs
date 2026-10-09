@@ -96,7 +96,7 @@ namespace Backpacking.Camp
                             Notifications.Post("The poles are up. Next, raise the tent fabric onto them.", 4f);
                         })));
                     options.Add(new InteractionOption($"Roll it back into its bag ({bagUpMinutes:0} min)", () =>
-                        activity.Begin("Rolling the tent into its bag", bagUpMinutes, () => BagUp(interactor))));
+                        activity.Begin("Rolling the tent into its bag", bagUpMinutes, () => BagUp(interactor)), CampOwner.PackProblem(gameObject)));
                     break;
 
                 case TentStage.Poled:
@@ -124,7 +124,7 @@ namespace Backpacking.Camp
                             PackInside() ? "It's already inside" : null));
                     options.Add(new InteractionOption($"Take down the tent ({takeDownMinutes:0} min)", () =>
                         activity.Begin("Pulling the stakes, folding the fly and breaking down the poles", takeDownMinutes, () => BagUp(interactor)),
-                        MatLaidOut || BagLaidOut ? "Pack your mat and sleeping bag away first (crawl inside)" : null));
+                        CampOwner.PackProblem(gameObject) ?? (MatLaidOut || BagLaidOut ? "Pack your mat and sleeping bag away first (crawl inside)" : null)));
                     break;
             }
         }
@@ -137,6 +137,14 @@ namespace Backpacking.Camp
             Backpack backpack = interactor.Backpack;
             PlayerActivity activity = interactor.Activity;
             string packProblem = PackProblem();
+            // A friend's tent: shelter for the night, but the bedding in it is theirs.
+            if (CampOwner.IsOthers(gameObject, out string owner))
+            {
+                options.Add(new InteractionOption($"Sleep in {owner}'s tent, in your clothes", () => activity.Sleep(inTent: true, inBag: false, onMat: false)));
+                AddBootsOption(options);
+                options.Add(new InteractionOption("Crawl out", () => CrawlOut(interactor.GetComponent<FirstPersonController>())));
+                return;
+            }
             if (!MatLaidOut && backpack.HasMat)
                 options.Add(new InteractionOption($"Lay out your {backpack.MatName.ToLowerInvariant()} ({layOutMinutes:0} min)", () =>
                     activity.Begin(backpack.MatRecovery >= 1.4f ? "Blowing up the mat" : "Unrolling the mat", layOutMinutes, () => LayOutMat(backpack, true)),
@@ -148,13 +156,7 @@ namespace Backpacking.Camp
             options.Add(new InteractionOption(BagLaidOut ? "Get into your sleeping bag and sleep" : "Sleep in your clothes", () =>
                 activity.Sleep(inTent: true, inBag: BagLaidOut, onMat: MatLaidOut)));
 
-            RestMode rest = RestMode.Current;
-            if (rest != null)
-                options.Add(new InteractionOption(rest.BootsOff ? "Put your boots back on" : "Take your boots off", () =>
-                {
-                    rest.SetBootsOff(!rest.BootsOff);
-                    Notifications.Post(rest.BootsOff ? "You unlace your boots and set them by the door. Your feet can rest and air." : "You pull your boots back on.", 3f);
-                }));
+            AddBootsOption(options);
             if (BagLaidOut)
                 options.Add(new InteractionOption("Stuff the sleeping bag back in the pack", () =>
                     activity.Begin("Stuffing the sleeping bag into its sack", layOutMinutes, () => LayOutBag(backpack, false)), packProblem));
@@ -163,6 +165,17 @@ namespace Backpacking.Camp
                     activity.Begin(backpack.MatRecovery >= 1.4f ? "Letting the air out of the mat and rolling it" : "Rolling up the mat", layOutMinutes,
                         () => LayOutMat(backpack, false)), packProblem));
             options.Add(new InteractionOption("Crawl out", () => CrawlOut(interactor.GetComponent<FirstPersonController>())));
+        }
+
+        static void AddBootsOption(List<InteractionOption> options)
+        {
+            RestMode rest = RestMode.Current;
+            if (rest != null)
+                options.Add(new InteractionOption(rest.BootsOff ? "Put your boots back on" : "Take your boots off", () =>
+                {
+                    rest.SetBootsOff(!rest.BootsOff);
+                    Notifications.Post(rest.BootsOff ? "You unlace your boots and set them by the door. Your feet can rest and air." : "You pull your boots back on.", 3f);
+                }));
         }
 
         /// <summary>Bedding comes out of and goes back into the pack, so it has to be in the porch (or inside) within reach.</summary>
@@ -194,6 +207,16 @@ namespace Backpacking.Camp
             BuildBed(backpack);
         }
 
+        /// <summary>Shows a friend's bedding as they've laid it out (in the colours of <paramref name="looks"/>: what this game knows of).</summary>
+        public void ShowBed(bool mat, bool bag, Backpack looks)
+        {
+            if (mat == MatLaidOut && bag == BagLaidOut && (bed != null) == (IsPitched && (mat || bag)))
+                return;
+            MatLaidOut = mat;
+            BagLaidOut = bag;
+            BuildBed(looks);
+        }
+
         public void CrawlIn(Interactor interactor)
         {
             var player = interactor.GetComponent<FirstPersonController>();
@@ -218,6 +241,11 @@ namespace Backpacking.Camp
             CrawlIn(interactor);
             if (!PlayerInside)
                 return;
+            if (CampOwner.IsOthers(gameObject, out _))
+            {
+                interactor.Activity.Sleep(inTent: true, inBag: false, onMat: false);
+                return;
+            }
             Backpack backpack = interactor.Backpack;
             bool mat = !MatLaidOut && backpack.HasMat && !backpack.MatLaidOut && PackProblem() == null;
             bool bag = !BagLaidOut && backpack.HasSleepingBag && !backpack.BagLaidOut && PackProblem() == null;

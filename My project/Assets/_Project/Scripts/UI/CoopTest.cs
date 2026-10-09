@@ -5,11 +5,14 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using Backpacking.Camp;
 using Backpacking.Character;
+using Backpacking.Interaction;
 using Backpacking.Net;
 using Backpacking.Player;
 using Backpacking.Survival;
 using Backpacking.Vehicles;
+using Backpacking.Wildlife;
 using Backpacking.World;
 using UnityEngine;
 
@@ -21,7 +24,9 @@ namespace Backpacking.UI
     /// build started with -coop-test-guest. Each side checks what it can see of the other: the guest is placed
     /// beside the host and each sees the other's hiker; a door opened by the host opens for the guest; the guest
     /// rides as the host's passenger and is carried along; the shared truck bed; the clock speeding up only when
-    /// both ask. They take turns by watching each other's moves (the door, the seats, the clock). Results go to
+    /// both ask; a fire the host lit before the guest joined; the guest's stove, theirs alone to pack away; the host's
+    /// rabbits and deer shown in the guest's game, one shot and taken there; the late joiner's starter kit; and the
+    /// guest's hiker kept by the host when they leave. They take turns by watching each other's moves (the door, the seats, the clock). Results go to
     /// Logs/cooptest-host.log and cooptest-guest.log (next to the build for the guest); FAIL lines are problems.
     /// </summary>
     public class CoopTest : MonoBehaviour
@@ -184,6 +189,15 @@ namespace Backpacking.UI
             var clock = FindAnyObjectByType<TimeOfDay>();
             BeginTrip("Hosty", asGuest: false);
             yield return new WaitForSecondsRealtime(0.5f);
+            // Already on the trail, so the guest arrives as a late joiner; and a fire is burning before they come.
+            FindAnyObjectByType<Trip.ArrivalGuide>().Skip();
+            Vector3 firePlace = truck.transform.position - truck.transform.right * 6f;
+            firePlace.y = GroundCover.HeightAt(firePlace);
+            var placer = player.GetComponent<CampPlacer>();
+            GameObject fire = placer.Spawn(CampItem.FireRing, firePlace, Quaternion.identity);
+            fire.GetComponent<Campfire>().Build(3);
+            fire.GetComponent<Campfire>().Restore(1.5f, true);
+            Note($"lit a fire at {firePlace:F1}; {Animal.All.Count} animals about");
             Check(CoopSession.Instance.HostDirect(), "hosting by address");
             Note("waiting up to 6 minutes for the guest build to join");
             bool ok = false;
@@ -251,9 +265,30 @@ namespace Backpacking.UI
             Check(ok, $"with both asking, the clock speeds up ({clock.TimeMultiplier:0.#}x)");
             clock.ClearSpeed(this);
 
+            // The guest's stove: here, and theirs.
+            CampStove stove = null;
+            yield return Until(() => (stove = FindObjectsByType<CampStove>(FindObjectsSortMode.None).FirstOrDefault(s => CampOwner.IsOthers(s.gameObject, out _))) != null,
+                60f, r => ok = r);
+            Check(ok, "the guest's stove shows up here");
+            if (stove != null)
+            {
+                CampOwner.IsOthers(stove.gameObject, out string owner);
+                var options = new System.Collections.Generic.List<InteractionOption>();
+                stove.GetOptions(player.GetComponent<Interactor>(), options);
+                InteractionOption packAway = options.FirstOrDefault(option => option.Label == "Pack the stove away");
+                Check(owner == "Guesty" && packAway.Label != null && !packAway.Enabled, $"it's {owner}'s, and only they can pack it away");
+            }
+            yield return Until(() => stove == null, 60f, r => ok = r);
+            Check(ok, "when the guest packs their stove away, it's gone here too");
+
             // The guest leaves when it's done.
             yield return Until(() => CoopSession.PlayerCount < 2, 90f, r => ok = r);
             Check(ok, "the guest left, and the host carries on");
+            var saves = FindAnyObjectByType<Saving.SaveSystem>();
+            yield return Until(() => saves.Guests.Values.Any(hiker => hiker.character != null && hiker.character.name == "Guesty"), 5f, r => ok = r);
+            Saving.HikerSave kept = saves.Guests.Values.FirstOrDefault();
+            Check(ok, $"the host kept the guest's hiker for when they rejoin ({saves.Guests.Count} kept"
+                      + (kept != null ? $", ${kept.backpack?.money} and {kept.backpack?.food?.Count} kinds of food" : "") + ")");
             yield return new WaitForSecondsRealtime(1f);
             Check(Other() == null, "their hiker is gone");
             CoopSession.Instance.Leave();
@@ -302,6 +337,46 @@ namespace Backpacking.UI
             SnapHiker("guest-sees-host", host.Body.transform);
             Check(truck != null && !truck.Simulated, "the parked truck follows the host's game");
 
+            // Late to a trip already on the trail: kitted out from the starting money.
+            var backpack = player.GetComponent<Backpack>();
+            var arrival = FindAnyObjectByType<Trip.ArrivalGuide>();
+            Check(backpack.HasPack && backpack.OwnsTent && backpack.Money < Trip.ArrivalGuide.StartingMoney && arrival.Phase == Trip.ArrivalPhase.OnTheTrail,
+                $"a late joiner gets a starter kit: {(backpack.HasPack ? backpack.Pack.Name : "no pack")}, tent {backpack.OwnsTent}, ${backpack.Money} left, {arrival.Phase}");
+
+            // The host's fire, lit before joining.
+            Campfire fire = FindObjectsByType<Campfire>(FindObjectsSortMode.None).FirstOrDefault();
+            Check(fire != null && fire.IsBurning && CampOwner.IsOthers(fire.gameObject, out _),
+                $"the host's campfire is here, burning ({(fire != null ? $"{fire.FuelHours:0.0} h of wood" : "none")})");
+
+            // Set up a stove of our own, for the host to see.
+            var placer = player.GetComponent<CampPlacer>();
+            Vector3 stovePlace = player.transform.position + player.transform.forward * 1.5f;
+            stovePlace.y = GroundCover.HeightAt(stovePlace);
+            GameObject stove = placer.Spawn(CampItem.Stove, stovePlace, Quaternion.identity);
+
+            // The animals are the host's: copies here, none of this game's own.
+            yield return Until(() => Animal.All.Any(animal => animal.Puppet) && !Animal.All.Any(animal => !animal.Puppet), 10f, r => ok = r);
+            Check(ok, $"the rabbits and deer are the host's ({Animal.All.Count(animal => animal.Puppet)} copies, {Animal.All.Count(animal => !animal.Puppet)} of our own)");
+            Animal rabbit = Animal.All.Where(animal => animal.Puppet && animal.Kind == AnimalKind.Rabbit && !animal.IsDead)
+                .OrderBy(animal => Vector3.Distance(animal.transform.position, player.transform.position)).FirstOrDefault();
+            if (rabbit == null)
+                Note("no rabbits about to shoot");
+            else
+            {
+                Vector3 centre = rabbit.GetComponentsInChildren<Collider>().First(collider => collider.isTrigger).bounds.center;
+                rabbit.TakeArrow(centre, rabbit.transform.right);
+                yield return Until(() => rabbit != null && rabbit.IsDead, 10f, r => ok = r);
+                Check(ok, "a rabbit shot here dies in the host's game, and here");
+                if (ok)
+                {
+                    var carcass = new System.Collections.Generic.List<InteractionOption>();
+                    rabbit.GetOptions(player.GetComponent<Interactor>(), carcass);
+                    int before = backpack.CountFood(FoodKind.RabbitCarcass);
+                    carcass.FirstOrDefault(option => option.Label == "Take the rabbit").Execute?.Invoke();
+                    Check(backpack.CountFood(FoodKind.RabbitCarcass) == before + 1, "took the rabbit");
+                }
+            }
+
             Door door = FrontDoor();
             yield return Until(() => door != null && door.IsOpen, 30f, r => ok = r);
             Check(ok, "the front door opens when the host opens it");
@@ -349,6 +424,18 @@ namespace Backpacking.UI
             yield return new WaitForSecondsRealtime(3f);
             clock.ClearSpeed(this);
 
+            // Pack the stove away: it goes from the host's game too.
+            yield return new WaitForSecondsRealtime(3f);
+            var stoveOptions = new System.Collections.Generic.List<InteractionOption>();
+            if (stove != null)
+            {
+                stove.GetComponent<CampStove>().GetOptions(player.GetComponent<Interactor>(), stoveOptions);
+                InteractionOption packAway = stoveOptions.FirstOrDefault(option => option.Label == "Pack the stove away");
+                Check(packAway.Label != null && packAway.Enabled, "our own stove can be packed away");
+                packAway.Execute?.Invoke();
+            }
+            yield return new WaitForSecondsRealtime(3f);
+
             Check(CoopSession.IsGuest, "still a guest");
             CoopSession.Instance.Leave();
             yield return new WaitForSecondsRealtime(2f);
@@ -363,6 +450,9 @@ namespace Backpacking.UI
             Debug.Log($"[CoopTest] {(failures == 0 ? "passed" : failures + " failed")}; see {logPath}");
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;
+            // From the command line (-batchmode -executeMethod ...CoopTestRun.Run, without -quit): done.
+            if (Application.isBatchMode)
+                UnityEditor.EditorApplication.delayCall += () => UnityEditor.EditorApplication.Exit(failures == 0 ? 0 : 1);
 #else
             Application.Quit();
 #endif

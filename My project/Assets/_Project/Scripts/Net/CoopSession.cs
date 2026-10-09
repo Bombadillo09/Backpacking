@@ -92,6 +92,31 @@ namespace Backpacking.Net
         /// <summary>Raised on the guest when the session ends under them (the host left, or the connection dropped), with why.</summary>
         public static event Action<string> Ended;
         public static event Action StatusChanged;
+        /// <summary>Raised on a guest just before it leaves the trip, while there's still time to send the host something.</summary>
+        public static event Action Leaving;
+
+        /// <summary>
+        /// Who this player is, the same every time they play (made once and kept in the settings): the host keeps a
+        /// guest's hiker and gear under it. "-coop-key name" on the command line overrides it, for testing.
+        /// </summary>
+        public static string HikerKey
+        {
+            get
+            {
+                string[] args = Environment.GetCommandLineArgs();
+                int at = Array.IndexOf(args, "-coop-key");
+                if (at >= 0 && at + 1 < args.Length)
+                    return args[at + 1];
+                string key = PlayerPrefs.GetString("coop.hikerKey", "");
+                if (string.IsNullOrEmpty(key))
+                {
+                    key = Guid.NewGuid().ToString("N");
+                    PlayerPrefs.SetString("coop.hikerKey", key);
+                    PlayerPrefs.Save();
+                }
+                return key;
+            }
+        }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
@@ -101,6 +126,7 @@ namespace Backpacking.Net
             JoinRequested = null;
             Ended = null;
             StatusChanged = null;
+            Leaving = null;
         }
 
         /// <summary>Starts Steam with the game, so invites reach it, and picks up "+connect_lobby" from a launch by invite.</summary>
@@ -108,6 +134,7 @@ namespace Backpacking.Net
         static void Boot()
         {
             _ = Instance;
+            Camp.CampOwner.LocalKey = HikerKey;
             string[] args = Environment.GetCommandLineArgs();
             for (int i = 0; i < args.Length - 1; i++)
                 if (args[i] == "+connect_lobby" && ulong.TryParse(args[i + 1], out ulong id))
@@ -157,6 +184,8 @@ namespace Backpacking.Net
             }
             steamTransport = gameObject.AddComponent<FacepunchTransport>();
             directTransport = gameObject.AddComponent<UnityTransport>();
+            // Someone joining gets the whole camp in one message (every patch of brush cut, say): more than the default 6 KB.
+            directTransport.MaxPayloadSize = 512 * 1024;
             network = gameObject.AddComponent<NetworkManager>();
             network.NetworkConfig = new NetworkConfig
             {
@@ -476,6 +505,9 @@ namespace Backpacking.Net
                 SteamFriends.ClearRichPresence();
             if (network != null && network.IsListening)
             {
+                // The messages already queued (a guest's hiker, say) still go before the connection closes.
+                if (!network.IsServer && !leaving)
+                    Leaving?.Invoke();
                 leaving = true;
                 network.Shutdown();
             }

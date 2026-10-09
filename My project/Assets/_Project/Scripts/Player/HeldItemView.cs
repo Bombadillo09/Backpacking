@@ -27,6 +27,8 @@ namespace Backpacking.Player
         float raise, swingTime = -1f, useTime = -1f;
         readonly List<Material> owned = new();
 
+        public HeldItemLibrary Library => library;
+
         void OnEnable()
         {
             Undergrowth.Swung += OnSwung;

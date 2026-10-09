@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using Backpacking.Camp;
 using Backpacking.Player;
 using Backpacking.Survival;
 using Backpacking.UI;
@@ -53,9 +54,10 @@ namespace Backpacking.Net
     /// everyone asks, so it never skips while someone is awake and hiking. Doors swing for everyone. The truck's
     /// seats are given out by the host, and the truck's physics run in the driver's game (the host's while it's
     /// parked) while everyone else's truck follows. The truck bed is shared: what anyone puts in or takes out of it,
-    /// everyone sees. Spawned by the host when a session starts.
+    /// everyone sees. The camp, wildlife and guests' hikers are in the other parts of this class. Spawned by the host
+    /// when a session starts.
     /// </summary>
-    public class CoopWorld : NetworkBehaviour
+    public partial class CoopWorld : NetworkBehaviour
     {
         [Tooltip("Game minutes the clock may drift from the host's before it's set straight.")]
         [SerializeField] float clockTolerance = 1.5f;
@@ -97,6 +99,9 @@ namespace Backpacking.Net
             if (truck != null)
                 truck.SeatTakenByOther = seat => seats.Value[seat] != TruckSeats.Empty && seats.Value[seat] != NetworkManager.LocalClientId;
 
+            SpawnCamp();
+            SpawnWildlife();
+            SpawnHikers();
             if (IsServer)
             {
                 NetworkManager.OnClientDisconnectCallback += OnClientLeft;
@@ -104,8 +109,8 @@ namespace Backpacking.Net
                 synced = true;
             }
             else
-                // Ask for everything as it is now: weather, doors, the truck bed, and where to start.
-                RequestSnapshotRpc();
+                // Ask for everything as it is now: weather, doors, the truck bed, the camp, the animals, and how to start.
+                RequestSnapshotRpc(CampOwner.LocalKey);
 
             waitLine = UIBuild.Text("", "coop-wait", "shadowed");
             waitLine.SetVisible(false);
@@ -118,6 +123,9 @@ namespace Backpacking.Net
                 Current = null;
             Door.Toggled -= OnDoorToggled;
             Pickup.LocalSeatChanged -= OnLocalSeatChanged;
+            DespawnWildlife();
+            DespawnHikers();
+            OtherHikers.Clear();
             if (NetworkManager != null)
                 NetworkManager.OnClientDisconnectCallback -= OnClientLeft;
             if (clock != null)
@@ -141,6 +149,9 @@ namespace Backpacking.Net
             UpdateClock();
             UpdateTruck();
             UpdateBed();
+            UpdateCamp();
+            UpdateWildlife();
+            UpdateHikers();
             if (IsServer && Time.unscaledTime >= nextWeather && weather != null)
             {
                 nextWeather = Time.unscaledTime + weatherEvery;
@@ -228,7 +239,7 @@ namespace Backpacking.Net
         // ---------- Joining: everything as it is now ----------
 
         [Rpc(SendTo.Server)]
-        void RequestSnapshotRpc(RpcParams rpcParams = default)
+        void RequestSnapshotRpc(string key, RpcParams rpcParams = default)
         {
             ulong guest = rpcParams.Receive.SenderClientId;
             var open = new StringBuilder(doors.Length);
@@ -236,12 +247,15 @@ namespace Backpacking.Net
                 open.Append(door != null && door.IsOpen ? '1' : '0');
             string weatherJson = weather != null ? JsonUtility.ToJson(weather.CaptureState()) : "";
             StartSpot(out Vector3 spot, out float facing);
+            int phase = arrival != null ? (int)arrival.Phase : (int)Trip.ArrivalPhase.OnTheTrail;
             SnapshotRpc(clock != null ? clock.Day : 1, clock != null ? clock.Hour : 8f, weatherJson, open.ToString(), BedJson(), spot, facing,
-                RpcTarget.Single(guest, RpcTargetUse.Temp));
+                SharedWorldJson(), StoredHiker(guest, key), phase, RpcTarget.Single(guest, RpcTargetUse.Temp));
+            SendAllAnimals(guest);
         }
 
         [Rpc(SendTo.SpecifiedInParams)]
-        void SnapshotRpc(int day, float hour, string weatherJson, string openDoors, string bed, Vector3 spot, float facing, RpcParams rpcParams)
+        void SnapshotRpc(int day, float hour, string weatherJson, string openDoors, string bed, Vector3 spot, float facing,
+            string world, string hiker, int hostPhase, RpcParams rpcParams)
         {
             if (clock != null)
                 clock.SetDayAndTime(day, hour);
@@ -250,17 +264,9 @@ namespace Backpacking.Net
                 if (doors[i] != null)
                     doors[i].SetOpen(openDoors[i] == '1');
             ApplyBed(bed);
+            ApplySharedWorld(world);
             synced = true;
-            // Start beside the host.
-            if (player != null && !player.Mounted)
-            {
-                var controller = player.GetComponent<CharacterController>();
-                if (controller != null)
-                    controller.enabled = false;
-                player.transform.SetPositionAndRotation(spot, Quaternion.Euler(0f, facing, 0f));
-                if (controller != null)
-                    controller.enabled = true;
-            }
+            StartGuest(hiker, hostPhase, spot, facing);
         }
 
         /// <summary>
@@ -347,6 +353,7 @@ namespace Backpacking.Net
         void OnClientLeft(ulong clientId)
         {
             wanted.Remove(clientId);
+            guestKeys.Remove(clientId);
             TruckSeats next = seats.Value;
             for (int i = 0; i < 4; i++)
                 if (next[i] == clientId)

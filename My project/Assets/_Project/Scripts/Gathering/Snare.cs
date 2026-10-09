@@ -52,7 +52,11 @@ namespace Backpacking.Gathering
         {
             if (caught || player == null)
                 return;
-            if ((player.position - transform.position).sqrMagnitude < disturbanceRadius * disturbanceRadius)
+            // A friend's snare catches in their game, and the catch comes over from there.
+            if (Camp.CampOwner.IsOthers(gameObject, out _))
+                return;
+            if ((player.position - transform.position).sqrMagnitude < disturbanceRadius * disturbanceRadius
+                || OtherHikers.AnyWithin(transform.position, disturbanceRadius))
                 return;
 
             float hours = Time.deltaTime * timeOfDay.HoursPerSecond;
@@ -109,7 +113,7 @@ namespace Backpacking.Gathering
                 }
                 backpack.AddSnare();
                 Destroy(gameObject);
-            }));
+            }, Camp.CampOwner.PackProblem(gameObject)));
         }
     }
 }

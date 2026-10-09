@@ -12,6 +12,11 @@ namespace Backpacking.Wildlife
     /// Animals appear out of sight a little way off, and are removed once far behind. Rabbits and deer are most
     /// active around dawn and dusk; squirrels, birds and butterflies by day.
     /// Leave a prefab slot empty to use a placeholder (or, for rabbits, the built-in model).
+    /// <para>
+    /// On a trip with friends, wildlife lives around each of them. The host's game runs the rabbits and deer (they're
+    /// hunted, so everyone must see the same ones) and the guests' games show copies (<see cref="AnimalsFromHost"/>);
+    /// squirrels, birds and butterflies are each game's own.
+    /// </para>
     /// </summary>
     public class WildlifeSpawner : MonoBehaviour
     {
@@ -67,6 +72,11 @@ namespace Backpacking.Wildlife
 
         static WildlifeSpawner current;
 
+        /// <summary>A co-op guest: the rabbits and deer come from the host's game, so this one makes none of its own.</summary>
+        public static bool AnimalsFromHost { get; set; }
+
+        public static WildlifeSpawner Current => current;
+
         readonly List<GameObject> rabbits = new();
         readonly List<GameObject> deerHerd = new();
         readonly List<GameObject> flocks = new();
@@ -74,9 +84,15 @@ namespace Backpacking.Wildlife
         readonly List<GameObject> butterflies = new();
         Transform container;
         float nextTickTime;
+        // Whose surroundings get the next new animal: this player (0) or one of the others.
+        int spawnTurn;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() => current = null;
+        static void ResetStatics()
+        {
+            current = null;
+            AnimalsFromHost = false;
+        }
 
         void Awake() => current = this;
 
@@ -104,9 +120,11 @@ namespace Backpacking.Wildlife
             float night = 1f - timeOfDay.Daylight;
             float day = Mathf.Clamp01(timeOfDay.Daylight * 1.5f - 0.3f);
             float rain = weather != null ? weather.RainIntensity : 0f;
+            // Friends hiking apart each have wildlife around them.
+            int groups = HikerGroups();
 
-            Maintain(rabbits, Mathf.RoundToInt(maxRabbits * Mathf.Lerp(0.4f, 1f, Mathf.Max(twilight, night * 0.8f))), Species.Rabbit, initial);
-            Maintain(deerHerd, Mathf.RoundToInt(maxDeer * Mathf.Lerp(0.4f, 1f, twilight)), Species.Deer, initial);
+            Maintain(rabbits, AnimalsFromHost ? 0 : Mathf.RoundToInt(groups * maxRabbits * Mathf.Lerp(0.4f, 1f, Mathf.Max(twilight, night * 0.8f))), Species.Rabbit, initial);
+            Maintain(deerHerd, AnimalsFromHost ? 0 : Mathf.RoundToInt(groups * maxDeer * Mathf.Lerp(0.4f, 1f, twilight)), Species.Deer, initial);
             // Birds and squirrels shelter in heavy rain.
             Maintain(flocks, Mathf.RoundToInt(maxBirdFlocks * day * Mathf.Lerp(1f, 0.3f, rain)), Species.Birds, initial);
             Maintain(squirrels, squirrelPrefab == null ? 0 : Mathf.RoundToInt(maxSquirrels * day * Mathf.Lerp(1f, 0.2f, rain)), Species.Squirrel, initial);
@@ -120,6 +138,37 @@ namespace Backpacking.Wildlife
             Maintain(butterflies, butterflyWeather && butterflyPrefab != null ? maxButterflies : 0, Species.Butterfly, initial);
         }
 
+        /// <summary>How many separate groups the hikers are in (more than 150 m from each other), alone 1.</summary>
+        int HikerGroups()
+        {
+            var leaders = new List<Vector3> { player.transform.position };
+            foreach (OtherHiker other in OtherHikers.All)
+            {
+                bool alone = true;
+                foreach (Vector3 leader in leaders)
+                    if ((leader - other.position).sqrMagnitude < 150f * 150f)
+                        alone = false;
+                if (alone)
+                    leaders.Add(other.position);
+            }
+            return leaders.Count;
+        }
+
+        /// <summary>The flat distance from the nearest hiker (this player or a friend).</summary>
+        float DistanceToHikers(Vector3 position)
+        {
+            Vector3 offset = position - player.transform.position;
+            offset.y = 0f;
+            float nearest = offset.magnitude;
+            foreach (OtherHiker other in OtherHikers.All)
+            {
+                offset = position - other.position;
+                offset.y = 0f;
+                nearest = Mathf.Min(nearest, offset.magnitude);
+            }
+            return nearest;
+        }
+
         static float Bell(float hour, float centre, float width)
         {
             float d = Mathf.DeltaAngle(hour * 15f, centre * 15f) / 15f / width;
@@ -129,11 +178,9 @@ namespace Backpacking.Wildlife
         /// <summary>How many live rabbits are within <paramref name="radius"/> metres (for snares).</summary>
         public static int RabbitsNear(Vector3 position, float radius)
         {
-            if (current == null)
-                return 0;
             int count = 0;
-            foreach (GameObject animal in current.rabbits)
-                if (animal != null && (animal.transform.position - position).sqrMagnitude < radius * radius)
+            foreach (Animal animal in Animal.All)
+                if (animal.Kind == AnimalKind.Rabbit && !animal.IsDead && (animal.transform.position - position).sqrMagnitude < radius * radius)
                     count++;
             return count;
         }
@@ -144,8 +191,9 @@ namespace Backpacking.Wildlife
         /// <summary>Removes far-off animals, then adds one if there are fewer than wanted.</summary>
         void Maintain(List<GameObject> group, int wanted, Species species, bool initial)
         {
-            Vector3 here = player.transform.position;
             float limit = species switch { Species.Butterfly => 80f, Species.Squirrel => 120f, _ => despawnDistance };
+            // The rabbits and deer near friends are the host's to keep; everything else lives around this player alone.
+            bool shared = species is Species.Rabbit or Species.Deer;
             for (int i = group.Count - 1; i >= 0; i--)
             {
                 GameObject animal = group[i];
@@ -154,12 +202,14 @@ namespace Backpacking.Wildlife
                     group.RemoveAt(i);
                     continue;
                 }
-                Vector3 offset = animal.transform.position - here;
+                Vector3 offset = animal.transform.position - player.transform.position;
                 offset.y = 0f;
+                float distance = shared ? DistanceToHikers(animal.transform.position) : offset.magnitude;
                 // A wounded or dead animal stays put for tracking and butchering, unless the player's left the area.
-                if (animal.TryGetComponent(out Animal hunted) && hunted.KeepAround && offset.magnitude < 900f)
+                bool handedOver = shared && AnimalsFromHost;
+                if (!handedOver && animal.TryGetComponent(out Animal hunted) && hunted.KeepAround && distance < 900f)
                     continue;
-                if (offset.magnitude > limit)
+                if (distance > limit || handedOver)
                 {
                     Destroy(animal);
                     group.RemoveAt(i);
@@ -178,7 +228,12 @@ namespace Backpacking.Wildlife
                 return false;
             TerrainData data = terrain.terrainData;
             Vector3 origin = terrain.transform.position;
-            Transform view = player.CameraPivot;
+            // Rabbits and deer take turns appearing around each hiker; the rest only around this player.
+            bool shared = species is Species.Rabbit or Species.Deer;
+            int turn = shared && OtherHikers.All.Count > 0 ? spawnTurn++ % (OtherHikers.All.Count + 1) : 0;
+            Vector3 centre = turn == 0 ? player.transform.position : OtherHikers.All[turn - 1].position;
+            Vector3 look = turn == 0 ? player.CameraPivot.forward : OtherHikers.All[turn - 1].forward;
+            look.y = 0f;
             // Small animals appear closer: they'd be invisible at a deer's distance.
             Vector2 range = species switch
             {
@@ -191,12 +246,12 @@ namespace Backpacking.Wildlife
             {
                 Vector2 direction = Random.insideUnitCircle.normalized;
                 float distance = Random.Range(initial ? Mathf.Min(25f, range.x) : range.x, range.y);
-                var candidate = new Vector3(player.transform.position.x + direction.x * distance, 0f, player.transform.position.z + direction.y * distance);
+                var candidate = new Vector3(centre.x + direction.x * distance, 0f, centre.z + direction.y * distance);
 
-                // Out of view, unless filling the world at the start.
-                Vector3 look = view.forward;
-                look.y = 0f;
+                // Out of view, unless filling the world at the start, and not right beside anyone else.
                 if (!initial && Vector3.Dot(look.normalized, new Vector3(direction.x, 0f, direction.y)) > 0.3f)
+                    continue;
+                if (shared && !initial && DistanceToHikers(candidate) < range.x * 0.8f)
                     continue;
 
                 float u = (candidate.x - origin.x) / data.size.x, v = (candidate.z - origin.z) / data.size.z;
@@ -254,10 +309,31 @@ namespace Backpacking.Wildlife
             animal.transform.SetParent(container, false);
             animal.transform.position = position;
             // A little size variety.
-            animal.transform.localScale *= Random.Range(0.85f, 1.15f);
-            animal.AddComponent<Animal>().Initialise(isRabbit ? rabbit : deer, isRabbit ? AnimalKind.Rabbit : AnimalKind.Deer, player, timeOfDay,
+            float size = Random.Range(0.85f, 1.15f);
+            animal.transform.localScale *= size;
+            var created = animal.AddComponent<Animal>();
+            created.Size = size;
+            created.Initialise(isRabbit ? rabbit : deer, isRabbit ? AnimalKind.Rabbit : AnimalKind.Deer, player, timeOfDay,
                 isRabbit ? null : Sounds.DeerAlarm());
             return animal;
+        }
+
+        /// <summary>A copy of a rabbit or deer the host's game runs, to show here.</summary>
+        public Animal SpawnCopy(AnimalKind kind, float size, AnimalSnapshot snapshot)
+        {
+            bool isRabbit = kind == AnimalKind.Rabbit;
+            GameObject animal = isRabbit
+                ? rabbitPrefab != null ? Instantiate(rabbitPrefab) : rabbitMaterial != null ? SmallAnimals.Rabbit(rabbitMaterial) : PlaceholderAnimals.Rabbit()
+                : deerPrefab != null ? Instantiate(deerPrefab) : PlaceholderAnimals.Deer();
+            if (container == null)
+                container = new GameObject("Wildlife").transform;
+            animal.transform.SetParent(container, false);
+            animal.transform.position = snapshot.position;
+            animal.transform.localScale *= size;
+            var copy = animal.AddComponent<Animal>();
+            copy.Size = size;
+            copy.InitialisePuppet(isRabbit ? rabbit : deer, kind, player, timeOfDay, isRabbit ? null : Sounds.DeerAlarm(), snapshot);
+            return copy;
         }
 
         GameObject SpawnSquirrel(Vector3 position)

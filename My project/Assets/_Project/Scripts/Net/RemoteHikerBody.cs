@@ -14,7 +14,8 @@ namespace Backpacking.Net
     /// </summary>
     public class RemoteHikerBody : MonoBehaviour
     {
-        const float EyeHeight = 1.68f;
+        /// <summary>Every remote hiker is scaled to this eye height.</summary>
+        public const float EyeHeight = 1.68f;
         const float NameRange = 60f;
 
         static readonly int SpeedId = Animator.StringToHash("Speed");
@@ -53,6 +54,7 @@ namespace Backpacking.Net
             avatar.transform.SetParent(root.transform, false);
             body.appearance = avatar.AddComponent<CharacterAppearance>();
             body.appearance.Library = library;
+            root.AddComponent<RemoteHeldItem>().Initialise(body);
             return body;
         }
 

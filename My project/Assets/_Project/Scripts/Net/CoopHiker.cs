@@ -30,6 +30,7 @@ namespace Backpacking.Net
             Chair = 512,
             Bottle = 1024,
             Machete = 2048,
+            Sprinting = 4096,
         }
 
         public Vector3 position;
@@ -41,6 +42,12 @@ namespace Backpacking.Net
         public byte held;
         /// <summary>Counts machete swings, so a missed packet doesn't lose one.</summary>
         public byte swings;
+        /// <summary>Which food is in hand (<see cref="FoodKind"/>), when it's food.</summary>
+        public byte heldFood;
+        /// <summary>Counts bites, drinks and bandages, like <see cref="swings"/>.</summary>
+        public byte uses;
+        /// <summary>The bow raised to aim and the string drawn, 0 to 255.</summary>
+        public byte bowAim, bowDraw;
 
         public bool Has(Flag flag) => (flags & flag) != 0;
 
@@ -56,6 +63,10 @@ namespace Backpacking.Net
             serializer.SerializeValue(ref seat);
             serializer.SerializeValue(ref held);
             serializer.SerializeValue(ref swings);
+            serializer.SerializeValue(ref heldFood);
+            serializer.SerializeValue(ref uses);
+            serializer.SerializeValue(ref bowAim);
+            serializer.SerializeValue(ref bowDraw);
         }
     }
 
@@ -79,9 +90,10 @@ namespace Backpacking.Net
         Backpack backpack;
         PlayerAvatar avatar;
         RemoteHikerBody body;
+        Hunting.Bow bow;
         HikerState latest;
         float nextSend;
-        byte swings;
+        byte swings, uses;
         string sentProfile;
 
         /// <summary>Every hiker in the session, this player's own included.</summary>
@@ -119,6 +131,7 @@ namespace Backpacking.Net
             {
                 FindLocalHiker();
                 Undergrowth.Swung += OnSwung;
+                Hotbar.Used += OnUsed;
             }
             else
             {
@@ -131,6 +144,9 @@ namespace Backpacking.Net
         {
             all.Remove(this);
             Undergrowth.Swung -= OnSwung;
+            Hotbar.Used -= OnUsed;
+            if (!IsOwner)
+                World.OtherHikers.Remove(OwnerClientId);
             if (body != null)
                 Destroy(body.gameObject);
         }
@@ -143,9 +159,13 @@ namespace Backpacking.Net
             activity = player.GetComponent<PlayerActivity>();
             backpack = player.GetComponent<Backpack>();
             avatar = player.GetComponent<PlayerAvatar>();
+            bow = player.GetComponentInChildren<Hunting.Bow>();
+            if (bow == null)
+                bow = FindAnyObjectByType<Hunting.Bow>();
         }
 
         void OnSwung() => swings++;
+        void OnUsed(HotbarKind kind) => uses++;
 
         void Update()
         {
@@ -153,6 +173,19 @@ namespace Backpacking.Net
                 return;
             if (IsOwner)
                 SendOwnState();
+            else if (body != null && latest.position != Vector3.zero)
+            {
+                // The world (animals, snares, wildlife) takes them into account.
+                World.OtherHikers.Set(new World.OtherHiker
+                {
+                    id = OwnerClientId,
+                    position = body.transform.position,
+                    forward = Quaternion.Euler(0f, latest.yaw, 0f) * Vector3.forward,
+                    speed = latest.speed,
+                    crouching = latest.Has(HikerState.Flag.Crouching),
+                    sprinting = latest.Has(HikerState.Flag.Sprinting),
+                });
+            }
         }
 
         // ---------- This player's own hiker ----------
@@ -205,6 +238,8 @@ namespace Backpacking.Net
                 flags |= HikerState.Flag.Grounded;
             if (player.IsCrouching)
                 flags |= HikerState.Flag.Crouching;
+            if (player.IsSprinting)
+                flags |= HikerState.Flag.Sprinting;
             if (activity != null && activity.IsBusy && !activity.IsSleeping)
                 flags |= HikerState.Flag.Busy;
             if (activity != null && activity.IsSleeping)
@@ -230,7 +265,15 @@ namespace Backpacking.Net
                     flags |= HikerState.Flag.Machete;
             }
             state.flags = flags;
-            state.held = (byte)(Hotbar.Current != null ? Hotbar.Current.Held.kind : HotbarKind.Empty);
+            HotbarSlot inHand = Hotbar.Current != null ? Hotbar.Current.Held : new HotbarSlot(HotbarKind.Empty);
+            state.held = (byte)inHand.kind;
+            state.heldFood = (byte)inHand.food;
+            state.uses = uses;
+            if (bow != null && bow.isActiveAndEnabled)
+            {
+                state.bowAim = (byte)Mathf.RoundToInt(Mathf.Clamp01(bow.Aim) * 255f);
+                state.bowDraw = (byte)Mathf.RoundToInt(Mathf.Clamp01(bow.Draw) * 255f);
+            }
             return state;
         }
 

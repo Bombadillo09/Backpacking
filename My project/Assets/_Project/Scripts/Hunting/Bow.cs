@@ -47,6 +47,12 @@ namespace Backpacking.Hunting
         float draw, fullFor, raise, aim, nextShot;
         bool zoomed;
 
+        /// <summary>How far the bow is raised to aim (0 lowered, 1 up), and how far the string is drawn.</summary>
+        public float Aim => aim;
+        public float Draw => draw;
+        /// <summary>Counts shots, for others to see each one.</summary>
+        public byte Shots { get; private set; }
+
         void Awake()
         {
             attack = inputActions.FindActionMap("Player", true).FindAction("Attack", true);
@@ -117,6 +123,7 @@ namespace Backpacking.Hunting
             if (!backpack.TryUseArrow())
                 return;
             nextShot = Time.time + 0.7f;
+            Shots++;
             float power = Mathf.Lerp(0.45f, 1f, Mathf.Pow(Mathf.InverseLerp(0.5f, 1f, draw), 1.3f));
             Transform eye = player.CameraPivot;
             Arrow.Shoot(player.AimOrigin + eye.forward * 0.4f, eye.forward * (arrowSpeed * power), transform);

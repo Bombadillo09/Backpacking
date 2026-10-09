@@ -50,6 +50,12 @@ namespace Backpacking.Saving
 
         readonly Dictionary<string, GameObject> pickupsAtStart = new();
 
+        /// <summary>Co-op friends' hikers on this trip, by their key: kept in the save so they come back as they were.</summary>
+        public Dictionary<string, HikerSave> Guests { get; } = new();
+
+        /// <summary>The scene's firewood pickups by their save id (null once collected).</summary>
+        public IReadOnlyDictionary<string, GameObject> Pickups => pickupsAtStart;
+
         string SavePath => Path.Combine(Application.persistentDataPath, fileName);
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -105,7 +111,7 @@ namespace Backpacking.Saving
         {
             if (Net.CoopSession.IsGuest)
             {
-                Notifications.Post("On a friend's trip, the host saves the game.");
+                Notifications.Post("On a friend's trip, the host saves the game. Your hiker is kept in their save, ready for when you rejoin.");
                 return;
             }
             SaveData data = Capture();
@@ -230,31 +236,117 @@ namespace Backpacking.Saving
             }
 
             foreach ((CampItem kind, GameObject instance) in placer.PlacedItems)
-            {
-                var state = new PlacedItemState
-                {
-                    kind = kind,
-                    position = instance.transform.position,
-                    rotation = instance.transform.rotation,
-                };
-                if (instance.TryGetComponent(out Campfire fire))
-                {
-                    state.fuelHours = fire.FuelHours;
-                    state.burning = fire.IsBurning;
-                }
-                if (instance.TryGetComponent(out Snare snare))
-                    state.hasCatch = snare.HasCatch;
-                if (instance.TryGetComponent(out Tent tent))
-                {
-                    state.stage = tent.Stage;
-                    state.matLaidOut = tent.MatLaidOut;
-                    state.bagLaidOut = tent.BagLaidOut;
-                }
-                if (instance.TryGetComponent(out CampChair chair))
-                    state.chairStage = chair.Stage;
-                data.placedItems.Add(state);
-            }
+                data.placedItems.Add(CapturePlaced(kind, instance));
+            data.guests.AddRange(Guests.Values);
             return data;
+        }
+
+        /// <summary>A tent, fire, stove, snare or chair as it is now, and whose it is.</summary>
+        public static PlacedItemState CapturePlaced(CampItem kind, GameObject instance)
+        {
+            var state = new PlacedItemState
+            {
+                kind = kind,
+                position = instance.transform.position,
+                rotation = instance.transform.rotation,
+            };
+            if (instance.TryGetComponent(out Campfire fire))
+            {
+                state.fuelHours = fire.FuelHours;
+                state.burning = fire.IsBurning;
+            }
+            if (instance.TryGetComponent(out Snare snare))
+                state.hasCatch = snare.HasCatch;
+            if (instance.TryGetComponent(out Tent tent))
+            {
+                state.stage = tent.Stage;
+                state.matLaidOut = tent.MatLaidOut;
+                state.bagLaidOut = tent.BagLaidOut;
+                state.tentModel = (int)tent.Model;
+            }
+            if (instance.TryGetComponent(out CampChair chair))
+                state.chairStage = chair.Stage;
+            state.owner = CampOwner.KeyOf(instance);
+            state.ownerName = state.owner.Length > 0 && instance.TryGetComponent(out CampOwner owner) ? owner.ownerName : "";
+            return state;
+        }
+
+        /// <summary>
+        /// Puts gear into a saved (or a friend's) state: freshly spawned, or already standing and changed by someone
+        /// else. <paramref name="backpack"/> is this player's, for your own tent's model and bedding.
+        /// </summary>
+        public static void ApplyPlaced(GameObject instance, PlacedItemState item, Backpack backpack, bool fresh)
+        {
+            if (!string.IsNullOrEmpty(item.owner))
+                CampOwner.Set(instance, item.owner, item.ownerName);
+            bool mine = CampOwner.KeyOf(instance).Length == 0;
+            if (!fresh && ((instance.transform.position - item.position).sqrMagnitude > 0.0004f || Quaternion.Angle(instance.transform.rotation, item.rotation) > 0.5f))
+                instance.transform.SetPositionAndRotation(item.position, item.rotation);
+            if (instance.TryGetComponent(out Campfire fire) && (fresh || fire.IsBurning != item.burning || Mathf.Abs(fire.FuelHours - item.fuelHours) > 0.05f))
+                fire.Restore(item.fuelHours, item.burning);
+            if (instance.TryGetComponent(out Snare snare) && snare.HasCatch != item.hasCatch)
+                snare.HasCatch = item.hasCatch;
+            if (instance.TryGetComponent(out Tent tent))
+            {
+                // Older saves didn't say which tent: it's the one in your pack.
+                TentModel model = item.tentModel >= 0 ? (TentModel)item.tentModel : backpack.TentModel;
+                if (fresh || tent.Model != model || tent.Stage != item.stage)
+                    tent.Setup(model, item.stage);
+                if (fresh && mine)
+                    tent.RestoreBed(item.matLaidOut, item.bagLaidOut, backpack);
+                else
+                    tent.ShowBed(item.matLaidOut, item.bagLaidOut, backpack);
+            }
+            if (instance.TryGetComponent(out CampChair chair) && (fresh || chair.Stage != item.chairStage))
+                chair.Setup(item.chairStage);
+        }
+
+        // ---------- One hiker (a co-op guest's) ----------
+
+        /// <summary>This player's hiker on their own, for the host to keep while they're a guest.</summary>
+        public HikerSave CaptureHiker(string key)
+        {
+            var hiker = new HikerSave
+            {
+                key = key,
+                position = Tent.Occupied != null ? Tent.Occupied.ExitPosition : player.transform.position,
+                yaw = player.transform.eulerAngles.y,
+                vitals = vitals.CaptureState(),
+                backpack = backpack.CaptureState(),
+                trip = trip != null ? trip.CaptureState() : null,
+                character = avatar != null ? avatar.Profile.Clone() : null,
+                pack = packHandling != null ? packHandling.CaptureState() : null,
+                arrivalPhase = arrival != null ? (int)arrival.Phase : (int)ArrivalPhase.OnTheTrail,
+            };
+            foreach (NavigationPoint point in NavigationPoint.All)
+                if (point.Visited && point.TryGetComponent(out SaveId saveId))
+                    hiker.visitedPoints.Add(saveId.Id);
+            return hiker;
+        }
+
+        /// <summary>Back as they were: a guest rejoining a trip. Placed at <paramref name="at"/> instead of where they left, if given.</summary>
+        public void ApplyHiker(HikerSave hiker, Vector3? at = null, float atYaw = 0f)
+        {
+            if (hiker.vitals != null)
+                vitals.RestoreState(hiker.vitals);
+            if (hiker.backpack != null)
+                backpack.RestoreState(hiker.backpack);
+            if (trip != null && hiker.trip != null)
+                trip.RestoreState(hiker.trip);
+            if (avatar != null && hiker.character != null && !string.IsNullOrEmpty(hiker.character.name))
+                avatar.Apply(hiker.character);
+            var controller = player.GetComponent<CharacterController>();
+            controller.enabled = false;
+            player.transform.SetPositionAndRotation(at ?? hiker.position, Quaternion.Euler(0f, at.HasValue ? atYaw : hiker.yaw, 0f));
+            controller.enabled = true;
+            if (packHandling != null)
+                packHandling.RestoreState(hiker.pack);
+            var visited = new HashSet<string>(hiker.visitedPoints ?? new List<string>());
+            foreach (NavigationPoint point in NavigationPoint.All)
+                if (point.TryGetComponent(out SaveId saveId) && visited.Contains(saveId.Id))
+                    point.SetVisited(true);
+            if (arrival != null)
+                arrival.Restore(hiker.arrivalPhase, false);
         }
 
         string DescribeLocation()
@@ -320,20 +412,12 @@ namespace Backpacking.Saving
                     clearing.Restore(spot);
 
             foreach (PlacedItemState item in data.placedItems)
-            {
-                GameObject instance = placer.Spawn(item.kind, item.position, item.rotation);
-                if (instance.TryGetComponent(out Campfire fire))
-                    fire.Restore(item.fuelHours, item.burning);
-                if (instance.TryGetComponent(out Snare snare))
-                    snare.HasCatch = item.hasCatch;
-                if (instance.TryGetComponent(out Tent tent))
-                {
-                    tent.Setup(backpack.TentModel, item.stage);
-                    tent.RestoreBed(item.matLaidOut, item.bagLaidOut, backpack);
-                }
-                if (instance.TryGetComponent(out CampChair chair))
-                    chair.Setup(item.chairStage);
-            }
+                ApplyPlaced(placer.Spawn(item.kind, item.position, item.rotation), item, backpack, fresh: true);
+            Guests.Clear();
+            if (data.guests != null)
+                foreach (HikerSave guest in data.guests)
+                    if (guest != null && !string.IsNullOrEmpty(guest.key))
+                        Guests[guest.key] = guest;
             // Older saves have no pack state: it's on your back.
             if (packHandling != null)
                 packHandling.RestoreState(data.pack);

@@ -24,7 +24,8 @@ namespace Backpacking.Camp
             {
                 backpack.HasStove = true;
                 Destroy(gameObject);
-            }, PackHandling.Current == null || PackHandling.Current.CanReachPack ? null : "Bring it to your pack first (or put the pack on)"));
+            }, CampOwner.PackProblem(gameObject)
+               ?? (PackHandling.Current == null || PackHandling.Current.CanReachPack ? null : "Bring it to your pack first (or put the pack on)")));
         }
     }
 }

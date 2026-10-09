@@ -85,7 +85,8 @@ namespace Backpacking.UI
         void LeaveCoop()
         {
             if (CoopSession.IsGuest)
-                Confirm("Leave your friends' trip and go back to the title screen? Your hiker isn't saved in a friend's trip.", saves.ReturnToTitle);
+                Confirm("Leave your friends' trip and go back to the title screen? The host keeps your hiker and gear in their trip "
+                        + "(once they save), and you'll pick up where you left off when you rejoin.", saves.ReturnToTitle);
             else
                 Confirm("Stop hosting? Everyone else leaves the trip; you carry on alone.", () =>
                 {

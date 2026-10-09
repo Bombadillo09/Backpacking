@@ -49,6 +49,26 @@ namespace Backpacking.Saving
         public int arrivalPhase = (int)Trip.ArrivalPhase.OnTheTrail;
         /// <summary>The tutorial is waiting to start at the trailhead.</summary>
         public bool tutorialPending;
+
+        /// <summary>Friends' hikers from co-op on this trip, so they come back as they were when they rejoin.</summary>
+        public List<HikerSave> guests = new();
+    }
+
+    /// <summary>One hiker on their own: where they are, how they are, and what they carry. A co-op guest's, kept in the host's save.</summary>
+    [Serializable]
+    public class HikerSave
+    {
+        /// <summary>Who they are (<see cref="Camp.CampOwner.LocalKey"/> in their game).</summary>
+        public string key;
+        public Vector3 position;
+        public float yaw;
+        public VitalsState vitals;
+        public BackpackState backpack;
+        public TripState trip;
+        public CharacterProfile character;
+        public PackState pack;
+        public List<string> visitedPoints = new();
+        public int arrivalPhase = (int)Trip.ArrivalPhase.OnTheTrail;
     }
 
     [Serializable]
@@ -80,5 +100,9 @@ namespace Backpacking.Saving
         public ChairStage chairStage = ChairStage.Ready;
         /// <summary>For a pitched tent, whether your mat and sleeping bag are laid out in it.</summary>
         public bool matLaidOut, bagLaidOut;
+        /// <summary>For a tent, which model (-1 in older saves: the one in your pack).</summary>
+        public int tentModel = -1;
+        /// <summary>Whose it is: empty for the save's own hiker, else a co-op friend's key and name.</summary>
+        public string owner = "", ownerName = "";
     }
 }

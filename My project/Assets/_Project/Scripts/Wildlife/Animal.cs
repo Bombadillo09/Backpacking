@@ -55,6 +55,31 @@ namespace Backpacking.Wildlife
         Deer,
     }
 
+    /// <summary>Something a player did to a carcass, for the game that runs the animal to know (see <see cref="Animal.RemoteAction"/>).</summary>
+    public enum CarcassAction
+    {
+        Taken,
+        FieldDressed,
+        Meat,
+        Hide,
+    }
+
+    /// <summary>All of an animal another game needs to show it: where it is and what it's doing, and what's left of its carcass.</summary>
+    public struct AnimalSnapshot
+    {
+        public Vector3 position;
+        public float heading;
+        public float speed;
+        public byte state;
+        public byte wound;
+        public bool watching;
+        public bool fieldDressed;
+        public bool hideTaken;
+        public byte meatLeft;
+        public byte arrowsIn;
+        public float deadAtHour;
+    }
+
     /// <summary>
     /// A ground animal that grazes and wanders, and bolts when the player gets too close. A little further off it
     /// freezes and watches (a rabbit sits up, ears pricked). Walk softly (crouch) to get near; sprinting scares it
@@ -68,9 +93,9 @@ namespace Backpacking.Wildlife
     /// </summary>
     public class Animal : MonoBehaviour, IInteractable
     {
-        enum State { Grazing, Wandering, Fleeing, Bedded, Dead }
+        enum State : byte { Grazing, Wandering, Fleeing, Bedded, Dead }
 
-        enum Wound { None, Vitals, Gut, Leg }
+        enum Wound : byte { None, Vitals, Gut, Leg }
 
         // Game hours a carcass lies before it's gone (scavengers, rot), and before its meat has spoiled.
         const float CarcassHours = 48f;
@@ -79,6 +104,9 @@ namespace Backpacking.Wildlife
         const int DeerMeatKilograms = 14;
 
         static readonly List<Animal> all = new();
+        // While a friend's shot is judged here, what it says goes back to them instead of onto this screen.
+        static bool reporting;
+        static string report;
 
         AnimalProfile profile;
         AnimalKind kind;
@@ -119,6 +147,24 @@ namespace Backpacking.Wildlife
         bool hideTaken;
 
         public static IReadOnlyList<Animal> All => all;
+
+        /// <summary>A new animal living in this game (not a copy of one in another game).</summary>
+        public static event Action<Animal> Spawned;
+        /// <summary>An animal living in this game is gone (left behind, taken, rotted away).</summary>
+        public static event Action<Animal> Removed;
+        /// <summary>Something startled the animals at a point (see <see cref="StartleNear"/>), for co-op to pass on.</summary>
+        public static Action<Vector3, float> Startled;
+        /// <summary>An arrow hit a copy of another game's animal: where on it (in its own space) and which way, to be judged there.</summary>
+        public static Action<Animal, Vector3, Vector3> RemoteHit;
+        /// <summary>A player did something to a copy of another game's carcass.</summary>
+        public static Action<Animal, CarcassAction, int> RemoteAction;
+
+        /// <summary>A copy of an animal another game runs (co-op): it goes where that game says and does nothing by itself.</summary>
+        public bool Puppet { get; private set; }
+        /// <summary>Co-op's number for it, the same in every game.</summary>
+        public int NetId { get; set; }
+        /// <summary>How much bigger or smaller than usual this one is.</summary>
+        public float Size { get; set; } = 1f;
         public AnimalKind Kind => kind;
         public bool IsDead => state == State.Dead;
         /// <summary>Wounded or dead: kept in the world even when the player's far off, so it can be tracked and found.</summary>
@@ -129,8 +175,21 @@ namespace Backpacking.Wildlife
         void OnEnable() => all.Add(this);
         void OnDisable() => all.Remove(this);
 
+        void OnDestroy()
+        {
+            if (!Puppet && profile != null)
+                Removed?.Invoke(this);
+        }
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() => all.Clear();
+        static void ResetStatics()
+        {
+            all.Clear();
+            Spawned = Removed = null;
+            Startled = null;
+            RemoteHit = null;
+            RemoteAction = null;
+        }
 
         /// <summary>Called by the spawner straight after creating the animal.</summary>
         public void Initialise(AnimalProfile animalProfile, AnimalKind animalKind, FirstPersonController watcher, TimeOfDay clock, AudioClip alarmSound)
@@ -172,6 +231,20 @@ namespace Backpacking.Wildlife
             transform.rotation = Quaternion.Euler(0f, heading, 0f);
             lastPosition = transform.position;
             Enter(Random.value < 0.6f ? State.Grazing : State.Wandering);
+            if (!Puppet)
+                Spawned?.Invoke(this);
+        }
+
+        /// <summary>Made by the spawner as a copy of an animal another game runs.</summary>
+        public void InitialisePuppet(AnimalProfile animalProfile, AnimalKind animalKind, FirstPersonController watcher, TimeOfDay clock, AudioClip alarmSound,
+            AnimalSnapshot snapshot)
+        {
+            Puppet = true;
+            Initialise(animalProfile, animalKind, watcher, clock, alarmSound);
+            transform.SetPositionAndRotation(snapshot.position, Quaternion.Euler(0f, snapshot.heading, 0f));
+            heading = snapshot.heading;
+            lastPosition = snapshot.position;
+            ApplySnapshot(snapshot);
         }
 
         /// <summary>
@@ -214,19 +287,18 @@ namespace Backpacking.Wildlife
         {
             if (profile == null || Time.deltaTime <= 0f)
                 return;
+            if (Puppet)
+            {
+                UpdatePuppet();
+                return;
+            }
             if (state == State.Dead)
             {
                 UpdateDead();
                 return;
             }
 
-            Vector3 away = transform.position - player.transform.position;
-            away.y = 0f;
-            float distance = away.magnitude;
-
-            float alert = profile.alertDistance
-                          * (player.IsSprinting ? 1.6f : player.IsCrouching ? 0.45f : 1f)
-                          * (player.HorizontalSpeed < 0.3f ? 0.7f : 1f);
+            NearestThreat(out Vector3 away, out float distance, out float alert);
             if (state == State.Bedded)
             {
                 UpdateBedded(distance, alert);
@@ -274,6 +346,34 @@ namespace Backpacking.Wildlife
             Animate();
         }
 
+        /// <summary>
+        /// The hiker it's most wary of: this player or, on a trip with friends, one of theirs. How far off they are and
+        /// how close they can come before it bolts (further if they're sprinting, much closer if they're creeping).
+        /// </summary>
+        void NearestThreat(out Vector3 away, out float distance, out float alert)
+        {
+            away = transform.position - player.transform.position;
+            away.y = 0f;
+            distance = away.magnitude;
+            alert = AlertDistance(player.IsSprinting, player.IsCrouching, player.HorizontalSpeed);
+            foreach (OtherHiker other in OtherHikers.All)
+            {
+                Vector3 offset = transform.position - other.position;
+                offset.y = 0f;
+                float otherAlert = AlertDistance(other.sprinting, other.crouching, other.speed);
+                // The one closest to scaring it, for how close each may come.
+                if (offset.magnitude / otherAlert < distance / alert)
+                {
+                    away = offset;
+                    distance = offset.magnitude;
+                    alert = otherAlert;
+                }
+            }
+        }
+
+        float AlertDistance(bool sprinting, bool crouching, float speed) =>
+            profile.alertDistance * (sprinting ? 1.6f : crouching ? 0.45f : 1f) * (speed < 0.3f ? 0.7f : 1f);
+
         void Enter(State next)
         {
             state = next;
@@ -295,8 +395,9 @@ namespace Backpacking.Wildlife
         public static void StartleNear(Vector3 point, float radius)
         {
             foreach (Animal animal in all)
-                if (animal.state is State.Grazing or State.Wandering && (animal.transform.position - point).sqrMagnitude < radius * radius)
+                if (!animal.Puppet && animal.state is State.Grazing or State.Wandering && (animal.transform.position - point).sqrMagnitude < radius * radius)
                     animal.Bolt();
+            Startled?.Invoke(point, radius);
         }
 
         void Move()
@@ -405,12 +506,104 @@ namespace Backpacking.Wildlife
         /// </summary>
         public bool TakeArrow(Vector3 point, Vector3 direction)
         {
+            if (Puppet)
+            {
+                // The game that runs it judges the shot; only an arrow passing under a deer flies on from here.
+                if (state != State.Dead && kind == AnimalKind.Deer)
+                {
+                    ArrowEntry(point, direction, out float entryAlong, out float entryHeight);
+                    if (entryHeight < BellyLine && Mathf.Abs(entryAlong) < 0.3f)
+                        return false;
+                }
+                RemoteHit?.Invoke(this, transform.InverseTransformPoint(point), transform.InverseTransformDirection(direction));
+                return true;
+            }
             if (state == State.Dead)
             {
                 arrowsIn++;
                 return true;
             }
+            ArrowEntry(point, direction, out float along, out float height);
+            if (Arrow.Trace)
+                Debug.Log($"[Arrow] {kind} hit at along {along:F2}, height {height:F2}");
 
+            if (kind == AnimalKind.Rabbit)
+            {
+                arrowsIn++;
+                Report("Got it.", 2f);
+                Die();
+                return true;
+            }
+
+            // A deer's box takes in its long legs and its raised head: the body is the band above the legs.
+            if (height < BellyLine && Mathf.Abs(along) < 0.3f)
+                return false;
+            arrowsIn++;
+
+            if (wound != Wound.None)
+            {
+                Report("A second arrow finishes it.", 3f);
+                Die();
+                return true;
+            }
+            if (along > 0.55f && height > 0.5f)
+            {
+                Report("Head shot. It dropped where it stood.", 3f);
+                Die();
+                return true;
+            }
+            if (height < BellyLine)
+            {
+                Wounded(Wound.Leg, Random.Range(3f, 4.5f), Random.Range(160f, 260f));
+                Report("A leg hit. It's run off limping, bleeding a little. Give it time, then follow the blood.", 5f);
+            }
+            else if (along > 0.02f)
+            {
+                // Heart and lungs: it runs on adrenaline for a few seconds and falls.
+                Wounded(Wound.Vitals, 0.25f, Random.Range(25f, 50f));
+                Report("Clean hit, just behind the shoulder. It won't go far.", 4f);
+            }
+            else
+            {
+                Wounded(Wound.Gut, Random.Range(1.5f, 2.5f), Random.Range(120f, 220f));
+                Report("Hit too far back. It's run off wounded. Wait a while before you follow the blood, or you'll push it on.", 6f);
+            }
+            return true;
+        }
+
+        /// <summary>A deer's box takes in its long legs: below this share of its height is the space under its belly.</summary>
+        const float BellyLine = 0.42f;
+
+        /// <summary>
+        /// A friend's arrow, judged here: where it hit (in the animal's own space) and which way it was flying. Returns
+        /// what the shooter should be told, or null.
+        /// </summary>
+        public string TakeArrowFromFriend(Vector3 localPoint, Vector3 localDirection)
+        {
+            reporting = true;
+            report = null;
+            try
+            {
+                TakeArrow(transform.TransformPoint(localPoint), transform.TransformDirection(localDirection));
+            }
+            finally
+            {
+                reporting = false;
+            }
+            return report;
+        }
+
+        static void Report(string text, float seconds)
+        {
+            if (reporting)
+                report = text;
+            else
+                Notifications.Post(text, seconds);
+        }
+
+        /// <summary>Where an arrow goes in: how far along, -1 tail to 1 nose, and how high, 0 hooves to 1 top.</summary>
+        void ArrowEntry(Vector3 point, Vector3 direction, out float along, out float height)
+        {
             // Where it goes in is judged where the arrow crosses the middle of the body, not where it meets the box:
             // a shot from an angle enters the box well forward or back of where it strikes.
             Vector3 half = hitbox.size * 0.5f;
@@ -419,54 +612,8 @@ namespace Backpacking.Wildlife
             if (Mathf.Abs(heading.x) > 0.2f)
                 local += heading * (-local.x / heading.x);
             local = Vector3.Max(-half, Vector3.Min(half, local));
-            float along = Mathf.Clamp(local.z / Mathf.Max(0.01f, half.z), -1f, 1f);
-            float height = Mathf.Clamp01((local.y + half.y) / Mathf.Max(0.01f, hitbox.size.y));
-            if (Arrow.Trace)
-                Debug.Log($"[Arrow] {kind} hit at along {along:F2}, height {height:F2} (local {local:F2})");
-
-            if (kind == AnimalKind.Rabbit)
-            {
-                arrowsIn++;
-                Notifications.Post("Got it.", 2f);
-                Die();
-                return true;
-            }
-
-            // A deer's box takes in its long legs and its raised head: the body is the band above the legs.
-            const float bellyLine = 0.42f;
-            if (height < bellyLine && Mathf.Abs(along) < 0.3f)
-                return false;
-            arrowsIn++;
-
-            if (wound != Wound.None)
-            {
-                Notifications.Post("A second arrow finishes it.", 3f);
-                Die();
-                return true;
-            }
-            if (along > 0.55f && height > 0.5f)
-            {
-                Notifications.Post("Head shot. It dropped where it stood.", 3f);
-                Die();
-                return true;
-            }
-            if (height < bellyLine)
-            {
-                Wounded(Wound.Leg, Random.Range(3f, 4.5f), Random.Range(160f, 260f));
-                Notifications.Post("A leg hit. It's run off limping, bleeding a little. Give it time, then follow the blood.", 5f);
-            }
-            else if (along > 0.02f)
-            {
-                // Heart and lungs: it runs on adrenaline for a few seconds and falls.
-                Wounded(Wound.Vitals, 0.25f, Random.Range(25f, 50f));
-                Notifications.Post("Clean hit, just behind the shoulder. It won't go far.", 4f);
-            }
-            else
-            {
-                Wounded(Wound.Gut, Random.Range(1.5f, 2.5f), Random.Range(120f, 220f));
-                Notifications.Post("Hit too far back. It's run off wounded. Wait a while before you follow the blood, or you'll push it on.", 6f);
-            }
-            return true;
+            along = Mathf.Clamp(local.z / Mathf.Max(0.01f, half.z), -1f, 1f);
+            height = Mathf.Clamp01((local.y + half.y) / Mathf.Max(0.01f, hitbox.size.y));
         }
 
         void Wounded(Wound how, float hoursToDie, float runMetres)
@@ -581,8 +728,161 @@ namespace Backpacking.Wildlife
                 if (fall >= 1f && animator != null)
                     animator.enabled = false;
             }
-            if (timeOfDay.TotalHours - deadAtHour > CarcassHours)
+            if (!Puppet && timeOfDay.TotalHours - deadAtHour > CarcassHours)
                 Destroy(gameObject);
+        }
+
+        // ---------- A copy of another game's animal ----------
+
+        Vector3 netPosition;
+        float netHeading;
+        bool hasNet;
+
+        /// <summary>How it is now, for the other games.</summary>
+        public AnimalSnapshot Snapshot() => new()
+        {
+            position = transform.position,
+            heading = transform.eulerAngles.y,
+            speed = speed,
+            state = (byte)state,
+            wound = (byte)wound,
+            watching = watching,
+            fieldDressed = fieldDressed,
+            hideTaken = hideTaken,
+            meatLeft = (byte)Mathf.Clamp(meatLeft, 0, 255),
+            arrowsIn = (byte)Mathf.Clamp(arrowsIn, 0, 255),
+            deadAtHour = deadAtHour,
+        };
+
+        /// <summary>The game running it says how it is now.</summary>
+        public void ApplySnapshot(AnimalSnapshot snapshot)
+        {
+            var next = (State)snapshot.state;
+            var nextWound = (Wound)snapshot.wound;
+            if (nextWound != Wound.None && wound == Wound.None)
+                BloodTrail.Splash(snapshot.position, nextWound == Wound.Vitals ? 0.35f : 0.2f);
+            if (next != state)
+            {
+                if (next == State.Fleeing && state is State.Grazing or State.Wandering && voice != null)
+                    voice.PlayOneShot(alarm, Random.Range(0.6f, 1f));
+                if (next == State.Bedded)
+                {
+                    fall = 0f;
+                    BloodTrail.Splash(snapshot.position, 0.3f);
+                }
+                if (next == State.Dead)
+                    ShowDeath();
+            }
+            state = next;
+            wound = nextWound;
+            watching = snapshot.watching;
+            fieldDressed = snapshot.fieldDressed;
+            hideTaken = snapshot.hideTaken;
+            meatLeft = snapshot.meatLeft;
+            arrowsIn = snapshot.arrowsIn;
+            deadAtHour = snapshot.deadAtHour;
+            netPosition = snapshot.position;
+            netHeading = snapshot.heading;
+            if (state != State.Dead)
+                speed = snapshot.speed;
+            hasNet = true;
+        }
+
+        /// <summary>Follows where the game running it says it is, smoothly, moving its legs to match; bleeds as it goes, if wounded.</summary>
+        void UpdatePuppet()
+        {
+            if (!hasNet)
+                return;
+            if (state == State.Dead)
+            {
+                if (fall < 1f)
+                {
+                    Vector3 flat = Vector3.Lerp(transform.position, netPosition, 1f - Mathf.Exp(-10f * Time.deltaTime));
+                    transform.position = new Vector3(flat.x, transform.position.y, flat.z);
+                }
+                UpdateDead();
+                return;
+            }
+            float ease = 1f - Mathf.Exp(-10f * Time.deltaTime);
+            // Run on at its speed between updates, then settle on where it was said to be.
+            Vector3 ahead = netPosition + Quaternion.Euler(0f, netHeading, 0f) * Vector3.forward * (speed * 0.05f);
+            transform.position = (transform.position - netPosition).sqrMagnitude > 64f ? netPosition : Vector3.Lerp(transform.position, ahead, ease);
+            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.Euler(0f, netHeading, 0f), ease);
+            if (state == State.Bedded)
+            {
+                speed = 0f;
+                if (moveHash != 0)
+                    animator.SetFloat(moveHash, 0f, 0.15f, Time.deltaTime);
+                return;
+            }
+            if (wound != Wound.None)
+            {
+                Vector3 step = transform.position - lastPosition;
+                step.y = 0f;
+                nextBloodAt -= step.magnitude;
+                if (nextBloodAt <= 0f)
+                {
+                    float spacing = wound == Wound.Vitals ? 0.6f : wound == Wound.Gut ? 1.5f : 2.4f;
+                    nextBloodAt = spacing * Random.Range(0.6f, 1.4f);
+                    BloodTrail.Drop(transform.position + transform.right * Random.Range(-0.2f, 0.2f), wound == Wound.Vitals ? 1.4f : 1f);
+                }
+            }
+            lastPosition = transform.position;
+            Animate();
+        }
+
+        /// <summary>The death as this game shows it: it stops and topples over.</summary>
+        void ShowDeath()
+        {
+            speed = 0f;
+            fall = 0f;
+            standing = Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
+            if (animator != null)
+            {
+                if (moveHash != 0)
+                    animator.SetFloat(moveHash, 0f);
+                if (runHash != 0)
+                    animator.SetFloat(runHash, 0f);
+                animator.speed = 1f;
+            }
+            if (rig != null)
+                rig.Pose(0f, 0f, 0f, false, false);
+            BloodTrail.Splash(transform.position, kind == AnimalKind.Deer ? 0.4f : 0.15f);
+        }
+
+        /// <summary>A friend did something to this carcass, in their game.</summary>
+        public void ApplyFriendAction(CarcassAction action, int amount)
+        {
+            switch (action)
+            {
+                case CarcassAction.Taken:
+                    Destroy(gameObject);
+                    break;
+                case CarcassAction.FieldDressed:
+                    fieldDressed = true;
+                    DropArrows();
+                    break;
+                case CarcassAction.Meat:
+                    meatLeft = Mathf.Max(0, meatLeft - amount);
+                    break;
+                case CarcassAction.Hide:
+                    hideTaken = true;
+                    break;
+            }
+        }
+
+        /// <summary>The arrows in it were taken out (by whoever took or butchered it).</summary>
+        void DropArrows()
+        {
+            arrowsIn = 0;
+            foreach (Arrow stuck in GetComponentsInChildren<Arrow>())
+                Destroy(stuck.gameObject);
+        }
+
+        void Tell(CarcassAction action, int amount = 0)
+        {
+            if (Puppet)
+                RemoteAction?.Invoke(this, action, amount);
         }
 
         bool MeatSpoiled => timeOfDay.TotalHours - deadAtHour > MeatHours;
@@ -598,9 +898,7 @@ namespace Backpacking.Wildlife
                 Notifications.Post(whole == arrowsIn ? $"You get your arrow{(whole > 1 ? "s" : "")} back."
                     : whole == 0 ? "The arrow broke inside." : $"You get {whole} of {arrowsIn} arrows back.", 3f);
             backpack.AddArrows(whole);
-            arrowsIn = 0;
-            foreach (Arrow stuck in GetComponentsInChildren<Arrow>())
-                Destroy(stuck.gameObject);
+            DropArrows();
         }
 
         public void GetOptions(Interactor interactor, List<InteractionOption> options)
@@ -616,6 +914,7 @@ namespace Backpacking.Wildlife
                     backpack.AddFood(FoodKind.RabbitCarcass);
                     RecoverArrows(backpack);
                     TripLog.Tally(TripStat.Rabbits);
+                    Tell(CarcassAction.Taken);
                     Destroy(gameObject);
                 }));
                 return;
@@ -628,6 +927,7 @@ namespace Backpacking.Wildlife
                     {
                         fieldDressed = true;
                         RecoverArrows(backpack);
+                        Tell(CarcassAction.FieldDressed);
                         TripLog.Tally(TripStat.Deer);
                         TripLog.Note(MeatSpoiled ? "Found the deer too late: the meat had turned. Took the hide." : "Field dressed a deer.");
                         Notifications.Post(MeatSpoiled ? "The meat has spoiled, but the hide's still good."
@@ -647,6 +947,7 @@ namespace Backpacking.Wildlife
             {
                 hideTaken = true;
                 backpack.AddHide();
+                Tell(CarcassAction.Hide);
             }, hideTaken ? "Already taken" : null));
             options.Add(new InteractionOption(
                 $"{(MeatSpoiled ? "Spoiled meat" : $"{meatLeft} kg of meat left")}. You carry {backpack.TotalWeight:0.#} kg; over {backpack.MaxLoad:0} kg you can barely walk ({Mathf.Max(0f, spare):0.#} kg spare).",
@@ -658,6 +959,7 @@ namespace Backpacking.Wildlife
             int taken = Mathf.Min(kilograms, meatLeft);
             backpack.AddFood(FoodKind.RawVenison, taken);
             meatLeft -= taken;
+            Tell(CarcassAction.Meat, taken);
         }
     }
 }

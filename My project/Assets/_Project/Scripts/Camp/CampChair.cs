@@ -83,7 +83,7 @@ namespace Backpacking.Camp
                             Setup(ChairStage.Frame);
                             Notifications.Post("Frame up. Next, stretch the seat fabric over it.", 3f);
                         })));
-                    options.Add(new InteractionOption("Put it back in your pack", () => PackAway(interactor), PackProblem()));
+                    options.Add(new InteractionOption("Put it back in your pack", () => PackAway(interactor), CampOwner.PackProblem(gameObject) ?? PackProblem()));
                     break;
                 case ChairStage.Frame:
                     options.Add(new InteractionOption($"Hook the seat fabric over the pole tips ({fabricMinutes:0.#} min)", () =>

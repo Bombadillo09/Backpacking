@@ -39,6 +39,7 @@ namespace Backpacking.Camp
         [SerializeField, Range(0f, 1f)] float crackleVolume = 0.7f;
 
         AudioSource crackle;
+        Transform player;
         TimeOfDay timeOfDay;
         WeatherSystem weather;
         float fuelHours;
@@ -63,6 +64,8 @@ namespace Backpacking.Camp
         {
             timeOfDay = FindAnyObjectByType<TimeOfDay>();
             weather = FindAnyObjectByType<WeatherSystem>();
+            GameObject playerObject = GameObject.FindWithTag("Player");
+            player = playerObject != null ? playerObject.transform : null;
             baseLightIntensity = fireLight.intensity;
 
             crackle = gameObject.AddComponent<AudioSource>();
@@ -88,7 +91,9 @@ namespace Backpacking.Camp
             {
                 fuelHours = 0f;
                 SetBurning(false);
-                Notifications.Post(rain > 0.3f ? "The rain has put the fire out." : "The fire has burned out.");
+                // Only if you're there to see it (a friend's fire across the map goes out quietly).
+                if (player == null || (player.position - transform.position).sqrMagnitude < 40f * 40f)
+                    Notifications.Post(rain > 0.3f ? "The rain has put the fire out." : "The fire has burned out.");
                 return;
             }
 
