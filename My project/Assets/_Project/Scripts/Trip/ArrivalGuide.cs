@@ -134,7 +134,8 @@ namespace Backpacking.Trip
                     break;
                 case ArrivalPhase.Shopping:
                     // Out of the shop screen with a pack and gear in the truck: time to pack (you can still go back in).
-                    if (backpack.HasPack && inTruckBed > 0 && (shop == null || !shop.IsOpen))
+                    // (Bought something: you may have walked in already wearing the old daypack, with your background's kit in the truck.)
+                    if (backpack.HasPack && inTruckBed > 0 && backpack.Money < moneyBeforeShopping && (shop == null || !shop.IsOpen))
                     {
                         phase = ArrivalPhase.Packing;
                         int spent = moneyBeforeShopping - backpack.Money;
@@ -175,15 +176,20 @@ namespace Backpacking.Trip
             const string End = "</b></color>";
             return phase switch
             {
-                ArrivalPhase.AtHome => backpack.HasPack
-                    ? $"Your pack's on. Drive on east to the {Key}trailhead parking{End} where the road ends."
-                    : $"Your pickup is parked outside. Look at it and press {Key}E{End} to drive, then follow the road east to "
-                      + $"{Key}{TripLog.Outfitter}{End} (on your map, {Key}M{End}). You have {Key}${backpack.Money}{End} for gear.",
+                ArrivalPhase.AtHome => (backpack.HasPack ? ""
+                        : $"Take your old {Key}daypack{End} by the bedroom door, the water from the {Key}fridge{End} and trail mix from the "
+                          + $"{Key}kitchen cupboard{End}. ")
+                    + $"Your pickup is parked outside. Look at it and press {Key}E{End} to drive, then follow the road east to "
+                    + $"{Key}{TripLog.Outfitter}{End} (on your map, {Key}M{End}). You have {Key}${backpack.Money}{End} for gear.",
                 ArrivalPhase.Shopping => !backpack.HasPack
                     ? $"Talk to the shopkeeper at the counter. Buy a {Key}backpack{End} first (you wear it out of the shop), then what you'll need: "
                       + "shelter, a sleeping bag and mat, a stove and gas, a water bottle, food, and warm and waterproof clothes. "
                       + $"Gear is carried out to your truck bed. ${backpack.Money} left."
-                    : $"Buy what else you need (${backpack.Money} left), then go out to the truck to pack it.",
+                    : backpack.PackModel == PackModel.Daypack25
+                        ? $"Talk to the shopkeeper. Your daypack is too small for a week's kit: a {Key}bigger pack{End} first (you wear it out of the "
+                          + "shop, and everything moves into it), then shelter, a sleeping bag and mat, a stove and gas, food, and warm and "
+                          + $"waterproof clothes. Gear is carried out to your truck bed. ${backpack.Money} left."
+                        : $"Buy what else you need (${backpack.Money} left), then go out to the truck to pack it.",
                 ArrivalPhase.Packing => $"Look at the truck and choose {Key}Pack your backpack{End}. Heavy things carry best in the "
                                         + $"{Key}core{End}, against your back; light, bulky ones at the bottom. Leave what you won't need. "
                                         + $"Fill your water bottle at the {Key}tap{End} on the side of the store, then drive on east.",

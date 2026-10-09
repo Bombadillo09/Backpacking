@@ -7,6 +7,7 @@ namespace Backpacking.Survival
         Ultralight40,
         Trekking55,
         Expedition70,
+        Daypack25,
     }
 
     /// <summary>What a backpack model holds and how it carries.</summary>
@@ -85,8 +86,23 @@ namespace Backpacking.Survival
             VisualScale = 1.12f,
         };
 
+        static readonly PackInfo daypack = new()
+        {
+            Name = "Old 25 L daypack",
+            Description = "A school-days daypack: no frame or hip belt, one strap outside and a pocket for a bottle. Fine for a day out, too small for a week.",
+            Litres = 25f,
+            LidLitres = 2f,
+            PocketLitres = 1f,
+            Straps = 1,
+            Weight = 0.5f,
+            ComfortableLoad = 7f,
+            MaxLoad = 12f,
+            VisualScale = 0.74f,
+        };
+
         public static PackInfo Get(PackModel model) => model switch
         {
+            PackModel.Daypack25 => daypack,
             PackModel.Ultralight40 => ultralight,
             PackModel.Trekking55 => trekking,
             PackModel.Expedition70 => expedition,

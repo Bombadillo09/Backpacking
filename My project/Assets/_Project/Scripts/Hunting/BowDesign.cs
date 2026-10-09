@@ -84,6 +84,47 @@ namespace Backpacking.Hunting
             return root;
         }
 
+        /// <summary>
+        /// A pale streak behind an arrow in flight, fading over a third of a second, so you can follow where it went
+        /// (an arrow is a thin shaft moving 60 m a second: otherwise it's gone in a blink).
+        /// </summary>
+        public static TrailRenderer AddFlightTrail(GameObject arrow)
+        {
+            var trail = arrow.AddComponent<TrailRenderer>();
+            trail.sharedMaterial = TrailMaterial();
+            trail.time = 0.35f;
+            trail.minVertexDistance = 0.15f;
+            trail.widthMultiplier = 0.03f;
+            trail.widthCurve = AnimationCurve.Linear(0f, 1f, 1f, 0.15f);
+            var fade = new Gradient();
+            fade.SetKeys(new[] { new GradientColorKey(new Color(1f, 0.92f, 0.8f), 0f), new GradientColorKey(new Color(1f, 0.85f, 0.65f), 1f) },
+                new[] { new GradientAlphaKey(0.7f, 0f), new GradientAlphaKey(0f, 1f) });
+            trail.colorGradient = fade;
+            trail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            trail.receiveShadows = false;
+            trail.numCapVertices = 2;
+            return trail;
+        }
+
+        /// <summary>Transparent and unlit, tinted by the trail's colours (URP's particle shader, as the fog wisps use).</summary>
+        static Material TrailMaterial()
+        {
+            if (materials.TryGetValue("Trail", out Material material) && material != null)
+                return material;
+            Shader shader = Shader.Find("Universal Render Pipeline/Particles/Unlit") ?? Shader.Find("Universal Render Pipeline/Unlit");
+            material = new Material(shader) { name = "Arrow trail" };
+            material.SetColor("_BaseColor", Color.white);
+            material.SetFloat("_Surface", 1f);
+            material.SetFloat("_Blend", 0f);
+            material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            material.SetFloat("_ZWrite", 0f);
+            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            materials["Trail"] = material;
+            return material;
+        }
+
         static void Part(Transform parent, string name, Mesh mesh, Material material)
         {
             var part = new GameObject(name);

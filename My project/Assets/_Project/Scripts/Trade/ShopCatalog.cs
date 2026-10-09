@@ -46,6 +46,7 @@ namespace Backpacking.Trade
         RainShell,
         DownJacket,
         HikingBoots,
+        Flashlight,
     }
 
     /// <summary>Something a trading post can sell: what it costs and what it does to the backpack.</summary>
@@ -228,6 +229,10 @@ namespace Backpacking.Trade
                 "Hacks a way through thick brush and clears a campsite in the woods. 0.5 kg.", 25, true,
                 backpack => backpack.AddMachete(),
                 backpack => backpack.HasMachete ? "Already owned" : null),
+            [ShopItemId.Flashlight] = new ShopItem("Flashlight",
+                "A bright LED torch for camp chores and finding the trail after dark. Hold it (hotbar) and click to switch it on. 0.15 kg.", 20, true,
+                backpack => backpack.AddFlashlight(),
+                backpack => backpack.HasFlashlight ? "Already owned" : null),
             [ShopItemId.FishingKit] = new ShopItem("Hand line & hooks",
                 "A basic fishing kit: fish bite, but you need quick hands. 0.1 kg.", 10, true,
                 backpack => backpack.AddFishingKit(),

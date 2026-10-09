@@ -217,8 +217,16 @@ namespace Backpacking.Audio
                 case Surface.Water:
                     AddSplash(samples, random);
                     break;
+                case Surface.Wood:
+                    // A heel on floorboards: a dull knock with the boards' hollow ring under it, and a faint creak now and then.
+                    AddThud(samples, random, 0f, 0.022f, 420f, 0.9f);
+                    AddBeat(samples, 0f, Range(random, 95f, 125f), 0.55f);
+                    AddTone(samples, 0.004f, 0.05f, Range(random, 320f, 380f), Range(random, 260f, 300f), 0.12f);
+                    if (variant % 2 == 1)
+                        AddTone(samples, 0.03f, 0.14f, Range(random, 700f, 820f), Range(random, 600f, 680f), 0.03f, vibrato: 18f);
+                    break;
             }
-            return Clip($"Step{surface}{variant}", Normalise(samples, 0.9f));
+            return Clip($"Step{surface}{variant}", Normalise(samples, surface == Surface.Wood ? 0.7f : 0.9f));
         });
 
         /// <summary>A distant thunderclap rolling away.</summary>

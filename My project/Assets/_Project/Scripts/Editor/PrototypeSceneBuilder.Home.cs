@@ -33,6 +33,7 @@ namespace Backpacking.EditorTools
             Vector2 along = place.RoadDirection;
             GameObject house = PlaceBuilding("Home", place, new Vector2(-HomeCabinBack, 0f), along, terrain, parent);
             AddSaveId(house, "home");
+            MarkBuilding(house, new Vector3(0f, (CabinFloorTop + HouseWallHeight) / 2f, 0f), new Vector3(HouseWidth, CabinFloorTop + HouseWallHeight, HouseDepth));
 
             Material walls = GetOrCreateMaterial("CabinWalls", new Color(0.5f, 0.36f, 0.24f));
             Material inside = GetOrCreateMaterial("InteriorWalls", new Color(0.86f, 0.8f, 0.68f));
@@ -255,10 +256,9 @@ namespace Backpacking.EditorTools
             Furnish(house, "electric_stove", new Vector3(3.5f, y, 1.4f), -90f, solid: true);
             Furnish(house, "pot_enamel_01", new Vector3(3.5f, y + 0.86f, 1.28f), 0f);
             Furnish(house, "brass_pan_01", new Vector3(3.5f, y + 0.86f, 1.55f), 90f);
-            AddSolid(PrimitiveType.Cube, house, new Vector3(3.48f, y + 0.9f, 0.45f), Quaternion.identity, new Vector3(0.66f, 1.8f, 0.66f), white);
-            AddVisual(PrimitiveType.Cube, house, new Vector3(3.14f, y + 1.1f, 0.25f), Quaternion.identity, new Vector3(0.03f, 0.5f, 0.04f), steel);
-            // Wall cupboards above the worktop.
-            AddVisual(PrimitiveType.Cube, house, new Vector3(3.65f, y + 1.85f, 1.9f), Quaternion.identity, new Vector3(0.35f, 0.65f, 1.4f), cupboard);
+            // The fridge opens (a bottle of water inside), and so does the wall cupboard above the worktop (trail mix).
+            AddFridge(house, new Vector3(3.48f, y, 0.45f), -90f, white, steel);
+            AddWallCupboard(house, new Vector3(3.65f, y + 1.525f, 1.9f), -90f, 1.4f, cupboard, steel);
             // A kettle and a chopping board on the worktops.
             Furnish(house, "vintage_electric_kettle", new Vector3(3.5f, y + 0.9f, 2.35f), -90f);
             Furnish(house, "wooden_cutting_board", new Vector3(3.25f, y + 0.9f, 3.0f), 10f);
@@ -295,6 +295,8 @@ namespace Backpacking.EditorTools
             Furnish(house, "vintage_wooden_drawer_01", new Vector3(0.6f, y, -1.0f), -90f, solid: true);
             Furnish(house, "standing_picture_frame_01", new Vector3(0.62f, y + 0.55f, -0.8f), -110f);
             Furnish(house, "ornate_mirror_01", new Vector3(0.83f, y + 0.95f, -1.0f), -90f);
+            // The old daypack against the wall by the bedroom door, the first thing you see on waking.
+            AddDaypack(house, new Vector3(-0.6f, y, -0.25f), 180f);
             // Wardrobe against the left wall, by the door.
             AddSolid(PrimitiveType.Cube, house, new Vector3(-3.55f, y + 1f, -0.7f), Quaternion.identity, new Vector3(0.6f, 2f, 1.1f), wood);
             AddVisual(PrimitiveType.Cube, house, new Vector3(-3.24f, y + 1f, -0.7f), Quaternion.identity, new Vector3(0.01f, 1.9f, 0.02f), white);

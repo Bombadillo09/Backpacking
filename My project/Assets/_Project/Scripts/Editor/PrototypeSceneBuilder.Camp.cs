@@ -389,7 +389,8 @@ namespace Backpacking.EditorTools
                 GroundPack = GetOrCreatePrefab("Ground Pack (detailed)", BuildGroundPack),
                 TentBag = GetOrCreatePrefab("Tent Bag (detailed)", BuildTentBag),
                 Chair = GetOrCreatePrefab("Camp Chair", BuildChair),
-                FireRing = GetOrCreatePrefab("Fire Ring", BuildFireRing),
+                // Renamed when the fire got layered flames, coals and smoke, so the old prefab isn't reused.
+                FireRing = GetOrCreatePrefab("Fire Ring (layered)", BuildFireRing),
                 // Renamed when the gear got detailed models, so the old primitive-built prefabs aren't reused.
                 Stove = GetOrCreatePrefab("Camp Stove (detailed)", BuildStove),
                 Firewood = GetOrCreatePrefab("Firewood", BuildFirewood),
@@ -560,102 +561,6 @@ namespace Backpacking.EditorTools
             part.transform.localScale = scale;
             part.GetComponent<Renderer>().sharedMaterial = material;
             Object.DestroyImmediate(part.GetComponent<Collider>());
-        }
-
-        static GameObject BuildFireRing()
-        {
-            var root = new GameObject();
-            var collider = root.AddComponent<BoxCollider>();
-            collider.center = new Vector3(0f, 0.15f, 0f);
-            collider.size = new Vector3(1.2f, 0.3f, 1.2f);
-            var heat = root.AddComponent<HeatSource>();
-            var campfire = root.AddComponent<Campfire>();
-
-            Material stone = GetOrCreateMaterial("CairnStone", new Color(0.45f, 0.44f, 0.42f));
-            Material wood = GetOrCreateMaterial("Wood", new Color(0.33f, 0.22f, 0.13f));
-
-            for (int i = 0; i < 9; i++)
-            {
-                float angle = i / 9f * Mathf.PI * 2f;
-                var position = new Vector3(Mathf.Cos(angle) * 0.5f, 0.07f, Mathf.Sin(angle) * 0.5f);
-                AddVisual(PrimitiveType.Sphere, root, position, Quaternion.Euler(0f, -angle * Mathf.Rad2Deg, 0f), new Vector3(0.26f, 0.18f, 0.22f), stone);
-            }
-
-            // Logs stacked in a teepee, leaning in toward the middle.
-            var woodGroup = new GameObject("Wood");
-            woodGroup.transform.SetParent(root.transform, false);
-            for (int i = 0; i < 4; i++)
-            {
-                float angle = i / 4f * Mathf.PI * 2f + 0.4f;
-                var outward = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
-                Quaternion tilt = Quaternion.FromToRotation(Vector3.up, (Vector3.up - outward * 0.6f).normalized);
-                AddVisual(PrimitiveType.Cylinder, woodGroup, outward * 0.12f + Vector3.up * 0.22f, tilt, new Vector3(0.07f, 0.28f, 0.07f), wood);
-            }
-
-            var lightObject = new GameObject("Fire Light");
-            lightObject.transform.SetParent(root.transform, false);
-            lightObject.transform.localPosition = new Vector3(0f, 0.6f, 0f);
-            var fireLight = lightObject.AddComponent<Light>();
-            fireLight.type = LightType.Point;
-            fireLight.color = new Color(1f, 0.55f, 0.2f);
-            fireLight.range = 10f;
-            fireLight.intensity = 4f;
-            fireLight.shadows = LightShadows.None;
-
-            ParticleSystem flames = BuildFlames(root.transform);
-
-            SetField(campfire, "woodVisual", woodGroup);
-            SetField(campfire, "flames", flames);
-            SetField(campfire, "fireLight", fireLight);
-            SetField(campfire, "heat", heat);
-            return root;
-        }
-
-        static ParticleSystem BuildFlames(Transform parent)
-        {
-            var go = new GameObject("Flames");
-            go.transform.SetParent(parent, false);
-            go.transform.localPosition = new Vector3(0f, 0.12f, 0f);
-            // Cone emitters fire along local +Z; point it up.
-            go.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
-
-            var particles = go.AddComponent<ParticleSystem>();
-            particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-
-            ParticleSystem.MainModule main = particles.main;
-            main.playOnAwake = false;
-            main.loop = true;
-            main.startLifetime = new ParticleSystem.MinMaxCurve(0.5f, 0.9f);
-            main.startSpeed = new ParticleSystem.MinMaxCurve(0.4f, 1f);
-            main.startSize = new ParticleSystem.MinMaxCurve(0.15f, 0.35f);
-            main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.8f, 0.35f), new Color(1f, 0.4f, 0.1f));
-            main.simulationSpace = ParticleSystemSimulationSpace.World;
-            main.maxParticles = 150;
-
-            ParticleSystem.EmissionModule emission = particles.emission;
-            emission.rateOverTime = 45f;
-
-            ParticleSystem.ShapeModule shape = particles.shape;
-            shape.shapeType = ParticleSystemShapeType.Cone;
-            shape.angle = 12f;
-            shape.radius = 0.12f;
-
-            var fade = new Gradient();
-            fade.SetKeys(
-                new[] { new GradientColorKey(new Color(1f, 0.9f, 0.5f), 0f), new GradientColorKey(new Color(0.9f, 0.25f, 0.05f), 1f) },
-                new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0.8f, 0.4f), new GradientAlphaKey(0f, 1f) });
-            ParticleSystem.ColorOverLifetimeModule colour = particles.colorOverLifetime;
-            colour.enabled = true;
-            colour.color = fade;
-
-            ParticleSystem.SizeOverLifetimeModule size = particles.sizeOverLifetime;
-            size.enabled = true;
-            size.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 1f, 1f, 0.2f));
-
-            var particleRenderer = go.GetComponent<ParticleSystemRenderer>();
-            if (GraphicsSettings.currentRenderPipeline != null)
-                particleRenderer.sharedMaterial = GraphicsSettings.currentRenderPipeline.defaultParticleMaterial;
-            return particles;
         }
 
         static GameObject BuildStove()

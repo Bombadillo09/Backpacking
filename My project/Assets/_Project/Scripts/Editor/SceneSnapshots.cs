@@ -110,5 +110,111 @@ namespace Backpacking.EditorTools
         }
 
         public static void RenderDriveBatch() => Debug.Log(RenderDrive());
+
+        /// <summary>
+        /// Home's things to take (the daypack, and the fridge and cupboard standing open with the water and trail mix),
+        /// and a lit campfire by day and by night: "run:Backpacking.EditorTools.SceneSnapshots.RenderHomeAndFire".
+        /// </summary>
+        public static string RenderHomeAndFire()
+        {
+            EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            GameObject home = GameObject.Find("Road/Home");
+            if (home == null)
+                return "No home in the scene. Rebuild it first.";
+            Transform t = home.transform;
+            // Swing the fridge and cupboard doors open (Door only moves them in play), and build the daypack's look.
+            foreach (Door door in home.GetComponentsInChildren<Door>())
+            {
+                if (door.DisplayName is not ("Fridge" or "Kitchen cupboard"))
+                    continue;
+                SerializedProperty leaves = new SerializedObject(door).FindProperty("leaves");
+                for (int i = 0; i < leaves.arraySize; i++)
+                {
+                    SerializedProperty leaf = leaves.GetArrayElementAtIndex(i);
+                    var hinge = (Transform)leaf.FindPropertyRelative("hinge").objectReferenceValue;
+                    hinge.localRotation = Quaternion.Euler(0f, leaf.FindPropertyRelative("openAngle").floatValue, 0f);
+                }
+            }
+            foreach (Interaction.ItemPickup pickup in home.GetComponentsInChildren<Interaction.ItemPickup>())
+                typeof(Interaction.ItemPickup).GetMethod("Awake", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.Invoke(pickup, null);
+
+            var views = new List<(string name, Vector3 from, Vector3 at)>
+            {
+                ("home-fridge-open", t.TransformPoint(new Vector3(1.6f, 1.55f, 0.9f)), t.TransformPoint(new Vector3(3.4f, 0.8f, 0.45f))),
+                ("home-cupboard-open", t.TransformPoint(new Vector3(1.9f, 1.75f, 1.6f)), t.TransformPoint(new Vector3(3.6f, 1.75f, 1.9f))),
+                ("home-daypack", t.TransformPoint(new Vector3(-0.7f, 1.65f, -1.6f)), t.TransformPoint(new Vector3(-0.6f, 0.35f, -0.25f))),
+            };
+
+            // A fire, lit, on open ground in front of the house.
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/_Project/Prefabs/Camp/Fire Ring (layered).prefab");
+            GameObject fire = prefab != null ? (GameObject)PrefabUtility.InstantiatePrefab(prefab) : null;
+            Vector3 firePlace = t.TransformPoint(new Vector3(-8f, 0f, 1f));
+            firePlace.y = GroundCover.HeightAt(firePlace);
+            if (fire != null)
+            {
+                fire.transform.position = firePlace;
+                Transform coals = fire.transform.Find("Coals");
+                if (coals != null)
+                    coals.gameObject.SetActive(true);
+                fire.GetComponentInChildren<Light>().enabled = true;
+                ParticleSystem flames = fire.transform.Find("Flames").GetComponent<ParticleSystem>();
+                flames.Simulate(3f, true, true);
+                views.Add(("fire-day", firePlace + new Vector3(1.8f, 1.2f, 1.6f), firePlace + Vector3.up * 0.45f));
+                views.Add(("fire-close", firePlace + new Vector3(0.9f, 0.7f, 0.8f), firePlace + Vector3.up * 0.3f));
+            }
+
+            Light sun = GameObject.Find("Sun")?.GetComponent<Light>();
+            if (sun != null)
+                sun.transform.rotation = Quaternion.Euler(40f, 140f, 0f);
+            string result = Render(views, "changes");
+            if (fire != null && sun != null)
+            {
+                // Night: no sun, and only a little light from the sky.
+                sun.enabled = false;
+                Color ambient = RenderSettings.ambientLight;
+                float intensity = RenderSettings.ambientIntensity;
+                RenderSettings.ambientLight = new Color(0.04f, 0.05f, 0.08f);
+                RenderSettings.ambientIntensity = 0.15f;
+                result += " " + Render(new List<(string, Vector3, Vector3)> { ("fire-night", firePlace + new Vector3(2.2f, 1.4f, 2f), firePlace + Vector3.up * 0.45f) }, "night");
+                RenderSettings.ambientLight = ambient;
+                RenderSettings.ambientIntensity = intensity;
+            }
+            return result;
+        }
+
+        static string Render(List<(string name, Vector3 from, Vector3 at)> views, string what)
+        {
+            Directory.CreateDirectory(Folder);
+            var cameraObject = new GameObject("Snapshot Camera");
+            var camera = cameraObject.AddComponent<Camera>();
+            camera.nearClipPlane = 0.05f;
+            camera.farClipPlane = 3000f;
+            camera.fieldOfView = 65f;
+            camera.GetUniversalAdditionalCameraData().renderPostProcessing = true;
+            var target = new RenderTexture(1280, 720, 24);
+            camera.targetTexture = target;
+            var image = new Texture2D(1280, 720, TextureFormat.RGB24, false);
+            try
+            {
+                foreach ((string name, Vector3 from, Vector3 at) in views)
+                {
+                    camera.transform.SetPositionAndRotation(from, Quaternion.LookRotation(at - from));
+                    camera.Render();
+                    RenderTexture.active = target;
+                    image.ReadPixels(new Rect(0, 0, 1280, 720), 0, 0);
+                    image.Apply();
+                    RenderTexture.active = null;
+                    File.WriteAllBytes($"{Folder}/{name}.png", image.EncodeToPNG());
+                }
+            }
+            finally
+            {
+                camera.targetTexture = null;
+                Object.DestroyImmediate(cameraObject);
+                Object.DestroyImmediate(target);
+                Object.DestroyImmediate(image);
+            }
+            return $"Rendered {views.Count} {what} views to {Folder}.";
+        }
     }
 }

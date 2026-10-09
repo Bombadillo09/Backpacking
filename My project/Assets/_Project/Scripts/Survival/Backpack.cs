@@ -98,22 +98,33 @@ namespace Backpacking.Survival
         Bandage,
         // New kinds go at the end: saves store the hotbar by this number.
         Bow,
+        FishingRod,
+        Flashlight,
+        /// <summary>Anything else from the pack (a tent, the matches, a fleece), by its backpack-screen key.</summary>
+        Gear,
     }
 
-    /// <summary>One of the five hotbar slots: a kind of item, and for food, which food.</summary>
+    /// <summary>One of the five hotbar slots: a kind of item, and for food, which food; for other gear, which thing.</summary>
     [Serializable]
     public struct HotbarSlot
     {
         public HotbarKind kind;
         public FoodKind food;
+        /// <summary>For <see cref="HotbarKind.Gear"/>: the backpack screen's key ("tent", "garment-Fleece"), its name and picture.</summary>
+        public string key, label, icon;
 
         public HotbarSlot(HotbarKind kind, FoodKind food = default)
         {
             this.kind = kind;
             this.food = food;
+            key = label = icon = null;
         }
 
-        public bool Same(HotbarSlot other) => kind == other.kind && (kind != HotbarKind.Food || food == other.food);
+        public static HotbarSlot Gear(string key, string label, string icon) =>
+            new(HotbarKind.Gear) { key = key, label = label, icon = icon };
+
+        public bool Same(HotbarSlot other) => kind == other.kind && (kind != HotbarKind.Food || food == other.food)
+                                              && (kind != HotbarKind.Gear || key == other.key);
     }
 
     /// <summary>Everything in the backpack, in a form that can be written to a save file.</summary>
@@ -156,6 +167,7 @@ namespace Backpacking.Survival
         public bool ownsStove = true;
         public float bagWetness;
         public bool matOut, bagOut;
+        public bool hasFlashlight;
     }
 
     /// <summary>
@@ -197,6 +209,8 @@ namespace Backpacking.Survival
         [SerializeField, Min(0)] int arrows;
         [Tooltip("With a filter, water from lakes and streams is safe straight away.")]
         [SerializeField] bool hasWaterFilter;
+        [Tooltip("A torch for the dark: hold it (hotbar) and click to switch it on.")]
+        [SerializeField] bool hasFlashlight;
         [Header("Boots")]
         [SerializeField] string bootsName = "Worn hiking boots";
         [Tooltip("How fast your feet tire in them: 1 is ordinary boots, lower is better.")]
@@ -287,6 +301,7 @@ namespace Backpacking.Survival
         [SerializeField] float fishingRodWeight = 0.4f;
         [SerializeField] float snareWeight = 0.05f;
         [SerializeField] float filterWeight = 0.1f;
+        [SerializeField] float flashlightWeight = 0.15f;
         [SerializeField] float macheteWeight = 0.5f;
         [SerializeField] float peltWeight = 0.3f;
         [SerializeField] float hideWeight = 3.5f;
@@ -316,6 +331,7 @@ namespace Backpacking.Survival
         public bool IsWorn { get; set; } = true;
         public bool HasGoodRod => hasGoodRod;
         public bool HasWaterFilter => hasWaterFilter;
+        public bool HasFlashlight => hasFlashlight;
         public bool HasMachete => hasMachete;
         public string BootsName => bootsName;
         public int Antibiotics => antibiotics;
@@ -402,6 +418,8 @@ namespace Backpacking.Survival
                     weight += hasGoodRod ? fishingRodWeight : fishingKitWeight;
                 if (hasWaterFilter)
                     weight += filterWeight;
+                if (hasFlashlight)
+                    weight += flashlightWeight;
                 if (hasMachete)
                     weight += macheteWeight;
                 foreach (Garment garment in clothing)
@@ -543,6 +561,23 @@ namespace Backpacking.Survival
         public void SetWaterCapacity(float litres) => waterCapacity = Mathf.Max(waterCapacity, litres);
         public void AddWaterFilter() => hasWaterFilter = true;
 
+        /// <summary>A flashlight, which goes straight onto the hotbar if there's a free slot.</summary>
+        public void AddFlashlight()
+        {
+            hasFlashlight = true;
+            if (!IsTruckBed)
+                AssignHotbarIfFree(new HotbarSlot(HotbarKind.Flashlight));
+        }
+
+        /// <summary>A bottle of drinking water: carried in a bottle this size if you have none bigger, and topped up with it.</summary>
+        public void AddBottledWater(float litres)
+        {
+            waterCapacity = Mathf.Max(waterCapacity, litres);
+            safeWater = Mathf.Min(waterCapacity - untreatedWater, safeWater + litres);
+            if (!IsTruckBed)
+                AssignHotbarIfFree(new HotbarSlot(HotbarKind.Water));
+        }
+
         public void AddAntibiotics(int courses = 1) => antibiotics += courses;
         public bool TryUseAntibiotics() => TrySpend(ref antibiotics, 1);
         public void AddBandages(int count) => bandages += count;
@@ -599,6 +634,7 @@ namespace Backpacking.Survival
         {
             hasFishingKit = false;
             hasGoodRod = false;
+            RemoveFromHotbar(HotbarKind.FishingRod);
         }
 
         /// <summary>A lighter pack and smaller kit, e.g. for an ultralight hiker.</summary>
@@ -608,6 +644,8 @@ namespace Backpacking.Survival
         {
             hasFishingKit = true;
             hasGoodRod = true;
+            if (!IsTruckBed)
+                AssignHotbarIfFree(new HotbarSlot(HotbarKind.FishingRod));
         }
 
         public void AddGas(float grams) => gasGrams += grams;
@@ -896,6 +934,7 @@ namespace Backpacking.Survival
             bagWetness = bagWetness,
             matOut = matOut,
             bagOut = bagOut,
+            hasFlashlight = hasFlashlight,
         };
 
         public void RestoreState(BackpackState state)
@@ -948,6 +987,7 @@ namespace Backpacking.Survival
             bagWetness = state.bagWetness;
             matOut = state.matOut;
             bagOut = state.bagOut;
+            hasFlashlight = state.hasFlashlight;
             balanceCheckedAt = -1f;
         }
 

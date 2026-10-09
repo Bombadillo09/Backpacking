@@ -21,6 +21,8 @@ MonoBehaviour:
     icon: {fileID: 2800000, guid: 1107449493214ee46976993acaa94e26, type: 3}
   - key: antibiotics
     icon: {fileID: 2800000, guid: ebfcb76ae7acb5c4fa93865bd9480de1, type: 3}
+  - key: flashlight
+    icon: {fileID: 2800000, guid: 005253a5bcbd7e34cad3719abe4d1a3a, type: 3}
   - key: tent
     icon: {fileID: 2800000, guid: b29ef2eeaf5f7824999cfdea1e290047, type: 3}
   - key: sleepingbag

@@ -117,7 +117,12 @@ namespace Backpacking.Survival
             AssignHotbar(new HotbarSlot(HotbarKind.Machete));
         }
 
-        public void AddFishingKit() => hasFishingKit = true;
+        public void AddFishingKit()
+        {
+            hasFishingKit = true;
+            if (!IsTruckBed)
+                AssignHotbarIfFree(new HotbarSlot(HotbarKind.FishingRod));
+        }
 
         /// <summary>A water bottle or bladder of this size, if you have none bigger.</summary>
         public void AddBottle(float litres) => waterCapacity = Mathf.Max(waterCapacity, litres);
@@ -137,7 +142,7 @@ namespace Backpacking.Survival
             ownsStove = hasStove = false;
             gasGrams = 0f;
             matches = firewood = snares = arrows = antibiotics = bandages = 0;
-            hasFishingKit = hasGoodRod = hasBow = hasWaterFilter = hasMachete = false;
+            hasFishingKit = hasGoodRod = hasBow = hasWaterFilter = hasMachete = hasFlashlight = false;
             hasChair = chairInPack = false;
             hotbar = new List<HotbarSlot>();
             NormaliseHotbar();
@@ -205,8 +210,10 @@ namespace Backpacking.Survival
                 Add("arrows", $"Arrows ({arrows})", "bow", 1, 1f, arrows * arrowWeight, PackZone.Straps, strappable: true);
             if (hasWaterFilter)
                 Add("filter", "Squeeze filter", "filter", 1, 0.3f, filterWeight, PackZone.Lid);
+            if (hasFlashlight)
+                Add("flashlight", "Flashlight", "flashlight", 1, 0.2f, flashlightWeight, PackZone.Lid);
             if (waterCapacity > 0f)
-                Add("bottle", waterCapacity >= 3f ? $"{waterCapacity:0} L water bladder" : $"{waterCapacity:0} L water bottle", "water", 1,
+                Add("bottle", waterCapacity >= 3f ? $"{waterCapacity:0.#} L water bladder" : $"{waterCapacity:0.#} L water bottle", "water", 1,
                     waterCapacity, 0.1f + TotalWater, waterCapacity >= 3f ? PackZone.Core : PackZone.Pockets);
             if (hasMachete)
                 Add("machete", "Machete", "machete", 1, 1f, macheteWeight, PackZone.Straps, strappable: true);
@@ -333,8 +340,12 @@ namespace Backpacking.Survival
                     (bool kit, bool rod) theirs = (to.hasFishingKit, to.hasGoodRod);
                     to.hasFishingKit = true;
                     to.hasGoodRod = hasGoodRod;
+                    if (!to.IsTruckBed)
+                        to.AssignHotbarIfFree(new HotbarSlot(HotbarKind.FishingRod));
                     hasFishingKit = theirs.kit;
                     hasGoodRod = theirs.rod;
+                    if (!hasFishingKit)
+                        RemoveFromHotbar(HotbarKind.FishingRod);
                     break;
                 }
                 case "snares":
@@ -364,6 +375,15 @@ namespace Backpacking.Survival
                         return "There's already a filter there";
                     to.hasWaterFilter = true;
                     hasWaterFilter = false;
+                    break;
+                case "flashlight":
+                    if (!hasFlashlight)
+                        return "No flashlight here";
+                    if (to.hasFlashlight)
+                        return "There's already a flashlight there";
+                    to.AddFlashlight();
+                    hasFlashlight = false;
+                    RemoveFromHotbar(HotbarKind.Flashlight);
                     break;
                 case "bottle":
                 {

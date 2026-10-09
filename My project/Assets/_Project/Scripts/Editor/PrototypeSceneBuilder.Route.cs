@@ -67,6 +67,8 @@ namespace Backpacking.EditorTools
                 (ShopItemId.Machete, Unlimited), (ShopItemId.FishingKit, Unlimited), (ShopItemId.FishingRod, Unlimited),
                 (ShopItemId.Snare, Unlimited), (ShopItemId.CampChair, Unlimited),
                 (ShopItemId.HuntingBow, 1), (ShopItemId.Arrows, Unlimited),
+                // New stock goes at the end: saves keep each vendor's stock by its place in this list.
+                (ShopItemId.Flashlight, Unlimited),
             },
         };
 

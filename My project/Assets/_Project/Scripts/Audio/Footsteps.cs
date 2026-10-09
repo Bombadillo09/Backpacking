@@ -8,7 +8,7 @@ using Random = UnityEngine.Random;
 namespace Backpacking.Audio
 {
     /// <summary>
-    /// Footsteps that match the ground: grass and dirt, leaf litter, rock, snow, or splashing through water.
+    /// Footsteps that match the ground: grass and dirt, leaf litter, rock, snow, floorboards indoors, or splashing through water.
     /// Steps come with the head bob's stride, louder when sprinting or carrying a heavy pack and softer when crouched.
     /// </summary>
     [RequireComponent(typeof(FirstPersonController), typeof(HeadBob))]
@@ -105,10 +105,10 @@ namespace Backpacking.Audio
                 if (hit.GetComponent<WaterSource>() != null)
                     return Surface.Water;
 
-            // Standing on a log, boulder or building rather than the ground.
+            // Standing on a building's boards, or on a log or boulder rather than the ground.
             if (Physics.Raycast(feet + Vector3.up * 0.3f, Vector3.down, out RaycastHit ground, 0.8f, ~0, QueryTriggerInteraction.Ignore)
                 && ground.collider is not TerrainCollider)
-                return Surface.Hard;
+                return Building.IsPartOf(ground.collider) ? Surface.Wood : Surface.Hard;
 
             return GroundCover.At(feet);
         }

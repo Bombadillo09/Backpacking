@@ -14,7 +14,8 @@ namespace Backpacking.UI
     /// The backpack screen (Tab), laid out like an inventory: everything you carry as tiles with a picture of it,
     /// grouped into food, water and first aid, camp gear, tools and fuel, and clothing. Select a tile to see the
     /// item larger with everything you can do with it (eat, drink, put on, set up, put on the hotbar...). The
-    /// hotbar and the pack itself are along the bottom.
+    /// hotbar and the pack itself are along the bottom: drag any tile onto a hotbar slot to carry it to hand there,
+    /// or drag between slots to swap them.
     /// </summary>
     public class BackpackView : MonoBehaviour
     {
@@ -57,6 +58,18 @@ namespace Backpacking.UI
         string itemsKey, selected;
 
         public bool IsOpen { get; private set; }
+        public static BackpackView Current { get; private set; }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics() => Current = null;
+
+        void Awake() => Current = this;
+
+        void OnDestroy()
+        {
+            if (Current == this)
+                Current = null;
+        }
 
         void Start()
         {
@@ -81,7 +94,7 @@ namespace Backpacking.UI
                 bindings.Text(LoadDescription, "small"),
                 UIBuild.Box("columns").With(Tabs(), gridScroll, detail),
                 UIBuild.Box("inventory-bottom").With(
-                    UIBuild.Box().With(UIBuild.Text("HOTBAR  ·  keys 1–5  ·  click a slot to empty it", "heading"), HotbarRow()),
+                    UIBuild.Box().With(UIBuild.Text("HOTBAR  ·  keys 1–5  ·  drag anything here  ·  click a slot to empty it", "heading"), HotbarRow()),
                     UIBuild.Box("grow").With(
                         UIBuild.Text("YOUR PACK", "heading"),
                         UIBuild.Box("row").With(
@@ -103,6 +116,22 @@ namespace Backpacking.UI
             screen = UIBuild.Layer("centred").With(panel);
             screen.SetVisible(false);
             GameUI.Current.Screens.Add(screen);
+
+            // The picture that follows the pointer while dragging something to the hotbar.
+            dragGhost = UIBuild.Box("drag-ghost");
+            dragGhost.style.position = Position.Absolute;
+            dragGhost.style.width = dragGhost.style.height = 72f;
+            dragGhost.style.opacity = 0.85f;
+            dragGhost.pickingMode = PickingMode.Ignore;
+            dragGhost.SetVisible(false);
+            screen.Add(dragGhost);
+            // In case the pointer isn't held by what it was pressed on.
+            screen.RegisterCallback<PointerMoveEvent>(move => DragTo(move.pointerId, move.position));
+            screen.RegisterCallback<PointerUpEvent>(up =>
+            {
+                if (up.pointerId == dragPointer)
+                    EndDrag(drop: true, up.position);
+            });
         }
 
         void Update()
@@ -146,6 +175,7 @@ namespace Backpacking.UI
 
         void Close()
         {
+            EndDrag(drop: false);
             IsOpen = false;
             screen.SetVisible(false);
             PlayerControlLock.Unlock(this);
@@ -238,8 +268,9 @@ namespace Backpacking.UI
             var list = new List<Item>();
             Item Add(string section, string key, string icon, Func<string> name, Func<string> count, Func<string> description, HotbarSlot? hotbar = null)
             {
-                var item = new Item { Section = section, Key = key, Icon = icon, Name = name, Count = count, Description = description, Hotbar = hotbar,
-                    Where = () => WhereIs(key) };
+                // Anything can be carried to hand: what has no use of its own there does its first action from the hotbar.
+                var item = new Item { Section = section, Key = key, Icon = icon, Name = name, Count = count, Description = description,
+                    Hotbar = hotbar ?? HotbarSlot.Gear(key, name(), icon), Where = () => WhereIs(key) };
                 list.Add(item);
                 return item;
             }
@@ -334,7 +365,12 @@ namespace Backpacking.UI
             }
             if (backpack.HasFishingKit)
                 Add("CAMP GEAR", "fishing", backpack.HasGoodRod ? "rod" : "fishing", () => backpack.HasGoodRod ? "Telescopic rod" : "Hand line",
-                    () => "", () => "Look at a lake or stream to go fishing (with your pack off: the kit's inside it).");
+                    () => "", () => "Hold it (hotbar), look out over a lake or stream and click to cast. Press E when a fish bites.",
+                    new HotbarSlot(HotbarKind.FishingRod));
+            if (backpack.HasFlashlight)
+                Add("TOOLS & FUEL", "flashlight", "flashlight", () => "Flashlight", () => Player.Hotbar.Current != null && Player.Hotbar.Current.FlashlightOn ? "on" : "",
+                    () => "Hold it (hotbar) and click to switch it on or off. It lights the way while it's in your hand.",
+                    new HotbarSlot(HotbarKind.Flashlight));
 
             // Tools and fuel.
             if (backpack.HasMachete)
@@ -395,6 +431,45 @@ namespace Backpacking.UI
                 packedAt = Time.unscaledTime;
             }
             return packed.Find(item => item.Key == packKey);
+        }
+
+        /// <summary>How many of something there are, for its hotbar slot ("×3", or nothing for one-offs).</summary>
+        public string CountOf(string key)
+        {
+            PackItem item = Packed(PackKey(key));
+            return item != null && item.Count > 1 ? $"×{item.Count}" : "";
+        }
+
+        /// <summary>
+        /// Uses something carried to hand that has no use of its own there (the tent, a fleece, the stove): its first
+        /// action on this screen, or why it can't be done. False if it isn't carried any more.
+        /// </summary>
+        public bool UseGear(string key)
+        {
+            Item item = Gather().FirstOrDefault(entry => entry.Key == key);
+            if (item == null)
+            {
+                Notifications.Post("You don't have that any more.", 2.5f);
+                return false;
+            }
+            if (Busy())
+                return true;
+            foreach ((Func<string> label, Action action, Func<string> problem) in item.Actions)
+            {
+                string why = problem?.Invoke();
+                if (why == null)
+                {
+                    action();
+                    return true;
+                }
+                if (why.Length > 0)
+                {
+                    Notifications.Post($"{label()}: {why}", 2.5f);
+                    return true;
+                }
+            }
+            Notifications.Post($"{item.Name()}: nothing to do with it in hand. Open your pack (Tab) to use it.", 2.5f);
+            return true;
         }
 
         /// <summary>The pack's key for something on this screen (they mostly match).</summary>
@@ -621,6 +696,8 @@ namespace Backpacking.UI
                 });
                 tile.Add(badge);
             }
+            if (item.Hotbar.HasValue)
+                MakeDraggable(tile, () => Find(key)?.Hotbar, () => item.Icon, -1);
             tiles[key] = tile;
             return tile;
         }
@@ -690,7 +767,15 @@ namespace Backpacking.UI
             for (int i = 0; i < Backpack.HotbarSize; i++)
             {
                 int slot = i;
-                Button button = UIBuild.Button("", () => backpack.ClearHotbar(slot), "hotbar-tile");
+                Button button = UIBuild.Button("", () =>
+                {
+                    // A drag that ends on its own slot isn't a click.
+                    if (Time.unscaledTime - droppedAt > 0.1f)
+                        backpack.ClearHotbar(slot);
+                }, "hotbar-tile");
+                hotbarTiles[slot] = button;
+                MakeDraggable(button, () => slot < backpack.Hotbar.Count && backpack.Hotbar[slot].kind != HotbarKind.Empty ? backpack.Hotbar[slot] : null,
+                    () => IconKey(backpack.Hotbar[slot]), slot);
                 VisualElement picture = UIBuild.Box("hotbar-tile-icon");
                 Label number = UIBuild.Text((slot + 1).ToString(), "hotbar-key");
                 button.Add(picture);
@@ -721,8 +806,114 @@ namespace Backpacking.UI
             HotbarKind.Antibiotics => "antibiotics",
             HotbarKind.Bandage => "bandage",
             HotbarKind.Bow => "bow",
+            HotbarKind.FishingRod => Current != null && Current.backpack.HasGoodRod ? "rod" : "fishing",
+            HotbarKind.Flashlight => "flashlight",
+            HotbarKind.Gear => slot.icon,
             _ => null,
         };
+
+        // ---------- Dragging to the hotbar ----------
+
+        readonly VisualElement[] hotbarTiles = new VisualElement[Backpack.HotbarSize];
+        VisualElement dragGhost;
+        HotbarSlot? dragging;
+        int dragFrom = -1, dragPointer = -1;
+        Vector2 dragStart;
+        bool dragMoved;
+        float droppedAt = -1f;
+
+        /// <summary>
+        /// Lets something be dragged from <paramref name="element"/> onto a hotbar slot: a tile (from −1), or another
+        /// slot (<paramref name="fromSlot"/>), which swaps the two. A press that hardly moves is still a click.
+        /// </summary>
+        void MakeDraggable(VisualElement element, Func<HotbarSlot?> what, Func<string> icon, int fromSlot)
+        {
+            element.RegisterCallback<PointerDownEvent>(down =>
+            {
+                if (down.button != 0 || Busy())
+                    return;
+                HotbarSlot? slot = what();
+                if (slot == null)
+                    return;
+                dragging = slot;
+                dragFrom = fromSlot;
+                dragPointer = down.pointerId;
+                dragStart = down.position;
+                dragMoved = false;
+                Texture2D picture = icons != null ? icons.Get(icon()) : null;
+                dragGhost.style.backgroundImage = picture != null ? Background.FromTexture2D(picture) : StyleKeyword.None;
+            }, TrickleDown.TrickleDown);
+            element.RegisterCallback<PointerMoveEvent>(move => DragTo(move.pointerId, move.position), TrickleDown.TrickleDown);
+            element.RegisterCallback<PointerUpEvent>(up =>
+            {
+                if (up.pointerId == dragPointer)
+                    EndDrag(drop: true, up.position);
+            }, TrickleDown.TrickleDown);
+        }
+
+        void DragTo(int pointer, Vector2 position)
+        {
+            if (dragging == null || pointer != dragPointer)
+                return;
+            if (!dragMoved && (position - dragStart).sqrMagnitude < 64f)
+                return;
+            dragMoved = true;
+            Vector2 local = screen.WorldToLocal(position);
+            dragGhost.style.left = local.x - 36f;
+            dragGhost.style.top = local.y - 36f;
+            dragGhost.SetVisible(true);
+            dragGhost.BringToFront();
+            foreach (VisualElement tile in hotbarTiles)
+                if (tile != null)
+                {
+                    if (tile.worldBound.Contains(position))
+                        tile.AddToClassList("drop-target");
+                    else
+                        tile.RemoveFromClassList("drop-target");
+                }
+        }
+
+        void EndDrag(bool drop, Vector2 position = default)
+        {
+            if (dragging == null)
+                return;
+            HotbarSlot item = dragging.Value;
+            bool moved = dragMoved;
+            dragging = null;
+            dragPointer = -1;
+            dragGhost?.SetVisible(false);
+            int target = -1;
+            for (int i = 0; i < hotbarTiles.Length; i++)
+            {
+                if (hotbarTiles[i] == null)
+                    continue;
+                if (drop && moved && hotbarTiles[i].worldBound.Contains(position))
+                    target = i;
+                hotbarTiles[i].RemoveFromClassList("drop-target");
+            }
+            if (!drop || !moved)
+                return;
+            droppedAt = Time.unscaledTime;
+            if (target < 0)
+            {
+                // A slot dragged off the hotbar is emptied.
+                if (dragFrom >= 0)
+                    backpack.ClearHotbar(dragFrom);
+                return;
+            }
+            if (dragFrom >= 0)
+            {
+                // Two slots swap.
+                HotbarSlot there = backpack.Hotbar[target];
+                backpack.ClearHotbar(dragFrom);
+                backpack.AssignHotbar(item, target);
+                if (there.kind != HotbarKind.Empty && dragFrom != target)
+                    backpack.AssignHotbar(there, dragFrom);
+                return;
+            }
+            backpack.AssignHotbar(item, target);
+            Notifications.Post($"{Player.Hotbar.Describe(item)} is on key {target + 1}.", 2f);
+        }
 
         // ---------- Actions ----------
 

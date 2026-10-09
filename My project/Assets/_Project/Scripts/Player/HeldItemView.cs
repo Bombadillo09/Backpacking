@@ -173,7 +173,10 @@ namespace Backpacking.Player
             if (slot.kind == HotbarKind.Empty || appearance.Animator == null)
                 return;
             GameObject prefab = library != null ? library.PrefabFor(slot) : null;
-            item = prefab != null ? Instantiate(prefab) : slot.kind == HotbarKind.Food ? HeldFood.Build(slot.food, library != null ? library.plain : null, owned) : null;
+            Material plain = library != null ? library.plain : null;
+            item = prefab != null ? Instantiate(prefab)
+                : slot.kind == HotbarKind.Food ? HeldFood.Build(slot.food, plain, owned)
+                : HeldGear.Build(slot, hotbar.Backpack.HasGoodRod, plain, owned);
             if (item == null)
                 return;
             item.name = "Held " + Hotbar.Describe(slot);

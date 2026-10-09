@@ -10,8 +10,10 @@ namespace Backpacking.Player
 {
     /// <summary>
     /// Five slots of things carried to hand (belt, hip pockets): the machete, the water bottle, a snack, first
-    /// aid. Press 1–5 to hold one (again to put it away; D-pad right cycles on a gamepad), then click (X) to use
-    /// it: swing, drink, eat, take or apply. Works with the pack on. Fill the slots from the backpack screen.
+    /// aid, the fishing rod, a flashlight, or anything else from the pack. Press 1–5 to hold one (again to put it
+    /// away; D-pad right cycles on a gamepad), then click (X) to use it: swing, drink, eat, take or apply, cast at
+    /// the water, switch the light on; other gear does its first action (set up the stove, put on the fleece).
+    /// Works with the pack on. Fill the slots from the backpack screen, by button or by dragging.
     /// </summary>
     public class Hotbar : MonoBehaviour
     {
@@ -23,8 +25,13 @@ namespace Backpacking.Player
         [SerializeField] ItemIconLibrary icons;
         [Tooltip("Game minutes to clean and wrap a cut.")]
         [SerializeField] float bandageMinutes = 3f;
+        [Tooltip("How far you can cast a line, in metres.")]
+        [SerializeField] float castReach = 14f;
 
         static Hotbar current;
+        FirstPersonController player;
+        Interactor interactor;
+        Light beam;
 
         InputAction attack;
         VisualElement bar;
@@ -37,6 +44,7 @@ namespace Backpacking.Player
         /// <summary>The slot in hand, or −1 for empty hands.</summary>
         public int Selected { get; private set; } = -1;
         public static Hotbar Current => current;
+        public Backpack Backpack => backpack;
 
         /// <summary>Raised when the held item is used (drunk, eaten, taken, applied), for the hand animation.</summary>
         public static event System.Action<HotbarKind> Used;
@@ -50,6 +58,15 @@ namespace Backpacking.Player
         /// <summary>The bow is in hand: holding the button draws it (handled by <see cref="Hunting.Bow"/>).</summary>
         public static bool HoldingBow => current != null && current.Held.kind == HotbarKind.Bow && current.backpack.HasBow;
 
+        /// <summary>The rod (or hand line) is in hand: click at the water to fish.</summary>
+        public static bool HoldingRod => current != null && current.Held.kind == HotbarKind.FishingRod && current.backpack.HasFishingKit;
+
+        /// <summary>Switched on, whether or not it's in hand right now (it lights only while held).</summary>
+        public bool FlashlightOn { get; private set; }
+
+        /// <summary>The flashlight is in hand and shining.</summary>
+        public bool Shining => FlashlightOn && Held.kind == HotbarKind.Flashlight && backpack.HasFlashlight && !activity.IsBusy;
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
         {
@@ -61,6 +78,12 @@ namespace Backpacking.Player
         {
             current = this;
             attack = inputActions.FindActionMap("Player", true).FindAction("Attack", true);
+            player = GetComponentInParent<FirstPersonController>();
+            if (player == null)
+                player = FindAnyObjectByType<FirstPersonController>();
+            interactor = GetComponentInParent<Interactor>();
+            if (interactor == null)
+                interactor = FindAnyObjectByType<Interactor>();
         }
 
         void OnDestroy()
@@ -104,7 +127,34 @@ namespace Backpacking.Player
                 if (attack.WasPressedThisFrame() && !RestMode.SeatedNow)
                     UseHeld();
             }
+            UpdateBeam();
             Refresh();
+        }
+
+        /// <summary>The flashlight's beam, from just below the eyes along the view, while it's held and switched on.</summary>
+        void UpdateBeam()
+        {
+            bool shining = Shining;
+            if (shining && beam == null && player != null && player.CameraPivot != null)
+            {
+                var go = new GameObject("Flashlight Beam");
+                go.transform.SetParent(player.CameraPivot, false);
+                go.transform.localPosition = new Vector3(0.18f, -0.2f, 0.25f);
+                beam = go.AddComponent<Light>();
+                beam.type = LightType.Spot;
+                beam.spotAngle = 48f;
+                beam.innerSpotAngle = 22f;
+                beam.range = 32f;
+                beam.intensity = 9f;
+                beam.color = new Color(1f, 0.95f, 0.86f);
+                beam.shadows = LightShadows.None;
+            }
+            if (beam == null)
+                return;
+            beam.enabled = shining;
+            // Aimed a touch in from the hand, so the pool of light sits in the middle of the view.
+            if (shining)
+                beam.transform.localRotation = Quaternion.Euler(1.5f, -3f, 0f);
         }
 
         void Select(int slot)
@@ -169,7 +219,41 @@ namespace Backpacking.Player
                         }))
                         Used?.Invoke(held.kind);
                     break;
+                case HotbarKind.FishingRod:
+                    Cast();
+                    break;
+                case HotbarKind.Flashlight:
+                    if (!backpack.HasFlashlight)
+                        break;
+                    FlashlightOn = !FlashlightOn;
+                    break;
+                case HotbarKind.Gear:
+                    if (BackpackView.Current != null && !BackpackView.Current.UseGear(held.key))
+                        backpack.ClearHotbar(Selected);
+                    break;
             }
+        }
+
+        /// <summary>Casts a line at the water you're looking at, if there's any within a cast.</summary>
+        void Cast()
+        {
+            if (!backpack.HasFishingKit || interactor == null || player == null)
+                return;
+            Transform view = player.CameraPivot;
+            RaycastHit[] hits = Physics.RaycastAll(player.AimOrigin, view.forward, castReach, ~0, QueryTriggerInteraction.Collide);
+            System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+            foreach (RaycastHit hit in hits)
+            {
+                if (hit.collider.GetComponent<WaterSource>() != null)
+                {
+                    interactor.Fishing.Begin(hit.point);
+                    return;
+                }
+                // Anything solid in the way (the bank, a tree) blocks the cast.
+                if (!hit.collider.isTrigger && !hit.transform.IsChildOf(player.transform))
+                    break;
+            }
+            Notifications.Post("Look out over a lake or stream close by, then click to cast.", 2.5f);
         }
 
         /// <summary>What a slot shows, e.g. "Trail mix".</summary>
@@ -181,6 +265,9 @@ namespace Backpacking.Player
             HotbarKind.Antibiotics => "Antibiotics",
             HotbarKind.Bandage => "Bandages",
             HotbarKind.Bow => "Bow",
+            HotbarKind.FishingRod => current != null && current.backpack.HasGoodRod ? "Fishing rod" : "Hand line",
+            HotbarKind.Flashlight => "Flashlight",
+            HotbarKind.Gear => slot.label ?? "",
             _ => "",
         };
 
@@ -191,6 +278,8 @@ namespace Backpacking.Player
             HotbarKind.Antibiotics => $"×{backpack.Antibiotics}",
             HotbarKind.Bandage => $"×{backpack.Bandages}",
             HotbarKind.Bow => $"×{backpack.Arrows}",
+            HotbarKind.Flashlight => FlashlightOn ? "on" : "off",
+            HotbarKind.Gear => BackpackView.Current != null ? BackpackView.Current.CountOf(slot.key) : "",
             _ => "",
         };
 

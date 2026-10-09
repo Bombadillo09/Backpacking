@@ -10,9 +10,10 @@ namespace Backpacking.UI
     /// <summary>
     /// Packing your backpack. At the truck, the truck bed is on the left and your pack on the right: pack things
     /// one at a time (or all of a kind) and they go to their usual place if there's room; select something in the
-    /// pack to move it to another part of it, or back to the truck. Anywhere else it's repacking: moving things
-    /// around inside the pack. The top line shows how full it is, the load, and how well it's balanced; the tip
-    /// under it says what's packed worst.
+    /// pack to move it to another part of it, or back to the truck. A friend's pack set down on the ground (co-op)
+    /// opens the same way, with their pack on the left. Anywhere else it's repacking: moving things around inside
+    /// the pack. The top line shows how full it is, the load, and how well it's balanced; the tip under it says what's
+    /// packed worst.
     /// </summary>
     public class PackingView : MonoBehaviour
     {
@@ -35,8 +36,10 @@ namespace Backpacking.UI
         readonly Bindings listBindings = new();
         VisualElement screen, truckColumn, selection;
         ScrollView truckList, packList;
-        Label title, selectedLabel;
+        Label title, selectedLabel, truckHeading;
         Backpack truckBed;
+        // Whose pack is on the left: a friend's name, or null for the truck bed.
+        string otherOwner;
         string listKey, selected;
         float nextRefresh;
 
@@ -60,7 +63,8 @@ namespace Backpacking.UI
             truckList = new ScrollView();
             packList = new ScrollView();
             truckList.style.height = packList.style.height = 470f;
-            truckColumn = UIBuild.Box("column").With(UIBuild.Text("TRUCK BED", "heading"), truckList);
+            truckHeading = UIBuild.Text("TRUCK BED", "heading");
+            truckColumn = UIBuild.Box("column").With(truckHeading, truckList);
 
             selectedLabel = UIBuild.Text("", "text");
             VisualElement zoneButtons = UIBuild.Box("row");
@@ -72,8 +76,10 @@ namespace Backpacking.UI
             selection = UIBuild.Box("row").With(
                 UIBuild.Box("grow").With(selectedLabel, bindings.Text(SelectionReason, "reason")),
                 zoneButtons,
-                bindings.Visible(bindings.Enabled(UIBuild.Button("To the truck", () => ToTruck(all: false)), () => SelectedItem() != null), () => truckBed != null),
-                bindings.Visible(bindings.Enabled(UIBuild.Button("All to the truck", () => ToTruck(all: true)), () => SelectedItem()?.Count > 1), () => truckBed != null));
+                bindings.Visible(bindings.Enabled(Labelled(UIBuild.Button("", () => ToTruck(all: false)), () => otherOwner != null ? $"To {otherOwner}'s pack" : "To the truck"),
+                    () => SelectedItem() != null), () => truckBed != null),
+                bindings.Visible(bindings.Enabled(Labelled(UIBuild.Button("", () => ToTruck(all: true)), () => otherOwner != null ? "All to their pack" : "All to the truck"),
+                    () => SelectedItem()?.Count > 1), () => truckBed != null));
 
             VisualElement panel = UIBuild.Box("panel").With(
                 UIBuild.Box("panel-header").With(title, bindings.Text(() => $"${backpack.Money}", "money")),
@@ -91,13 +97,24 @@ namespace Backpacking.UI
             GameUI.Current.Screens.Add(screen);
         }
 
-        /// <summary>Opens the screen: with a truck bed to pack from, or with null to rearrange the pack on the trail.</summary>
-        public void Open(Backpack from)
+        Button Labelled(Button button, System.Func<string> label)
+        {
+            bindings.Add(() => button.text = label());
+            return button;
+        }
+
+        /// <summary>
+        /// Opens the screen: with a truck bed to pack from, a friend's pack (<paramref name="owner"/> is whose), or with
+        /// null to rearrange the pack on the trail.
+        /// </summary>
+        public void Open(Backpack from, string owner = null)
         {
             if (IsOpen || screen == null)
                 return;
             truckBed = from;
-            title.text = from != null ? "Packing at the truck" : "Repacking";
+            otherOwner = from != null ? owner : null;
+            title.text = otherOwner != null ? $"Going through {otherOwner}'s pack" : from != null ? "Packing at the truck" : "Repacking";
+            truckHeading.text = otherOwner != null ? $"{otherOwner.ToUpperInvariant()}'S PACK" : "TRUCK BED";
             truckColumn.SetVisible(from != null);
             selected = null;
             listKey = null;
@@ -126,7 +143,8 @@ namespace Backpacking.UI
         {
             if (!IsOpen)
                 return;
-            if (GameInput.BackpackPressed && !PlayerControlLock.JustReleased)
+            // Done, or the friend's pack went (they picked it up, or left).
+            if ((GameInput.BackpackPressed && !PlayerControlLock.JustReleased) || (otherOwner != null && truckBed == null))
             {
                 Close();
                 return;
@@ -161,7 +179,7 @@ namespace Backpacking.UI
                 foreach (PackItem item in inTruck)
                     truckList.Add(TruckRow(item));
                 if (inTruck.Count == 0)
-                    truckList.Add(UIBuild.Text("Nothing in the truck bed. What you buy at the outdoor store is carried out here.", "small"));
+                    truckList.Add(UIBuild.Text(otherOwner != null ? "Nothing in it you can take." : "Nothing in the truck bed. What you buy at the outdoor store is carried out here.", "small"));
             }
 
             packList.Clear();
@@ -298,6 +316,10 @@ namespace Backpacking.UI
                     return;
                 }
                 backpack.SetZone(key, zone.Value);
+                // A bottle, tent, bag or mat swaps with the one you had: that one stays behind, and that's all of them.
+                PackItem left = truckBed.Contents().Find(entry => entry.Key == key);
+                if (left != null && left.Count >= item.Count)
+                    return;
             } while (all);
         }
 
@@ -307,7 +329,11 @@ namespace Backpacking.UI
                 return;
             do
             {
+                int before = SelectedItem()?.Count ?? 0;
                 if (backpack.MoveOne(selected, truckBed) != null)
+                    break;
+                // Swapped for the one there (a bottle, tent, bag or mat): that's as far as it goes.
+                if ((SelectedItem()?.Count ?? 0) >= before)
                     break;
             } while (all && SelectedItem() != null);
         }

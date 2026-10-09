@@ -24,6 +24,7 @@ namespace Backpacking.Hunting
 
         Vector3 velocity;
         Transform shooter;
+        TrailRenderer trail;
         float flightTime;
         bool flying;
         readonly List<Collider> passed = new();
@@ -45,6 +46,7 @@ namespace Backpacking.Hunting
             arrow.velocity = velocity;
             arrow.shooter = shooter;
             arrow.flying = true;
+            arrow.trail = BowDesign.AddFlightTrail(model);
             return arrow;
         }
 
@@ -135,6 +137,12 @@ namespace Backpacking.Hunting
         void StickIn(Vector3 point, Vector3 direction, Transform parent, float depth)
         {
             flying = false;
+            // The streak fades out behind it, then goes.
+            if (trail != null)
+            {
+                trail.emitting = false;
+                Destroy(trail, trail.time + 0.1f);
+            }
             transform.SetPositionAndRotation(point + direction * depth, Quaternion.LookRotation(direction));
             if (parent != null)
                 transform.SetParent(parent, true);

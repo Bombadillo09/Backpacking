@@ -43,6 +43,9 @@ namespace Backpacking.Camp
         public TentBag TentBag { get; private set; }
         public bool IsWorn => backpack.IsWorn;
         public float Reach => reach;
+        /// <summary>The pack lying on the ground, to show friends' packs in co-op.</summary>
+        public GameObject GroundPackPrefab => groundPackPrefab;
+        public Backpack Backpack => backpack;
 
         /// <summary>The pack is on your back, or near enough to reach into.</summary>
         public bool CanReachPack => backpack.IsWorn || (Pack != null && DistanceTo(Pack.transform) <= reach);

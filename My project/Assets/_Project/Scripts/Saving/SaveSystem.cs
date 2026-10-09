@@ -53,7 +53,7 @@ namespace Backpacking.Saving
         /// <summary>Co-op friends' hikers on this trip, by their key: kept in the save so they come back as they were.</summary>
         public Dictionary<string, HikerSave> Guests { get; } = new();
 
-        /// <summary>The scene's firewood pickups by their save id (null once collected).</summary>
+        /// <summary>The scene's pickups (firewood, the things to take from home) by their save id (null once collected).</summary>
         public IReadOnlyDictionary<string, GameObject> Pickups => pickupsAtStart;
 
         string SavePath => Path.Combine(Application.persistentDataPath, fileName);
@@ -65,6 +65,10 @@ namespace Backpacking.Saving
         {
             // Remember every pickup in the scene, so a save can list the ones that have been collected.
             foreach (FirewoodPickup pickup in FindObjectsByType<FirewoodPickup>())
+                if (pickup.TryGetComponent(out SaveId saveId))
+                    pickupsAtStart[saveId.Id] = pickup.gameObject;
+            // And the things to take from home: the daypack, the water in the fridge, the trail mix in the cupboard.
+            foreach (ItemPickup pickup in FindObjectsByType<ItemPickup>())
                 if (pickup.TryGetComponent(out SaveId saveId))
                     pickupsAtStart[saveId.Id] = pickup.gameObject;
         }

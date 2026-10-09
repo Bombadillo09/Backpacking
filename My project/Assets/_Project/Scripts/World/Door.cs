@@ -43,8 +43,9 @@ namespace Backpacking.World
             Apply();
         }
 
+        // "Open the front door", "Close the fridge".
         public void GetOptions(Interactor interactor, List<InteractionOption> options) =>
-            options.Add(new InteractionOption(open ? "Close the door" : "Open the door", Toggle));
+            options.Add(new InteractionOption($"{(open ? "Close" : "Open")} the {doorName.ToLowerInvariant()}", Toggle));
 
         public void Toggle()
         {

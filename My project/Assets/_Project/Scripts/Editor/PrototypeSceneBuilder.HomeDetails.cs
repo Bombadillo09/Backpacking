@@ -226,16 +226,10 @@ namespace Backpacking.EditorTools
             Material tile = GetOrCreateMaterial("KitchenTiles", new Color(0.82f, 0.85f, 0.8f), 0.5f);
             AddVisual(PrimitiveType.Cube, house, new Vector3(2.65f, y + 1.04f, 3.315f), Quaternion.identity, new Vector3(2.3f, 0.26f, 0.01f), tile);
             AddVisual(PrimitiveType.Cube, house, new Vector3(3.815f, y + 1.2f, 1.75f), Quaternion.identity, new Vector3(0.01f, 0.6f, 1.9f), tile);
-            // Wall cupboard doors and knobs, the fridge's freezer line, magnets and second handle.
-            foreach (float z in new[] { 1.55f, 1.9f, 2.25f })
-                AddVisual(PrimitiveType.Cube, house, new Vector3(3.473f, y + 1.85f, z), Quaternion.identity, new Vector3(0.01f, 0.6f, 0.01f), cupboardEdge);
-            foreach (float z in new[] { 1.4f, 1.75f, 2.05f, 2.4f })
-                AddVisual(PrimitiveType.Sphere, house, new Vector3(3.465f, y + 1.62f, z), Quaternion.identity, Vector3.one * 0.03f, steel);
-            AddVisual(PrimitiveType.Cube, house, new Vector3(3.145f, y + 1.3f, 0.45f), Quaternion.identity, new Vector3(0.005f, 0.01f, 0.64f), metal);
-            AddVisual(PrimitiveType.Cube, house, new Vector3(3.14f, y + 1.55f, 0.25f), Quaternion.identity, new Vector3(0.03f, 0.3f, 0.04f), steel);
+            // Magnets on the freezer door (the fridge and the wall cupboard are AddFridge's and AddWallCupboard's).
             Material[] magnet = { GetOrCreateMaterial("FlowerRed", new Color(0.8f, 0.15f, 0.15f)), GetOrCreateMaterial("FlowerYellow", new Color(0.95f, 0.8f, 0.2f)), canvasSky };
-            for (int i = 0; i < 4; i++)
-                AddVisual(PrimitiveType.Cube, house, new Vector3(3.143f, y + 1.0f + i * 0.13f, 0.55f - i * 0.07f), Quaternion.identity, new Vector3(0.006f, 0.06f, 0.06f), magnet[i % magnet.Length]);
+            for (int i = 0; i < 3; i++)
+                AddVisual(PrimitiveType.Cube, house, new Vector3(3.097f, y + 1.45f + i * 0.1f, 0.6f - i * 0.12f), Quaternion.identity, new Vector3(0.006f, 0.06f, 0.06f), magnet[i % magnet.Length]);
             // A dish rack with plates by the sink, a knife block, a chopping board, a bin, a bowl of fruit on the table.
             Vector3 rackAt = new(2.0f, y + 0.92f, 3.0f);
             AddVisual(PrimitiveType.Cube, house, rackAt, Quaternion.identity, new Vector3(0.4f, 0.04f, 0.3f), steel);

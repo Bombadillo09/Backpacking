@@ -10,7 +10,7 @@ namespace Backpacking.Net
     /// <summary>
     /// What another player's hiker has in hand, as <see cref="HeldItemView"/> and <see cref="Bow"/> show it on your
     /// own: the item in the right fist, swung when they chop and raised to the mouth when they eat or drink; the bow
-    /// in the left, raised and drawn as they aim.
+    /// in the left, raised and drawn as they aim; a flashlight's beam where they point it.
     /// </summary>
     public class RemoteHeldItem : MonoBehaviour
     {
@@ -20,7 +20,9 @@ namespace Backpacking.Net
         RemoteHikerBody body;
         HeldItemLibrary library;
         GameObject item, bow, nocked;
+        Light beam;
         HotbarSlot shown;
+        byte shownCode;
         float raise, swingTime = -1f, useTime = -1f, aim, draw;
         byte swings, uses;
         bool counted;
@@ -35,6 +37,8 @@ namespace Backpacking.Net
 
         void OnDestroy()
         {
+            if (beam != null)
+                Destroy(beam.gameObject);
             Show(new HotbarSlot(HotbarKind.Empty));
             ShowBow(false);
             foreach (Material material in owned)
@@ -60,9 +64,11 @@ namespace Backpacking.Net
             // Put away while busy, asleep or riding.
             bool away = state.seat >= 0 || state.Has(HikerState.Flag.Sleeping) || (state.Has(HikerState.Flag.Busy) && useTime < 0f);
             var held = new HotbarSlot(away ? HotbarKind.Empty : (HotbarKind)state.held, (FoodKind)state.heldFood);
+            if (held.kind is HotbarKind.Gear or HotbarKind.FishingRod)
+                held = held.kind == HotbarKind.Gear ? HotbarSlot.Gear(null, null, HeldGear.IconOf(state.heldFood)) : new HotbarSlot(HotbarKind.FishingRod);
             bool bowInHand = held.kind == HotbarKind.Bow;
-            if (!held.Same(shown) && !bowInHand)
-                Show(held);
+            if ((!held.Same(shown) || (held.kind is HotbarKind.Gear or HotbarKind.FishingRod && state.heldFood != shownCode)) && !bowInHand)
+                Show(held, state.heldFood);
             else if (bowInHand && item != null)
                 Show(new HotbarSlot(HotbarKind.Empty));
             ShowBow(bowInHand);
@@ -117,6 +123,7 @@ namespace Backpacking.Net
                 HeldItemView.Place(item.transform, appearance.Animator, frame, alignToHand: swingTime < 0f);
                 item.SetActive(raise > 0.5f);
             }
+            UpdateBeam();
             if (bow != null)
             {
                 // In the left fist, wherever the IK got the hand to.
@@ -139,17 +146,47 @@ namespace Backpacking.Net
             look = Quaternion.Euler(Mathf.Clamp(state.pitch, -40f, 40f) * (bow != null ? 1f : 0.5f), body.transform.eulerAngles.y, 0f);
         }
 
-        void Show(HotbarSlot slot)
+        /// <summary>Their flashlight's beam, out along the torch from their hand, while they have it switched on.</summary>
+        void UpdateBeam()
+        {
+            bool shining = item != null && item.activeSelf && shown.kind == HotbarKind.Flashlight && body.State.Has(HikerState.Flag.Flashlight);
+            if (shining && beam == null)
+            {
+                var go = new GameObject("Flashlight Beam (co-op)");
+                beam = go.AddComponent<Light>();
+                beam.type = LightType.Spot;
+                beam.spotAngle = 48f;
+                beam.innerSpotAngle = 22f;
+                beam.range = 32f;
+                beam.intensity = 9f;
+                beam.color = new Color(1f, 0.95f, 0.86f);
+                beam.shadows = LightShadows.None;
+            }
+            if (beam == null)
+                return;
+            beam.enabled = shining;
+            if (!shining)
+                return;
+            // From the lens, along where they look.
+            Look(body.State, out _, out Quaternion look, out _);
+            look = Quaternion.Euler(Mathf.Clamp(body.State.pitch, -60f, 60f), look.eulerAngles.y, 0f);
+            beam.transform.SetPositionAndRotation(item.transform.position + item.transform.forward * 0.13f, look);
+        }
+
+        void Show(HotbarSlot slot, byte code = 0)
         {
             shown = slot;
+            shownCode = code;
             if (item != null)
                 Destroy(item);
             item = null;
             if (slot.kind is HotbarKind.Empty or HotbarKind.Bow)
                 return;
             GameObject prefab = library != null ? library.PrefabFor(slot) : null;
+            Material plain = library != null ? library.plain : null;
             item = prefab != null ? Instantiate(prefab)
-                : slot.kind == HotbarKind.Food ? HeldFood.Build(slot.food, library != null ? library.plain : null, owned) : null;
+                : slot.kind == HotbarKind.Food ? HeldFood.Build(slot.food, plain, owned)
+                : HeldGear.Build(slot, slot.kind == HotbarKind.FishingRod && code == 1, plain, owned);
             if (item == null)
                 return;
             item.name = "Held " + Hotbar.Describe(slot);

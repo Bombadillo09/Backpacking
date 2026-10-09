@@ -17,6 +17,28 @@ namespace Backpacking.UI
             set => Set("volume", Mathf.Clamp01(value));
         }
 
+        /// <summary>The world's background sounds (wind, rain, birds, crickets, water), 0 to 1, under the master volume.</summary>
+        public static float AmbienceVolume
+        {
+            get => PlayerPrefs.GetFloat(Prefix + "ambience", 0.5f);
+            set => Set("ambience", Mathf.Clamp01(value));
+        }
+
+        /// <summary>Waits for the monitor's refresh before each frame: no tearing, frame rate capped at the refresh rate.</summary>
+        public static bool VSync
+        {
+            get => PlayerPrefs.GetInt(Prefix + "vsync", 1) == 1;
+            set => Set("vsync", value ? 1 : 0);
+        }
+
+        /// <summary>Puts the display settings (V-sync) into effect.</summary>
+        public static void ApplyDisplay()
+        {
+            QualitySettings.vSyncCount = VSync ? 1 : 0;
+            // Without V-sync, no cap: as fast as it'll go.
+            Application.targetFrameRate = -1;
+        }
+
         /// <summary>Degrees per pixel of mouse movement.</summary>
         public static float MouseSensitivity
         {

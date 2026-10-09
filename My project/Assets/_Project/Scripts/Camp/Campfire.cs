@@ -10,7 +10,8 @@ namespace Backpacking.Camp
 {
     /// <summary>
     /// A fire ring. Light it with a match once it has wood; it burns through its fuel over game time,
-    /// giving off heat and light, and can boil water and cook while lit.
+    /// giving off heat and light, and can boil water and cook while lit. Lit, its coals glow and its flames (with
+    /// their core, sparks and smoke) play, dying down as the wood burns low; the light wavers with them.
     /// </summary>
     public class Campfire : MonoBehaviour, IInteractable
     {
@@ -23,6 +24,9 @@ namespace Backpacking.Camp
 
         [Header("Parts")]
         [SerializeField] GameObject woodVisual;
+        [Tooltip("Glowing coals, shown while it burns.")]
+        [SerializeField] GameObject coals;
+        [Tooltip("The flames; the core, sparks and smoke are its children and play with it.")]
         [SerializeField] ParticleSystem flames;
         [SerializeField] Light fireLight;
         [SerializeField] HeatSource heat;
@@ -45,6 +49,9 @@ namespace Backpacking.Camp
         float fuelHours;
         bool burning;
         float baseLightIntensity;
+        Vector3 lightHome;
+        ParticleSystem[] layers;
+        float[] layerRates;
 
         public bool IsBurning => burning;
         public float FuelHours => fuelHours;
@@ -67,6 +74,9 @@ namespace Backpacking.Camp
             GameObject playerObject = GameObject.FindWithTag("Player");
             player = playerObject != null ? playerObject.transform : null;
             baseLightIntensity = fireLight.intensity;
+            lightHome = fireLight.transform.localPosition;
+            layers = flames.GetComponentsInChildren<ParticleSystem>(true);
+            layerRates = System.Array.ConvertAll(layers, layer => layer.emission.rateOverTimeMultiplier);
 
             crackle = gameObject.AddComponent<AudioSource>();
             crackle.clip = crackleClip != null ? crackleClip : Sounds.Fire();
@@ -97,10 +107,18 @@ namespace Backpacking.Camp
                 return;
             }
 
-            // Flicker, dimming as the fire burns low.
+            // Flicker, dimming as the fire burns low; the light wavers about as the flames do, so shadows dance.
             float strength = Mathf.Clamp01(fuelHours / 0.5f) * 0.6f + 0.4f;
-            fireLight.intensity = baseLightIntensity * strength * (0.85f + 0.3f * Mathf.PerlinNoise(Time.time * 6f, 0f));
+            float flicker = 0.8f + 0.25f * Mathf.PerlinNoise(Time.time * 7f, 0f) + 0.1f * Mathf.PerlinNoise(Time.time * 19f, 3f);
+            fireLight.intensity = baseLightIntensity * strength * flicker;
+            fireLight.transform.localPosition = lightHome + new Vector3(Mathf.PerlinNoise(Time.time * 3f, 5f) - 0.5f,
+                (Mathf.PerlinNoise(Time.time * 4f, 8f) - 0.5f) * 0.5f, Mathf.PerlinNoise(Time.time * 3f, 11f) - 0.5f) * 0.12f;
             crackle.volume = crackleVolume * strength;
+            for (int i = 0; i < layers.Length; i++)
+            {
+                ParticleSystem.EmissionModule emission = layers[i].emission;
+                emission.rateOverTimeMultiplier = layerRates[i] * strength;
+            }
         }
 
         public void GetOptions(Interactor interactor, List<InteractionOption> options)
@@ -173,6 +191,8 @@ namespace Backpacking.Camp
             fireLight.enabled = value;
             heat.enabled = value;
             woodVisual.SetActive(fuelHours > 0f);
+            if (coals != null)
+                coals.SetActive(value);
             if (value)
             {
                 flames.Play();

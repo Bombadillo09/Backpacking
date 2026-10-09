@@ -433,6 +433,14 @@ namespace Backpacking.EditorTools
         }
 
         /// <summary>A building root on the ground at a lot, at <paramref name="offset"/> metres along (x) and beside (y) the road, facing <paramref name="facing"/>.</summary>
+        /// <summary>Makes a building walk-in: boards underfoot, the outdoors muffled within this box (local space).</summary>
+        static void MarkBuilding(GameObject building, Vector3 interiorCentre, Vector3 interiorSize)
+        {
+            var marker = building.AddComponent<World.Building>();
+            Modify(marker, "interiorCentre", property => property.vector3Value = interiorCentre);
+            Modify(marker, "interiorSize", property => property.vector3Value = interiorSize);
+        }
+
         static GameObject PlaceBuilding(string name, Place place, Vector2 offset, Vector2 facing, Terrain terrain, Transform parent)
         {
             Vector2 along = place.RoadDirection, side = new(-along.y, along.x);
@@ -551,6 +559,7 @@ namespace Backpacking.EditorTools
 
             const float width = 12f, depth = 9f, floorTop = 0.3f, wallHeight = 3.4f, wall = 0.2f;
             BuildRoom(building, width, depth, floorTop, wallHeight, wall, 0f, 1.8f, 2.4f, walls, floor);
+            MarkBuilding(building, new Vector3(0f, (floorTop + wallHeight) / 2f, 0f), new Vector3(width, floorTop + wallHeight, depth));
             // Glass double doors that swing out.
             AddDoor(building, "Store doors", floorTop, depth / 2f - wall / 2f, 2.4f, timber, GetOrCreateMaterial("Steel", new Color(0.7f, 0.72f, 0.74f), 0.7f),
                 GetOrCreateGlassMaterial(), false, (-0.9f, 1f, 0.9f, -100f), (0.9f, -1f, 0.9f, 100f));

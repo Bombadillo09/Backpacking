@@ -54,7 +54,7 @@ namespace Backpacking.Net
     /// everyone asks, so it never skips while someone is awake and hiking. Doors swing for everyone. The truck's
     /// seats are given out by the host, and the truck's physics run in the driver's game (the host's while it's
     /// parked) while everyone else's truck follows. The truck bed is shared: what anyone puts in or takes out of it,
-    /// everyone sees. The camp, wildlife and guests' hikers are in the other parts of this class. Spawned by the host
+    /// everyone sees. The camp, wildlife, guests' hikers and packs set down are in the other parts of this class. Spawned by the host
     /// when a session starts.
     /// </summary>
     public partial class CoopWorld : NetworkBehaviour
@@ -102,6 +102,7 @@ namespace Backpacking.Net
             SpawnCamp();
             SpawnWildlife();
             SpawnHikers();
+            SpawnPacks();
             if (IsServer)
             {
                 NetworkManager.OnClientDisconnectCallback += OnClientLeft;
@@ -125,6 +126,7 @@ namespace Backpacking.Net
             Pickup.LocalSeatChanged -= OnLocalSeatChanged;
             DespawnWildlife();
             DespawnHikers();
+            DespawnPacks();
             OtherHikers.Clear();
             if (NetworkManager != null)
                 NetworkManager.OnClientDisconnectCallback -= OnClientLeft;
@@ -152,6 +154,7 @@ namespace Backpacking.Net
             UpdateCamp();
             UpdateWildlife();
             UpdateHikers();
+            UpdatePacks();
             if (IsServer && Time.unscaledTime >= nextWeather && weather != null)
             {
                 nextWeather = Time.unscaledTime + weatherEvery;

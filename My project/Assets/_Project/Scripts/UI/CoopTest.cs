@@ -25,8 +25,9 @@ namespace Backpacking.UI
     /// beside the host and each sees the other's hiker; a door opened by the host opens for the guest; the guest
     /// rides as the host's passenger and is carried along; the shared truck bed; the clock speeding up only when
     /// both ask; a fire the host lit before the guest joined; the guest's stove, theirs alone to pack away; the host's
-    /// rabbits and deer shown in the guest's game, one shot and taken there; the late joiner's starter kit; and the
-    /// guest's hiker kept by the host when they leave. They take turns by watching each other's moves (the door, the seats, the clock). Results go to
+    /// rabbits and deer shown in the guest's game, one shot and taken there; the late joiner's starter kit; sharing a
+    /// tent; the host's pack set down, gone through by the guest (jerky out, trail mix in); and the guest's hiker kept
+    /// by the host when they leave. They take turns by watching each other's moves (the door, the seats, the clock). Results go to
     /// Logs/cooptest-host.log and cooptest-guest.log (next to the build for the guest); FAIL lines are problems.
     /// </summary>
     public class CoopTest : MonoBehaviour
@@ -314,6 +315,23 @@ namespace Backpacking.UI
             Check(takeDown.Label != null && takeDown.Enabled, $"now the tent can come down ({takeDown.DisabledReason ?? "yes"}; "
                                                              + $"guest at {tent.transform.InverseTransformPoint(other.Body.transform.position):F2}, others {World.OtherHikers.All.Count})");
 
+            // The host's pack, set down with some jerky in it: the guest takes one and leaves trail mix.
+            var backpack = player.GetComponent<Backpack>();
+            var handling = player.GetComponent<PackHandling>();
+            if (!backpack.HasPack)
+                backpack.SetPack(PackModel.Trekking55);
+            backpack.AddFood(FoodKind.Jerky, 2);
+            int jerky = backpack.CountFood(FoodKind.Jerky), trailMix = backpack.CountFood(FoodKind.TrailMix);
+            handling.SetDown();
+            Note($"set the pack down with {jerky} jerky and {trailMix} trail mix in it");
+            yield return Until(() => backpack.CountFood(FoodKind.Jerky) < jerky, 60f, r => ok = r);
+            Check(ok, $"the guest took jerky out of the host's pack ({backpack.CountFood(FoodKind.Jerky)} left)");
+            yield return Until(() => backpack.CountFood(FoodKind.TrailMix) > trailMix, 30f, r => ok = r);
+            Check(ok, $"and put trail mix in it ({backpack.CountFood(FoodKind.TrailMix)} now)");
+            yield return new WaitForSecondsRealtime(1f);
+            handling.PickUp();
+            Note("picked the pack up again");
+
             // The guest leaves when it's done.
             yield return Until(() => CoopSession.PlayerCount < 2, 90f, r => ok = r);
             Check(ok, "the guest left, and the host carries on");
@@ -512,6 +530,33 @@ namespace Backpacking.UI
                 Check(!player.Mounted, "crawled out");
             }
             yield return new WaitForSecondsRealtime(3f);
+
+            // The host sets their pack down: go through it, take a piece of jerky, leave some trail mix.
+            GroundPack theirs = null;
+            yield return Until(() => (theirs = CoopWorld.Current.FriendsPackOf(host.OwnerClientId)) != null && theirs.Contents.CountFood(FoodKind.Jerky) > 0,
+                60f, r => ok = r);
+            Check(ok, $"the host's pack shows up on the ground here, with their jerky in it ({(theirs != null ? theirs.DisplayName : "none")})");
+            if (theirs != null)
+            {
+                var packOptions = new System.Collections.Generic.List<InteractionOption>();
+                theirs.GetOptions(player.GetComponent<Interactor>(), packOptions);
+                InteractionOption goThrough = packOptions.FirstOrDefault(option => option.Label.StartsWith("Go through"));
+                Check(goThrough.Label != null && goThrough.Enabled, $"it offers: {goThrough.Label ?? "nothing"} {goThrough.DisabledReason}");
+                goThrough.Execute?.Invoke();
+                Check(PackingView.Current != null && PackingView.Current.IsOpen, "the packing screen opens with their pack beside ours");
+                Snap("guest-sees-host-pack", theirs.transform.position + theirs.transform.forward * 1.4f + Vector3.up * 1.1f, theirs.transform.position + Vector3.up * 0.3f);
+                int mine = backpack.CountFood(FoodKind.Jerky);
+                string problem = theirs.Contents.MoveOne("food-Jerky", backpack);
+                Check(problem == null && backpack.CountFood(FoodKind.Jerky) == mine + 1, $"took a piece of jerky ({problem ?? "ok"})");
+                yield return new WaitForSecondsRealtime(2.5f);
+                problem = backpack.MoveOne("food-TrailMix", theirs.Contents);
+                Check(problem == null, $"left them some trail mix ({problem ?? "ok"})");
+                yield return new WaitForSecondsRealtime(2.5f);
+                PackingView.Current.Close();
+                yield return Until(() => CoopWorld.Current.FriendsPackOf(host.OwnerClientId) == null, 60f, r => ok = r);
+                Check(ok, "when the host picks their pack up, it's gone from the ground here");
+            }
+            yield return new WaitForSecondsRealtime(2f);
 
             Check(CoopSession.IsGuest, "still a guest");
             CoopSession.Instance.Leave();

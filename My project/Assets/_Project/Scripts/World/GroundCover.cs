@@ -10,6 +10,8 @@ namespace Backpacking.World
         Hard,
         Snow,
         Water,
+        /// <summary>Floorboards: a building's floor or porch. Not a terrain layer.</summary>
+        Wood,
     }
 
     /// <summary>Reads the terrain's strongest ground layer at a position and classifies it by the layer's name.</summary>

@@ -31,6 +31,7 @@ namespace Backpacking.Net
             Bottle = 1024,
             Machete = 2048,
             Sprinting = 4096,
+            Flashlight = 8192,
         }
 
         public Vector3 position;
@@ -42,7 +43,10 @@ namespace Backpacking.Net
         public byte held;
         /// <summary>Counts machete swings, so a missed packet doesn't lose one.</summary>
         public byte swings;
-        /// <summary>Which food is in hand (<see cref="FoodKind"/>), when it's food.</summary>
+        /// <summary>
+        /// Which food is in hand (<see cref="FoodKind"/>), when it's food; for gear, its picture (<see cref="HeldGear.IconCode"/>);
+        /// for the fishing kit, 1 for a proper rod.
+        /// </summary>
         public byte heldFood;
         /// <summary>Counts bites, drinks and bandages, like <see cref="swings"/>.</summary>
         public byte uses;
@@ -269,10 +273,17 @@ namespace Backpacking.Net
                 if (machete && held.kind != HotbarKind.Machete)
                     flags |= HikerState.Flag.Machete;
             }
-            state.flags = flags;
             HotbarSlot inHand = Hotbar.Current != null ? Hotbar.Current.Held : new HotbarSlot(HotbarKind.Empty);
+            if (Hotbar.Current != null && Hotbar.Current.Shining)
+                flags |= HikerState.Flag.Flashlight;
+            state.flags = flags;
             state.held = (byte)inHand.kind;
-            state.heldFood = (byte)inHand.food;
+            state.heldFood = inHand.kind switch
+            {
+                HotbarKind.Gear => HeldGear.IconCode(inHand.icon),
+                HotbarKind.FishingRod => (byte)(backpack != null && backpack.HasGoodRod ? 1 : 0),
+                _ => (byte)inHand.food,
+            };
             state.uses = uses;
             if (bow != null && bow.isActiveAndEnabled)
             {

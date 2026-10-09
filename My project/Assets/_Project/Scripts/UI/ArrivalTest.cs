@@ -54,6 +54,8 @@ namespace Backpacking.UI
         void Check(bool ok, string what)
         {
             log.AppendLine((ok ? "ok    " : "FAIL  ") + what);
+            // In the editor's log as it goes too, so a test that stalls shows where.
+            Debug.Log($"[ArrivalTest] {(ok ? "ok" : "FAIL")} {what}");
             if (!ok)
                 failures++;
         }
@@ -119,6 +121,45 @@ namespace Backpacking.UI
                     $"\"{doorOptions[0].Label}\" swings it open");
             }
             Check(FindObjectsByType<World.Door>().Length >= 4, $"{FindObjectsByType<World.Door>().Length} doors in the house and store");
+
+            // What to take from home: the daypack by the bedroom door, water in the fridge, trail mix in the cupboard.
+            ItemPickup[] pickups = FindObjectsByType<ItemPickup>();
+            Check(pickups.Length == 3, $"three things to take at home ({string.Join(", ", pickups.Select(pickup => pickup.DisplayName))})");
+            World.Door fridge = FindObjectsByType<World.Door>().FirstOrDefault(door => door.DisplayName == "Fridge");
+            World.Door cupboard = FindObjectsByType<World.Door>().FirstOrDefault(door => door.DisplayName == "Kitchen cupboard");
+            ItemPickup water = pickups.FirstOrDefault(pickup => pickup.Kind == PickupKind.BottledWater);
+            Check(fridge != null && cupboard != null && !fridge.IsOpen && !cupboard.IsOpen, "the fridge and the kitchen cupboard are there, shut");
+            if (fridge != null && cupboard != null && water != null)
+            {
+                // Looking in at the bottle, the fridge door is in the way until it's opened.
+                Transform cabinet = water.transform.parent;
+                Vector3 bottle = water.transform.position + Vector3.up * 0.1f;
+                bool Reachable() => Physics.Raycast(bottle + cabinet.forward * 1.2f, -cabinet.forward, out RaycastHit hit, 1.4f, ~0, QueryTriggerInteraction.Collide)
+                                    && hit.collider.GetComponentInParent<ItemPickup>() == water;
+                Check(!Reachable(), "the water can't be reached with the fridge shut");
+                var opening = new System.Collections.Generic.List<InteractionOption>();
+                fridge.GetOptions(interactor, opening);
+                cupboard.GetOptions(interactor, opening);
+                foreach (InteractionOption option in opening)
+                    option.Execute();
+                yield return new WaitForSeconds(1.5f);
+                Physics.SyncTransforms();
+                Check(fridge.IsOpen && cupboard.IsOpen && Reachable(), $"\"{opening[0].Label}\" and \"{opening[1].Label}\": the water's in reach");
+            }
+            foreach (ItemPickup pickup in pickups)
+            {
+                var take = new System.Collections.Generic.List<InteractionOption>();
+                pickup.GetOptions(interactor, take);
+                if (take.Count > 0 && take[0].Enabled)
+                    take[0].Execute();
+            }
+            yield return null;
+            Check(backpack.PackModel == PackModel.Daypack25 && backpack.IsWorn, $"wearing the old daypack ({backpack.Pack.Name})");
+            Check(Mathf.Approximately(backpack.SafeWater, 0.5f) && backpack.CountFood(FoodKind.TrailMix) >= 1,
+                $"with {backpack.SafeWater:0.0} L of water and {backpack.CountFood(FoodKind.TrailMix)} trail mix");
+            Check(backpack.OnHotbar(new HotbarSlot(HotbarKind.Water)) && backpack.OnHotbar(new HotbarSlot(HotbarKind.Food, FoodKind.TrailMix)),
+                "the water and trail mix are on the hotbar");
+            Check(FindObjectsByType<ItemPickup>().Length == 0, "taken, they're gone from the house");
             Check(Vector3.Distance(player.transform.position, truck.transform.position) < 20f, "the truck is parked just outside");
 
             // Get in through the door with one press, and drive (teleported) to the store's lot, then get out.
@@ -186,7 +227,7 @@ namespace Backpacking.UI
             }
             log.AppendLine($"      spent ${spent}, ${backpack.Money} left");
             Check(backpack.HasPack && backpack.BootsName == "Trail hiking boots", "wearing the new pack and boots");
-            yield return new WaitForEndOfFrame();
+            yield return Application.isBatchMode ? null : new WaitForEndOfFrame();
             SaveScreen("play-shop");
             interactor.Shop.Close();
             yield return new WaitForSeconds(0.3f);
@@ -212,22 +253,24 @@ namespace Backpacking.UI
             yield return new WaitForSeconds(0.5f);
             log.AppendLine($"      packed: {backpack.TotalWeight:0.0} kg, {Backpack.BalanceWord(backpack.Balance)} ({backpack.Balance * 100f:0}%), "
                            + $"{truck.Bed.Contents().Count} kinds left in the truck");
-            Check(truck.Bed.Contents().Count == 0, "everything packed from the truck bed");
+            // All but the half-litre bottle from home, swapped out for the new 2 L one.
+            Check(truck.Bed.Contents().All(item => item.Key == "bottle") && backpack.WaterCapacity >= 2f,
+                $"everything packed from the truck bed ({string.Join(", ", truck.Bed.Contents().Select(item => item.Name))} left; carrying {backpack.WaterCapacity:0.#} L)");
             Check(backpack.OwnsTent && backpack.HasSleepingBag && backpack.OwnsStove && backpack.WaterCapacity > 0f && backpack.HasMachete, "tent, bag, stove, bottle and machete are in the pack");
-            yield return new WaitForEndOfFrame();
+            yield return Application.isBatchMode ? null : new WaitForEndOfFrame();
             SaveScreen("play-packing");
             PackingView.Current.Close();
             yield return null;
             FindAnyObjectByType<BackpackView>().Show();
             yield return new WaitForSeconds(0.3f);
-            yield return new WaitForEndOfFrame();
+            yield return Application.isBatchMode ? null : new WaitForEndOfFrame();
             SaveScreen("play-inventory");
             // The outfit: clothing by body part.
             var view = FindAnyObjectByType<BackpackView>();
             typeof(BackpackView).GetField("section", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(view, "CLOTHING");
             typeof(BackpackView).GetField("itemsKey", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(view, null);
             yield return new WaitForSeconds(0.4f);
-            yield return new WaitForEndOfFrame();
+            yield return Application.isBatchMode ? null : new WaitForEndOfFrame();
             SaveScreen("play-outfit");
             GameUI.CloseAllScreens();
             yield return new WaitForSeconds(0.3f);
@@ -267,6 +310,9 @@ namespace Backpacking.UI
         /// <summary>The whole game view with its UI (screens are drawn over the camera, so a camera render misses them).</summary>
         static void SaveScreen(string name)
         {
+            // Nothing's drawn to the screen in batch mode.
+            if (Application.isBatchMode)
+                return;
             Texture2D shot = ScreenCapture.CaptureScreenshotAsTexture();
             Directory.CreateDirectory("Logs/SceneSnapshots");
             File.WriteAllBytes($"Logs/SceneSnapshots/{name}.png", shot.EncodeToPNG());

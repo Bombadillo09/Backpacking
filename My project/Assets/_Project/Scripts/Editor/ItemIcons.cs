@@ -76,9 +76,9 @@ namespace Backpacking.EditorTools
                 if (prefab != null)
                     return Object.Instantiate(prefab);
                 var materials = new List<Material>();
-                GameObject food = slot.kind == HotbarKind.Food ? HeldFood.Build(slot.food, plain, materials) : null;
+                GameObject model = slot.kind == HotbarKind.Food ? HeldFood.Build(slot.food, plain, materials) : HeldGear.Build(slot, false, plain, materials);
                 owned.AddRange(materials);
-                return food;
+                return model;
             }
             MeshBuilder Builder() => new();
             Mesh Built(Action<MeshBuilder> make, string name)
@@ -102,6 +102,7 @@ namespace Backpacking.EditorTools
                 ("machete", () => Held(new HotbarSlot(HotbarKind.Machete)), new Vector3(1f, 0.15f, 0.25f)),
                 ("bandage", () => Held(new HotbarSlot(HotbarKind.Bandage)), default),
                 ("antibiotics", () => Held(new HotbarSlot(HotbarKind.Antibiotics)), default),
+                ("flashlight", () => Held(new HotbarSlot(HotbarKind.Flashlight)), new Vector3(1f, 0.3f, 0.4f)),
                 ("tent", () => Mesh((gear.stuffSack, Tint(gear.pack.gearFabric, olive), Vector3.zero, Vector3.zero, Vector3.one),
                     (gear.stuffSackStraps, gear.pack.webbing, Vector3.zero, Vector3.zero, Vector3.one)), default),
                 ("sleepingbag", () => Mesh((gear.stuffSack, Tint(gear.pack.gearFabric, new Color(0.5f, 0.12f, 0.1f)), Vector3.zero, Vector3.zero, new Vector3(0.75f, 1.25f, 1.25f)),

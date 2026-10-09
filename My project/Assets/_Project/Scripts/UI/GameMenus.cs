@@ -48,7 +48,7 @@ namespace Backpacking.UI
         {
             GameUI.EscapeUnhandled += OnEscape;
             GameUI.CancelUnhandled += OnCancel;
-            GameSettings.Changed += ApplyAudio;
+            GameSettings.Changed += ApplySettings;
             Net.CoopSession.JoinRequested += OnJoinRequested;
             Net.CoopSession.Ended += OnCoopEnded;
             Net.CoopSession.StatusChanged += RefreshCoop;
@@ -58,7 +58,7 @@ namespace Backpacking.UI
         {
             GameUI.EscapeUnhandled -= OnEscape;
             GameUI.CancelUnhandled -= OnCancel;
-            GameSettings.Changed -= ApplyAudio;
+            GameSettings.Changed -= ApplySettings;
             Net.CoopSession.JoinRequested -= OnJoinRequested;
             Net.CoopSession.Ended -= OnCoopEnded;
             Net.CoopSession.StatusChanged -= RefreshCoop;
@@ -67,7 +67,7 @@ namespace Backpacking.UI
 
         void Start()
         {
-            ApplyAudio();
+            ApplySettings();
             BuildPages();
             if (!SaveSystem.LoadingOnSceneStart)
             {
@@ -78,7 +78,11 @@ namespace Backpacking.UI
             }
         }
 
-        static void ApplyAudio() => AudioListener.volume = GameSettings.MasterVolume;
+        static void ApplySettings()
+        {
+            AudioListener.volume = GameSettings.MasterVolume;
+            GameSettings.ApplyDisplay();
+        }
 
         // ---------- Pages ----------
 
@@ -153,12 +157,14 @@ namespace Backpacking.UI
             VisualElement panel = UIBuild.Box("panel", "menu-panel").With(
                 UIBuild.Text("Settings", "title"),
                 SliderRow("Master volume", 0f, 1f, GameSettings.MasterVolume, value => GameSettings.MasterVolume = value, value => $"{value * 100f:0}%"),
+                SliderRow("Ambience volume", 0f, 1f, GameSettings.AmbienceVolume, value => GameSettings.AmbienceVolume = value, value => $"{value * 100f:0}%"),
                 SliderRow("Mouse sensitivity", 0.02f, 0.4f, GameSettings.MouseSensitivity, value => GameSettings.MouseSensitivity = value, value => $"{value * 10f:0.0}"),
                 SliderRow("Field of view", 55f, 95f, GameSettings.FieldOfView, value => GameSettings.FieldOfView = value, value => $"{value:0}°"),
                 SliderRow("Head bob", 0f, 1f, GameSettings.HeadBob, value => GameSettings.HeadBob = value, value => $"{value * 100f:0}%"),
                 ToggleRow("Invert mouse Y", GameSettings.InvertMouseY, value => GameSettings.InvertMouseY = value),
                 ToggleRow("Show control hints", GameSettings.ShowControlHints, value => GameSettings.ShowControlHints = value),
                 UIBuild.Box("setting").With(UIBuild.Text("Fullscreen", "setting-label"), fullscreen),
+                ToggleRow("V-sync", GameSettings.VSync, value => GameSettings.VSync = value),
                 UIBuild.Box("footer").With(UIBuild.Button("Back", Back, "primary")));
             panel.style.width = 600f;
             return panel;

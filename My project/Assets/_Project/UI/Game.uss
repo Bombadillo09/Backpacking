@@ -761,6 +761,18 @@
     border-radius: 6px;
 }
 
+.hotbar-tile.drop-target {
+    background-color: rgb(70, 52, 34);
+    border-width: 2px;
+    border-color: rgb(224, 123, 57);
+}
+
+.drag-ghost {
+    -unity-background-scale-mode: scale-to-fit;
+    border-radius: 8px;
+    background-color: rgba(27, 29, 27, 0.6);
+}
+
 .hotbar-tile-icon {
     position: absolute;
     left: 2px;
