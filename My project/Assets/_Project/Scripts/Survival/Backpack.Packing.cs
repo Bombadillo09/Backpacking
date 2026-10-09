@@ -471,8 +471,9 @@ namespace Backpacking.Survival
                 return "Not here";
             Garment garment = clothing[index];
             clothing.RemoveAt(index);
-            garment.worn = true;
+            garment.worn = false;
             wearer.clothing.Add(garment);
+            wearer.Wear(garment);
             balanceCheckedAt = wearer.balanceCheckedAt = -1f;
             return null;
         }

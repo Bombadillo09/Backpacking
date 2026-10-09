@@ -664,7 +664,7 @@
 /* Tiles match the background of the item pictures, so each picture sits seamlessly in its tile. */
 .item-tile {
     width: 112px;
-    height: 132px;
+    height: 146px;
     margin: 3px;
     padding: 4px;
     background-color: rgb(27, 29, 27);
@@ -778,4 +778,84 @@
     bottom: 16px;
     -unity-background-scale-mode: scale-to-fit;
     opacity: 0.95;
+}
+
+/* ---------- Backpack: section tabs, where things are, the outfit ---------- */
+
+.inventory-tabs {
+    width: 200px;
+    margin-right: 12px;
+}
+
+.inventory-tab {
+    -unity-text-align: middle-left;
+    margin: 2px 0;
+    padding: 9px 12px;
+}
+
+.inventory-tab.selected {
+    border-color: var(--accent);
+    border-width: 2px;
+    background-color: rgba(224, 123, 57, 0.16);
+}
+
+.item-where {
+    position: absolute;
+    left: 2px;
+    right: 2px;
+    bottom: 3px;
+    font-size: 11px;
+    color: var(--ink-dim);
+    -unity-text-align: lower-center;
+}
+
+.detail-stats {
+    color: var(--accent);
+    margin-top: 2px;
+    white-space: normal;
+}
+
+.outfit-row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 8px 4px;
+    border-bottom-width: 1px;
+    border-color: var(--edge);
+}
+
+.outfit-slot {
+    width: 130px;
+    -unity-font-style: bold;
+}
+
+.outfit-item {
+    flex-direction: column;
+    align-items: flex-start;
+    margin: 3px 8px 3px 0;
+    padding: 6px 10px;
+    min-width: 170px;
+}
+
+.outfit-item.worn {
+    border-color: var(--accent);
+    border-width: 2px;
+    background-color: rgba(224, 123, 57, 0.18);
+}
+
+.outfit-name {
+    -unity-font-style: bold;
+}
+
+.outfit-warmth {
+    height: 5px;
+    margin-top: 4px;
+    border-radius: 2px;
+    background-color: rgb(230, 140, 60);
+}
+
+.compare {
+    color: var(--accent);
+    font-size: 13px;
+    white-space: normal;
 }

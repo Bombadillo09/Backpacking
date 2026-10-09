@@ -121,8 +121,15 @@ namespace Backpacking.UI
             Check(FindObjectsByType<World.Door>().Length >= 4, $"{FindObjectsByType<World.Door>().Length} doors in the house and store");
             Check(Vector3.Distance(player.transform.position, truck.transform.position) < 20f, "the truck is parked just outside");
 
-            // Get in and drive (teleported) to the store's lot, then get out.
-            truck.GetIn();
+            // Get in through the door with one press, and drive (teleported) to the store's lot, then get out.
+            PickupPart door = truck.GetComponentsInChildren<PickupPart>().FirstOrDefault(part => part.DisplayName == "Truck door");
+            var doorChoices = new System.Collections.Generic.List<InteractionOption>();
+            door?.GetOptions(interactor, doorChoices);
+            Check(doorChoices.Count == 1 && doorChoices[0].Enabled, $"the door offers one thing: {string.Join(" / ", doorChoices.Select(option => option.Label))}");
+            if (doorChoices.Count > 0)
+                doorChoices[0].Execute();
+            else
+                truck.GetIn();
             yield return new WaitForSeconds(0.5f);
             Check(player.Mounted && PlayerControlLock.MovementLocked, "in the driver's seat, walking locked");
             yield return new WaitForSeconds(0.5f);
@@ -189,7 +196,8 @@ namespace Backpacking.UI
             yield return new WaitForSeconds(1f);
             Check(guide.Phase == ArrivalPhase.Packing, $"the guide says: pack ({guide.Phase})");
             var options = new System.Collections.Generic.List<InteractionOption>();
-            truck.GetOptions(interactor, options);
+            truck.GetComponentsInChildren<PickupPart>().First(part => part.DisplayName == "Tailgate").GetOptions(interactor, options);
+            Check(options.Count == 1, "the tailgate offers one thing");
             InteractionOption packOption = options.FirstOrDefault(option => option.Label.StartsWith("Pack your backpack"));
             Check(packOption.Label != null && packOption.Enabled, $"the truck offers: {string.Join(" / ", options.Select(option => option.Label))}");
             packOption.Execute?.Invoke();
@@ -214,6 +222,13 @@ namespace Backpacking.UI
             yield return new WaitForSeconds(0.3f);
             yield return new WaitForEndOfFrame();
             SaveScreen("play-inventory");
+            // The outfit: clothing by body part.
+            var view = FindAnyObjectByType<BackpackView>();
+            typeof(BackpackView).GetField("section", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(view, "CLOTHING");
+            typeof(BackpackView).GetField("itemsKey", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(view, null);
+            yield return new WaitForSeconds(0.4f);
+            yield return new WaitForEndOfFrame();
+            SaveScreen("play-outfit");
             GameUI.CloseAllScreens();
             yield return new WaitForSeconds(0.3f);
 

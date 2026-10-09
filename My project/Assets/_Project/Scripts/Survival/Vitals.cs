@@ -41,8 +41,8 @@ namespace Backpacking.Survival
         [SerializeField, Range(0f, Max)] float energy = 90f;
 
         [Header("Drain per Game Hour (at rest)")]
-        [SerializeField] float satietyDrain = 2.5f;
-        [SerializeField] float hydrationDrain = 3.5f;
+        [SerializeField] float satietyDrain = 2f;
+        [SerializeField] float hydrationDrain = 2.8f;
         [SerializeField] float energyDrain = 3.5f;
         [Tooltip("Energy restored per hour of sleep.")]
         [SerializeField] float sleepRecovery = 13f;

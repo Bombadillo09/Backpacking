@@ -24,6 +24,28 @@ namespace Backpacking.EditorTools
         /// <summary>Top of the cab floor, where the driver's feet are.</summary>
         const float CabFloor = 0.58f;
 
+        /// <summary>Where everything on the truck is, in its local space: from the imported model, or the built one.</summary>
+        sealed class TruckLayout
+        {
+            public Vector3[] WheelCentres = new Vector3[4];
+            public Transform[] WheelVisuals;
+            public float WheelRadius;
+            public Vector3 Seat, Eye = new(0f, 1.12f, 0f);
+            public Vector3 DriverExit, PassengerExit;
+            public Vector3[] Headlights = new Vector3[2];
+            public Vector3 BedCentre;
+            public Transform SteeringWheel;
+            /// <summary>Boxes for the solid body: centre and size.</summary>
+            public readonly System.Collections.Generic.List<(Vector3 centre, Vector3 size)> Boxes = new();
+            /// <summary>Where to put the door and tailgate targets: centre and size.</summary>
+            public (Vector3 centre, Vector3 size) LeftDoor, RightDoor, Tailgate;
+            public Vector3 CentreOfMass = new(0f, 0.5f, 0.25f);
+        }
+
+        const string TruckModelPrefab = "Assets/PickupTruck/Assets/Prefabs/Pickup.prefab";
+        /// <summary>The imported truck is scaled to this length, in metres.</summary>
+        const float TruckLength = 5.3f;
+
         static void CreatePickup(Terrain terrain, FirstPersonController player)
         {
             if (home == null)
@@ -32,24 +54,14 @@ namespace Backpacking.EditorTools
             Vector2 parked = home.Centre + side * 5f + along * 1f;
             Vector3 position = OnGround(terrain, parked) + Vector3.up * 0.15f;
 
+            // Built facing +Z at the origin of its own space, then turned to face down the road.
             var truck = new GameObject("Pickup");
-            truck.transform.SetPositionAndRotation(position, Quaternion.LookRotation(new Vector3(along.x, 0f, along.y)));
+            truck.transform.position = position;
             AddSaveId(truck, "pickup");
 
-            Material paint = GetOrCreateMaterial("TruckPaint", new Color(0.2f, 0.33f, 0.45f), 0.55f);
-            Material trim = GetOrCreateMaterial("TruckTrim", new Color(0.62f, 0.63f, 0.64f), 0.6f);
-            Material black = GetOrCreateMaterial("TruckBlack", new Color(0.06f, 0.06f, 0.06f), 0.2f);
-            Material interior = GetOrCreateMaterial("TruckInterior", new Color(0.2f, 0.19f, 0.18f), 0.1f);
-            Material bedLiner = GetOrCreateMaterial("TruckBedLiner", new Color(0.12f, 0.12f, 0.12f), 0.05f);
+            Material paint = GetOrCreateRustPaint();
             Material glass = GetOrCreateGlassMaterial();
-            Material headlight = GetOrCreateEmissiveMaterial("TruckHeadlight", new Color(1f, 0.95f, 0.8f));
-            Material taillight = GetOrCreateEmissiveMaterial("TruckTaillight", new Color(0.7f, 0.05f, 0.03f));
-
-            BuildCab(truck, paint, black, interior, glass, trim);
-            BuildFront(truck, paint, black, trim, headlight);
-            BuildBed(truck, paint, bedLiner, trim, taillight, black);
-            BuildDetails(truck, paint, black, trim, interior, headlight, taillight);
-            BuildMoreDetails(truck, paint, black, trim, interior);
+            TruckLayout layout = BuildModelTruck(truck, paint, glass) ?? BuildCodeTruck(truck, paint, glass);
             // Glass casts no shadow (a transparent material still has a shadow pass), or the cab is dark and murky.
             foreach (Renderer part in truck.GetComponentsInChildren<Renderer>())
                 if (part.sharedMaterial == glass)
@@ -59,14 +71,8 @@ namespace Backpacking.EditorTools
                 }
 
             // Solid parts, on the truck's rigidbody. The bed is open, so gear (and you) can be put in it.
-            AddBox(truck, new Vector3(0f, 1.27f, 0.47f), new Vector3(1.95f, 1.38f, 1.65f));
-            AddBox(truck, new Vector3(0f, 1.0f, 1.97f), new Vector3(1.95f, 0.56f, 1.35f));
-            AddBox(truck, new Vector3(0f, 0.7f, 1.97f), new Vector3(1.4f, 0.3f, 1.35f));
-            AddBox(truck, new Vector3(0f, 0.88f, -1.5f), new Vector3(1.95f, 0.1f, 2.3f));
-            AddBox(truck, new Vector3(-0.94f, 1.08f, -1.5f), new Vector3(0.07f, 0.5f, 2.3f));
-            AddBox(truck, new Vector3(0.94f, 1.08f, -1.5f), new Vector3(0.07f, 0.5f, 2.3f));
-            AddBox(truck, new Vector3(0f, 1.08f, -2.62f), new Vector3(1.95f, 0.5f, 0.07f));
-            AddBox(truck, new Vector3(0f, 0.62f, -1.5f), new Vector3(1.2f, 0.18f, 2.6f));
+            foreach ((Vector3 centre, Vector3 size) in layout.Boxes)
+                AddBox(truck, centre, size);
 
             var body = truck.AddComponent<Rigidbody>();
             body.mass = 1900f;
@@ -75,19 +81,21 @@ namespace Backpacking.EditorTools
             body.interpolation = RigidbodyInterpolation.Interpolate;
             body.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
             body.automaticCenterOfMass = false;
-            body.centerOfMass = new Vector3(0f, 0.5f, 0.25f);
+            body.centerOfMass = layout.CentreOfMass;
 
             var wheels = new WheelCollider[4];
-            var visuals = new Transform[4];
-            Vector2[] corners = { new(-TrackX, AxleZ), new(TrackX, AxleZ), new(-TrackX, -AxleZ), new(TrackX, -AxleZ) };
+            var visuals = layout.WheelVisuals ?? new Transform[4];
             string[] names = { "Front Left", "Front Right", "Rear Left", "Rear Right" };
+            Material rubber = GetOrCreateMaterial("TruckBlack", new Color(0.06f, 0.06f, 0.06f), 0.2f);
+            Material hub = GetOrCreateMaterial("TruckTrim", new Color(0.62f, 0.63f, 0.64f), 0.6f);
             for (int i = 0; i < 4; i++)
             {
                 var colliderObject = new GameObject($"Wheel {names[i]}");
                 colliderObject.transform.SetParent(truck.transform, false);
-                colliderObject.transform.localPosition = new Vector3(corners[i].x, WheelRadius + 0.15f, corners[i].y);
+                // The suspension's top: the wheel hangs below it, settling to its centre under the truck's weight.
+                colliderObject.transform.localPosition = layout.WheelCentres[i] + Vector3.up * 0.15f;
                 WheelCollider wheel = colliderObject.AddComponent<WheelCollider>();
-                wheel.radius = WheelRadius;
+                wheel.radius = layout.WheelRadius;
                 wheel.mass = 25f;
                 wheel.suspensionDistance = 0.3f;
                 wheel.forceAppPointDistance = 0.1f;
@@ -95,28 +103,27 @@ namespace Backpacking.EditorTools
                 wheel.forwardFriction = Friction(1.6f);
                 wheel.sidewaysFriction = Friction(1.7f);
                 wheels[i] = wheel;
-                visuals[i] = BuildWheel(truck, $"Tyre {names[i]}", colliderObject.transform.position, black, trim);
+                if (visuals[i] == null)
+                    visuals[i] = BuildWheel(truck, $"Tyre {names[i]}", truck.transform.TransformPoint(layout.WheelCentres[i]), rubber, hub);
             }
 
-            // The driver sits on the left. Feet on the floor; the bench is at chair height.
-            var seat = new GameObject("Driver Seat").transform;
-            seat.SetParent(truck.transform, false);
-            seat.localPosition = new Vector3(-0.42f, CabFloor, 0.12f);
-            var driverExit = new GameObject("Driver Exit").transform;
-            driverExit.SetParent(truck.transform, false);
-            driverExit.localPosition = new Vector3(-1.55f, 0f, 0.4f);
-            var passengerExit = new GameObject("Passenger Exit").transform;
-            passengerExit.SetParent(truck.transform, false);
-            passengerExit.localPosition = new Vector3(1.55f, 0f, 0.4f);
-            Transform steering = BuildSteeringWheel(truck, black);
+            Transform Marker(string name, Vector3 local)
+            {
+                var marker = new GameObject(name).transform;
+                marker.SetParent(truck.transform, false);
+                marker.localPosition = local;
+                return marker;
+            }
+            Transform seat = Marker("Driver Seat", layout.Seat);
+            Transform driverExit = Marker("Driver Exit", layout.DriverExit);
+            Transform passengerExit = Marker("Passenger Exit", layout.PassengerExit);
 
             var lights = new Light[2];
             for (int i = 0; i < 2; i++)
             {
-                var lampObject = new GameObject(i == 0 ? "Headlight Left" : "Headlight Right");
-                lampObject.transform.SetParent(truck.transform, false);
-                lampObject.transform.SetLocalPositionAndRotation(new Vector3(i == 0 ? -0.68f : 0.68f, 1.0f, 2.7f), Quaternion.Euler(6f, 0f, 0f));
-                Light lamp = lampObject.AddComponent<Light>();
+                Transform lampObject = Marker(i == 0 ? "Headlight Left" : "Headlight Right", layout.Headlights[i]);
+                lampObject.localRotation = Quaternion.Euler(6f, 0f, 0f);
+                Light lamp = lampObject.gameObject.AddComponent<Light>();
                 lamp.type = LightType.Spot;
                 lamp.range = 45f;
                 lamp.spotAngle = 70f;
@@ -127,10 +134,8 @@ namespace Backpacking.EditorTools
             }
 
             // The truck bed holds what you've bought and haven't packed: a Backpack with no one wearing it.
-            var bedObject = new GameObject("Truck Bed");
-            bedObject.transform.SetParent(truck.transform, false);
-            bedObject.transform.localPosition = new Vector3(0f, 0.95f, -1.5f);
-            var bed = bedObject.AddComponent<Backpack>();
+            Transform bedObject = Marker("Truck Bed", layout.BedCentre);
+            var bed = bedObject.gameObject.AddComponent<Backpack>();
             SetField(bed, "timeOfDay", Object.FindAnyObjectByType<TimeOfDay>());
             SetField(bed, "temperature", Object.FindAnyObjectByType<AmbientTemperature>());
 
@@ -143,10 +148,29 @@ namespace Backpacking.EditorTools
             SetObjectArray(pickup, "wheels", wheels);
             SetObjectArray(pickup, "wheelVisuals", visuals);
             SetField(pickup, "seat", seat);
-            SetField(pickup, "steeringWheel", steering);
+            Modify(pickup, "eye", property => property.vector3Value = layout.Eye);
+            SetField(pickup, "steeringWheel", layout.SteeringWheel);
             SetField(pickup, "driverExit", driverExit);
             SetField(pickup, "passengerExit", passengerExit);
             SetObjectArray(pickup, "headlights", lights);
+
+            // Doors and tailgate: look at one and press E once.
+            foreach ((string name, (Vector3 centre, Vector3 size) zone, PickupPartKind kind) in new[]
+                     {
+                         ("Left Door", layout.LeftDoor, PickupPartKind.Door), ("Right Door", layout.RightDoor, PickupPartKind.Door),
+                         ("Tailgate", layout.Tailgate, PickupPartKind.Tailgate),
+                     })
+            {
+                Transform part = Marker(name, zone.centre);
+                var trigger = part.gameObject.AddComponent<BoxCollider>();
+                trigger.isTrigger = true;
+                trigger.size = zone.size;
+                var target = part.gameObject.AddComponent<PickupPart>();
+                SetField(target, "pickup", pickup);
+                SetEnum(target, "kind", (int)kind);
+            }
+
+            truck.transform.rotation = Quaternion.LookRotation(new Vector3(along.x, 0f, along.y));
 
             var saves = Object.FindAnyObjectByType<Saving.SaveSystem>();
             SetField(saves, "pickup", pickup);

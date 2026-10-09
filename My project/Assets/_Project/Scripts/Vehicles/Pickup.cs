@@ -134,21 +134,31 @@ namespace Backpacking.Vehicles
         {
             if (Driving)
                 return;
+            AddDoorOption(options);
+            if (!OnItsSide)
+                AddBedOption(interactor, options);
+        }
+
+        /// <summary>At a door: get in and drive (or, if it's over, push it back onto its wheels).</summary>
+        public void AddDoorOption(List<InteractionOption> options)
+        {
             if (OnItsSide)
-            {
                 options.Add(new InteractionOption("Rock it back onto its wheels", RightItself));
-                return;
-            }
-            options.Add(new InteractionOption("Drive", GetIn));
+            else
+                options.Add(new InteractionOption("Get in and drive", GetIn));
+        }
+
+        /// <summary>At the tailgate: the truck bed, to pack your backpack from or leave things in.</summary>
+        public void AddBedOption(Interactor interactor, List<InteractionOption> options)
+        {
             Backpack pack = interactor.Backpack;
-            if (bed != null && PackingView.Current != null)
-            {
-                string problem = pack.HasPack && !pack.IsWorn ? "Put your pack on first" : null;
-                int things = bed.Contents().Count;
-                string label = !pack.HasPack ? $"Look in the truck bed ({things})"
-                    : things > 0 ? $"Pack your backpack ({things} in the truck bed)" : "Repack, or leave things in the truck bed";
-                options.Add(new InteractionOption(label, () => PackingView.Current.Open(bed), problem));
-            }
+            if (bed == null || PackingView.Current == null)
+                return;
+            string problem = pack.HasPack && !pack.IsWorn ? "Put your pack on first" : null;
+            int things = bed.Contents().Count;
+            string label = !pack.HasPack ? $"Look in the truck bed ({things})"
+                : things > 0 ? $"Pack your backpack ({things} in the truck bed)" : "Open the truck bed (repack, or leave things in it)";
+            options.Add(new InteractionOption(label, () => PackingView.Current.Open(bed), problem));
         }
 
         // ---------- Getting in and out ----------

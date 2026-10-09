@@ -7,6 +7,59 @@ using Random = UnityEngine.Random;
 
 namespace Backpacking.Survival
 {
+    /// <summary>Where on the body a piece of clothing goes. You wear one thing in each.</summary>
+    public enum GarmentSlot
+    {
+        HeadAndHands,
+        BaseLayer,
+        MidLayer,
+        Jacket,
+        Shell,
+        Legs,
+    }
+
+    public static class GarmentSlots
+    {
+        /// <summary>Head to legs, the order the outfit is listed in.</summary>
+        public static readonly GarmentSlot[] Order =
+        {
+            GarmentSlot.HeadAndHands, GarmentSlot.BaseLayer, GarmentSlot.MidLayer, GarmentSlot.Jacket, GarmentSlot.Shell, GarmentSlot.Legs,
+        };
+
+        public static string Name(GarmentSlot slot) => slot switch
+        {
+            GarmentSlot.HeadAndHands => "Head & hands",
+            GarmentSlot.BaseLayer => "Base layer",
+            GarmentSlot.MidLayer => "Mid layer",
+            GarmentSlot.Jacket => "Warm jacket",
+            GarmentSlot.Shell => "Rain shell",
+            _ => "Legs",
+        };
+
+        /// <summary>What goes in that slot, to say what's missing.</summary>
+        public static string Example(GarmentSlot slot) => slot switch
+        {
+            GarmentSlot.HeadAndHands => "a wool hat and gloves",
+            GarmentSlot.BaseLayer => "a merino base layer",
+            GarmentSlot.MidLayer => "a fleece",
+            GarmentSlot.Jacket => "a down jacket",
+            GarmentSlot.Shell => "a rain shell",
+            _ => "insulated pants",
+        };
+
+        /// <summary>The slot a garment goes in, from what it's called (so saves need nothing new).</summary>
+        public static GarmentSlot Of(string garmentName)
+        {
+            string name = garmentName.ToLowerInvariant();
+            return name.Contains("hat") || name.Contains("glove") ? GarmentSlot.HeadAndHands
+                : name.Contains("shell") || name.Contains("rain") ? GarmentSlot.Shell
+                : name.Contains("down") || name.Contains("jacket") ? GarmentSlot.Jacket
+                : name.Contains("fleece") ? GarmentSlot.MidLayer
+                : name.Contains("pants") || name.Contains("jeans") || name.Contains("trousers") ? GarmentSlot.Legs
+                : GarmentSlot.BaseLayer;
+        }
+    }
+
     [Serializable]
     public class Garment
     {
@@ -20,6 +73,9 @@ namespace Backpacking.Survival
         public bool worn;
 
         public Garment() { }
+
+        /// <summary>Where on the body it goes.</summary>
+        public GarmentSlot Slot => GarmentSlots.Of(name);
 
         public Garment(string name, float insulation, float weight, bool worn, bool waterproof = false)
         {
@@ -401,7 +457,44 @@ namespace Backpacking.Survival
 
         // ---------- Gear & fuel ----------
 
-        public void ToggleGarment(Garment garment) => garment.worn = !garment.worn;
+        /// <summary>Takes a garment off, or puts it on in place of whatever's worn in the same place.</summary>
+        public void ToggleGarment(Garment garment)
+        {
+            if (garment.worn)
+            {
+                garment.worn = false;
+                return;
+            }
+            Wear(garment);
+        }
+
+        /// <summary>Puts a garment on, taking off what was worn in its place. Returns what came off, or null.</summary>
+        public Garment Wear(Garment garment)
+        {
+            Garment replaced = null;
+            foreach (Garment other in clothing)
+                if (other != garment && other.worn && other.Slot == garment.Slot)
+                {
+                    other.worn = false;
+                    replaced = other;
+                }
+            garment.worn = true;
+            if (replaced != null && !IsTruckBed)
+                Notifications.Post($"You take off the {replaced.name.ToLowerInvariant()} and put on the {garment.name.ToLowerInvariant()}.", 3f);
+            return replaced;
+        }
+
+        /// <summary>The warmest garment you have for a slot, worn or not, or null.</summary>
+        public Garment WarmestFor(GarmentSlot slot)
+        {
+            Garment best = null;
+            foreach (Garment garment in clothing)
+                if (garment.Slot == slot && (best == null || garment.insulation > best.insulation))
+                    best = garment;
+            return best;
+        }
+
+        public Garment WornIn(GarmentSlot slot) => clothing.Find(garment => garment.worn && garment.Slot == slot);
 
         public bool HasGarment(string garmentName) => clothing.Exists(garment => garment.name == garmentName);
 
@@ -409,8 +502,13 @@ namespace Backpacking.Survival
         public bool IsTruckBed => vitals == null;
 
         /// <summary>Adds a new clothing layer: worn straight away, or in the truck bed, waiting to be packed or put on.</summary>
-        public void AddGarment(string garmentName, float insulation, float weight, bool waterproof = false) =>
-            clothing.Add(new Garment(garmentName, insulation, weight, !IsTruckBed, waterproof));
+        public void AddGarment(string garmentName, float insulation, float weight, bool waterproof = false)
+        {
+            var garment = new Garment(garmentName, insulation, weight, false, waterproof);
+            clothing.Add(garment);
+            if (!IsTruckBed)
+                Wear(garment);
+        }
 
         public void SetSleepingBag(string bagName, float comfort, float weight)
         {

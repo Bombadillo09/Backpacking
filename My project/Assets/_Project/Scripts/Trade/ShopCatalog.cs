@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Backpacking.Survival;
+using UnityEngine;
 
 namespace Backpacking.Trade
 {
@@ -92,6 +93,11 @@ namespace Backpacking.Trade
         }
 
         public void ApplyTo(Backpack backpack) => apply(backpack);
+
+        /// <summary>How it compares with what you have (wearing, carrying, or in the truck bed), or null.</summary>
+        public Func<Backpack, Backpack, string> Comparison { get; set; }
+
+        public string CompareWith(Backpack wearer, Backpack bed) => Comparison?.Invoke(wearer, bed);
     }
 
     /// <summary>
@@ -257,6 +263,90 @@ namespace Backpacking.Trade
         }
 
         public static ShopItem Get(ShopItemId id) => items[id];
+
+        // ---------- Comparisons: is it better than what you have? ----------
+
+        static ShopCatalog()
+        {
+            foreach ((ShopItemId id, string name, float warmth) in new[]
+                     {
+                         (ShopItemId.WoolHatAndGloves, HatName, 3f), (ShopItemId.InsulatedPants, PantsName, 4f), (ShopItemId.BaseLayer, BaseLayerName, 3f),
+                         (ShopItemId.Fleece, FleeceName, 6f), (ShopItemId.RainShell, RainShellName, 2f), (ShopItemId.DownJacket, DownJacketName, 10f),
+                     })
+                items[id].Comparison = (wearer, bed) => CompareGarment(name, warmth, wearer, bed);
+            foreach ((ShopItemId id, float strain) in new[] { (ShopItemId.HikingBoots, 1f), (ShopItemId.LeatherBoots, 0.8f), (ShopItemId.MountaineeringBoots, 0.7f) })
+                items[id].Comparison = (wearer, _) => wearer.BootsStrain <= strain + 0.001f
+                    ? $"Your {wearer.BootsName.ToLowerInvariant()} are already as good."
+                    : $"Your feet would tire {(1f - strain / wearer.BootsStrain) * 100f:0}% slower than in your {wearer.BootsName.ToLowerInvariant()}.";
+            foreach ((ShopItemId id, float comfort) in new[] { (ShopItemId.SummerBag, 5f), (ShopItemId.ThreeSeasonBag, -1f), (ShopItemId.WinterSleepingBag, -12f) })
+                items[id].Comparison = (wearer, bed) =>
+                {
+                    Backpack owner = wearer.HasSleepingBag ? wearer : bed != null && bed.HasSleepingBag ? bed : null;
+                    if (owner == null)
+                        return "You have no sleeping bag yet.";
+                    float difference = owner.SleepingBagComfort - comfort;
+                    return difference > 0.5f ? $"Warm {difference:0} °C colder than your {owner.SleepingBagName.ToLowerInvariant()} ({owner.SleepingBagComfort:0} °C)."
+                        : difference < -0.5f ? $"Not as warm as your {owner.SleepingBagName.ToLowerInvariant()} ({owner.SleepingBagComfort:0} °C)."
+                        : $"As warm as your {owner.SleepingBagName.ToLowerInvariant()}.";
+                };
+            foreach ((ShopItemId id, float warmth) in new[] { (ShopItemId.FoamMat, 3f), (ShopItemId.InflatableMat, 6f) })
+                items[id].Comparison = (wearer, bed) =>
+                {
+                    Backpack owner = wearer.HasMat ? wearer : bed != null && bed.HasMat ? bed : null;
+                    if (owner == null)
+                        return "You have no sleeping mat yet: the cold ground draws the heat out of you.";
+                    float difference = warmth - owner.MatWarmth;
+                    return difference > 0.1f ? $"{difference:0} °C warmer than your {owner.MatName.ToLowerInvariant()}."
+                        : difference < -0.1f ? $"Not as warm as your {owner.MatName.ToLowerInvariant()}." : $"As warm as your {owner.MatName.ToLowerInvariant()}.";
+                };
+            foreach ((ShopItemId id, float shelter) in new[] { (ShopItemId.OnePersonTent, 4f), (ShopItemId.TwoPersonTent, 5f), (ShopItemId.FourSeasonTent, 9f) })
+                items[id].Comparison = (wearer, bed) =>
+                {
+                    Backpack owner = wearer.OwnsTent ? wearer : bed != null && bed.OwnsTent ? bed : null;
+                    if (owner == null)
+                        return "You have no tent yet.";
+                    float difference = shelter - owner.TentShelter;
+                    return difference > 0.1f ? $"{difference:0} °C warmer to sleep in than your {owner.TentName.ToLowerInvariant()}."
+                        : difference < -0.1f ? $"Not as warm as your {owner.TentName.ToLowerInvariant()}." : $"As warm as your {owner.TentName.ToLowerInvariant()}.";
+                };
+            foreach ((ShopItemId id, PackModel model) in new[] { (ShopItemId.UltralightPack, PackModel.Ultralight40), (ShopItemId.TrekkingPack, PackModel.Trekking55),
+                         (ShopItemId.ExpeditionPack, PackModel.Expedition70) })
+                items[id].Comparison = (wearer, _) =>
+                {
+                    if (!wearer.HasPack)
+                        return "You have no pack yet.";
+                    if (wearer.PackModel == model)
+                        return null;
+                    PackInfo mine = wearer.Pack, theirs = PackModels.Get(model);
+                    return $"{Signed(theirs.Litres - mine.Litres)} L and {Signed(theirs.ComfortableLoad - mine.ComfortableLoad)} kg comfortable load, "
+                           + $"{Signed(theirs.Weight - mine.Weight, "0.0")} kg itself, compared with your {mine.Name.ToLowerInvariant()}.";
+                };
+            foreach ((ShopItemId id, float litres) in new[] { (ShopItemId.WaterBottle, 2f), (ShopItemId.WaterBladder, 3f) })
+                items[id].Comparison = (wearer, bed) =>
+                {
+                    float mine = Mathf.Max(wearer.WaterCapacity, bed != null ? bed.WaterCapacity : 0f);
+                    return mine <= 0f ? "You have nothing to carry water in yet."
+                        : litres > mine ? $"Carries {litres - mine:0} L more than yours." : $"Yours already holds {mine:0} L.";
+                };
+        }
+
+        static string Signed(float value, string format = "0") => (value >= 0f ? "+" : "−") + Mathf.Abs(value).ToString(format);
+
+        /// <summary>A garment against what you wear (or have) for the same part of you.</summary>
+        static string CompareGarment(string name, float warmth, Backpack wearer, Backpack bed)
+        {
+            GarmentSlot slot = GarmentSlots.Of(name);
+            string where = GarmentSlots.Name(slot);
+            Garment current = wearer.WornIn(slot) ?? wearer.WarmestFor(slot) ?? bed?.WarmestFor(slot);
+            if (current == null)
+                return $"{where}: you have nothing for this yet.";
+            if (current.name == name)
+                return $"{where}: you have one.";
+            float difference = warmth - current.insulation;
+            string yours = $"your {current.name.ToLowerInvariant()} (+{current.insulation:0} °C)";
+            return difference > 0.1f ? $"{where}: {difference:0} °C warmer than {yours}."
+                : difference < -0.1f ? $"{where}: not as warm as {yours}." : $"{where}: as warm as {yours}.";
+        }
 
         /// <summary>The sections of a shop's list, in the order they're shown.</summary>
         public static readonly string[] Categories =

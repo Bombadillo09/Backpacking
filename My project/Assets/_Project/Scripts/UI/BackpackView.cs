@@ -34,15 +34,23 @@ namespace Backpacking.UI
             public Func<string> Name, Count, Description;
             public readonly List<(Func<string> label, Action action, Func<string> problem)> Actions = new();
             public HotbarSlot? Hotbar;
+            /// <summary>Where it is: which part of the pack, worn, laid out in the tent...</summary>
+            public Func<string> Where;
         }
 
         static readonly string[] Sections = { "FOOD", "WATER & FIRST AID", "CAMP GEAR", "TOOLS & FUEL", "CLOTHING" };
+        const string AllSections = "EVERYTHING";
+        const string ClothingSection = "CLOTHING";
 
         readonly Bindings bindings = new();
         readonly Bindings gridBindings = new();
         readonly Bindings detailBindings = new();
         VisualElement screen, grid, detailIcon, detailActions;
-        Label detailName, detailCount, detailText;
+        Label detailName, detailCount, detailText, detailStats;
+        string section = AllSections;
+        readonly Dictionary<string, Button> tabs = new();
+        List<PackItem> packed = new();
+        float packedAt = -1f;
         ScrollView gridScroll;
         readonly Dictionary<string, VisualElement> tiles = new();
         List<Item> items = new();
@@ -60,9 +68,10 @@ namespace Backpacking.UI
             detailIcon = UIBuild.Box("detail-icon");
             detailName = UIBuild.Text("", "title", "detail-name");
             detailCount = UIBuild.Text("", "money");
+            detailStats = UIBuild.Text("", "small", "detail-stats");
             detailText = UIBuild.Text("", "text", "detail-text");
             detailActions = UIBuild.Box("detail-actions");
-            VisualElement detail = UIBuild.Box("inventory-detail").With(detailIcon, detailName, detailCount, detailText, detailActions);
+            VisualElement detail = UIBuild.Box("inventory-detail").With(detailIcon, detailName, detailCount, detailStats, detailText, detailActions);
 
             VisualElement panel = UIBuild.Box("panel", "inventory").With(
                 UIBuild.Box("panel-header").With(
@@ -70,7 +79,7 @@ namespace Backpacking.UI
                     bindings.Text(() => backpack.Pelts > 0 ? $"${backpack.Money}    Rabbit pelts: {backpack.Pelts}" : $"${backpack.Money}", "money")),
                 PackMeter(),
                 bindings.Text(LoadDescription, "small"),
-                UIBuild.Box("columns").With(gridScroll, detail),
+                UIBuild.Box("columns").With(Tabs(), gridScroll, detail),
                 UIBuild.Box("inventory-bottom").With(
                     UIBuild.Box().With(UIBuild.Text("HOTBAR  ·  keys 1–5  ·  click a slot to empty it", "heading"), HotbarRow()),
                     UIBuild.Box("grow").With(
@@ -89,7 +98,7 @@ namespace Backpacking.UI
                         JournalView.ShowJournal();
                     }),
                     UIBuild.Button("Close  (Tab)", Close)));
-            panel.style.width = 1180f;
+            panel.style.width = 1380f;
 
             screen = UIBuild.Layer("centred").With(panel);
             screen.SetVisible(false);
@@ -229,7 +238,8 @@ namespace Backpacking.UI
             var list = new List<Item>();
             Item Add(string section, string key, string icon, Func<string> name, Func<string> count, Func<string> description, HotbarSlot? hotbar = null)
             {
-                var item = new Item { Section = section, Key = key, Icon = icon, Name = name, Count = count, Description = description, Hotbar = hotbar };
+                var item = new Item { Section = section, Key = key, Icon = icon, Name = name, Count = count, Description = description, Hotbar = hotbar,
+                    Where = () => WhereIs(key) };
                 list.Add(item);
                 return item;
             }
@@ -374,12 +384,174 @@ namespace Backpacking.UI
             return list;
         }
 
+        // ---------- Where things are ----------
+
+        /// <summary>The pack's contents (for where things are packed), listed a few times a second at most.</summary>
+        PackItem Packed(string packKey)
+        {
+            if (packedAt < 0f || Time.unscaledTime - packedAt > 0.3f)
+            {
+                packed = backpack.Contents();
+                packedAt = Time.unscaledTime;
+            }
+            return packed.Find(item => item.Key == packKey);
+        }
+
+        /// <summary>The pack's key for something on this screen (they mostly match).</summary>
+        static string PackKey(string key) => key switch
+        {
+            "water" => "bottle",
+            "bandage" => "bandages",
+            "snare" => "snares",
+            _ => key,
+        };
+
+        static string ZoneLabel(PackZone zone) => zone switch
+        {
+            PackZone.Bottom => "bottom of pack",
+            PackZone.Core => "core of pack",
+            PackZone.Top => "top of pack",
+            PackZone.Lid => "lid",
+            PackZone.Pockets => "side pocket",
+            _ => "strapped on",
+        };
+
+        /// <summary>Where something is, in a few words for its tile: which part of the pack, worn, out at camp.</summary>
+        string WhereIs(string key)
+        {
+            if (key == "boots")
+                return "worn";
+            if (key.StartsWith("garment-"))
+            {
+                Garment garment = backpack.Clothing.FirstOrDefault(entry => $"garment-{entry.name}" == key);
+                if (garment != null && garment.worn)
+                    return "worn";
+            }
+            switch (key)
+            {
+                case "tent" when !backpack.HasTent:
+                    return "out at camp";
+                case "sleepingbag" when backpack.BagLaidOut:
+                case "mat" when backpack.MatLaidOut:
+                    return "in the tent";
+                case "stove" when !backpack.HasStove:
+                case "chair" when !backpack.ChairInPack:
+                    return "set up at camp";
+            }
+            if (!backpack.HasPack)
+                return "";
+            PackItem item = Packed(PackKey(key));
+            return item == null ? "" : ZoneLabel(backpack.ZoneOf(item));
+        }
+
+        /// <summary>The numbers for the detail panel: weight, size, where packed; warmth for clothing.</summary>
+        string Stats(string key)
+        {
+            if (key.StartsWith("garment-"))
+            {
+                Garment garment = backpack.Clothing.FirstOrDefault(entry => $"garment-{entry.name}" == key);
+                if (garment == null)
+                    return "";
+                Garment warmest = backpack.WarmestFor(garment.Slot);
+                string best = warmest == garment ? "  ·  your warmest" : $"  ·  your {warmest.name.ToLowerInvariant()} is warmer";
+                return $"{GarmentSlots.Name(garment.Slot)}  ·  +{garment.insulation:0} °C  ·  {garment.weight:0.##} kg{(garment.waterproof ? "  ·  waterproof" : "")}{best}";
+            }
+            PackItem item = Packed(PackKey(key));
+            if (item == null)
+                return WhereIs(key);
+            string where = WhereIs(key);
+            return $"{item.TotalWeight:0.##} kg  ·  {item.TotalLitres:0.#} L{(where.Length > 0 ? $"  ·  {where}" : "")}{(item.Heavy ? "  ·  heavy" : "")}";
+        }
+
+        // ---------- Sections and the outfit ----------
+
+        /// <summary>The section tabs down the left, each with how many kinds of thing are in it.</summary>
+        VisualElement Tabs()
+        {
+            VisualElement column = UIBuild.Box("inventory-tabs");
+            foreach (string name in new[] { AllSections }.Concat(Sections))
+            {
+                string tabSection = name;
+                Button tab = UIBuild.Button("", () =>
+                {
+                    section = tabSection;
+                    itemsKey = null;
+                    RebuildIfChanged();
+                }, "inventory-tab");
+                bindings.Add(() =>
+                {
+                    int count = tabSection == AllSections ? items.Count : items.Count(item => item.Section == tabSection);
+                    string title = tabSection == AllSections ? "Everything" : tabSection == ClothingSection ? "Clothing (outfit)" : Title(tabSection);
+                    tab.SetText($"{title}   {count}");
+                });
+                tabs[name] = tab;
+                column.Add(tab);
+            }
+            return column;
+        }
+
+        static string Title(string upper) =>
+            System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(upper.ToLowerInvariant()).Replace(" And ", " and ");
+
+        /// <summary>
+        /// What you're wearing, head to feet: a row for each part of you with everything you own for it, the one
+        /// you're wearing highlighted, the warmest marked, and how warm each is. Click one to wear it instead.
+        /// </summary>
+        VisualElement Outfit()
+        {
+            VisualElement outfit = UIBuild.Box("outfit");
+            outfit.Add(gridBindings.Text(() =>
+                $"Your clothes add +{backpack.ClothingInsulation:0} °C. You're comfortable down to about {vitals.ComfortTemperature:0} °C; "
+                + $"it feels like {vitals.FeltTemperature:0} °C.{(backpack.WearingWaterproof ? " Your rain shell is on." : "")}", "text"));
+            foreach (GarmentSlot slot in GarmentSlots.Order)
+            {
+                VisualElement row = UIBuild.Box("outfit-row").With(UIBuild.Text(GarmentSlots.Name(slot), "outfit-slot"));
+                List<Garment> owned = backpack.Clothing.Where(garment => garment.Slot == slot).OrderByDescending(garment => garment.insulation).ToList();
+                if (owned.Count == 0)
+                    row.Add(UIBuild.Text($"Nothing yet: {GarmentSlots.Example(slot)}, from an outdoor store or trading post.", "reason"));
+                foreach (Garment garment in owned)
+                {
+                    Garment wear = garment;
+                    Button button = UIBuild.Button("", () =>
+                    {
+                        backpack.ToggleGarment(wear);
+                        selected = $"garment-{wear.name}";
+                        itemsKey = null;
+                        RebuildIfChanged();
+                    }, "outfit-item");
+                    if (garment.worn)
+                        button.AddToClassList("worn");
+                    bool warmest = garment == owned[0] && owned.Count > 1;
+                    string tags = (garment.worn ? "WORN" : "") + (warmest ? (garment.worn ? " · WARMEST" : "WARMEST") : "");
+                    button.Add(UIBuild.Text(garment.name, "outfit-name"));
+                    button.Add(UIBuild.Text($"+{garment.insulation:0} °C{(garment.waterproof ? " · waterproof" : "")}{(tags.Length > 0 ? "   " + tags : "")}", "small"));
+                    VisualElement warmth = UIBuild.Box("outfit-warmth");
+                    warmth.style.width = Mathf.Clamp(garment.insulation * 12f, 6f, 150f);
+                    button.Add(warmth);
+                    button.tooltip = garment.worn ? "Click to take it off" : "Click to wear it (instead of what you have on here)";
+                    row.Add(button);
+                }
+                outfit.Add(row);
+            }
+            Button boots = UIBuild.Button("", () =>
+            {
+                selected = "boots";
+                ShowDetail();
+            }, "outfit-item", "worn");
+            boots.Add(UIBuild.Text(backpack.BootsName, "outfit-name"));
+            boots.Add(UIBuild.Text($"feet tire {(backpack.BootsStrain < 1f ? $"{(1f - backpack.BootsStrain) * 100f:0}% slower" : backpack.BootsStrain > 1f ? $"{(backpack.BootsStrain - 1f) * 100f:0}% faster" : "normally")}"
+                                   + $"{(backpack.BootsWaterproof ? " · waterproof" : "")}{(backpack.BootsWarmth > 0f ? $" · +{backpack.BootsWarmth:0} °C" : "")}   WORN", "small"));
+            outfit.Add(UIBuild.Box("outfit-row").With(UIBuild.Text("Feet", "outfit-slot"), boots));
+            return outfit;
+        }
+
         // ---------- Building the screen ----------
 
         void RebuildIfChanged()
         {
             List<Item> gathered = Gather();
-            string key = string.Join(",", gathered.Select(item => item.Key + ":" + item.Icon));
+            string key = section + "|" + string.Join(",", gathered.Select(item => item.Key + ":" + item.Icon))
+                         + (section == ClothingSection ? "|" + string.Join(",", backpack.Clothing.Select(garment => garment.worn ? "1" : "0")) : "");
             if (key == itemsKey)
             {
                 items = gathered;
@@ -391,20 +563,33 @@ namespace Backpacking.UI
             grid.Clear();
             tiles.Clear();
             gridBindings.Clear();
-            foreach (string section in Sections)
-            {
-                List<Item> inSection = items.Where(item => item.Section == section).ToList();
-                if (inSection.Count == 0)
-                    continue;
-                grid.Add(UIBuild.Text(section, "heading", "inventory-section"));
-                VisualElement row = UIBuild.Box("inventory-row");
-                foreach (Item item in inSection)
-                    row.Add(Tile(item));
-                grid.Add(row);
-            }
+            foreach ((string name, Button tab) in tabs)
+                if (name == section)
+                    tab.AddToClassList("selected");
+                else
+                    tab.RemoveFromClassList("selected");
+            if (section == ClothingSection)
+                grid.Add(Outfit());
+            else
+                foreach (string heading in Sections)
+                {
+                    if (section != AllSections && section != heading)
+                        continue;
+                    List<Item> inSection = items.Where(item => item.Section == heading).ToList();
+                    if (inSection.Count == 0)
+                        continue;
+                    grid.Add(UIBuild.Text(heading, "heading", "inventory-section"));
+                    VisualElement row = UIBuild.Box("inventory-row");
+                    foreach (Item item in inSection)
+                        row.Add(Tile(item));
+                    grid.Add(row);
+                }
+            if (grid.childCount == 0)
+                grid.Add(UIBuild.Text("Nothing here.", "small"));
             gridScroll.scrollOffset = scroll;
-            if (selected == null || !items.Any(item => item.Key == selected))
-                selected = items.Count > 0 ? items[0].Key : null;
+            List<Item> shown = section == AllSections ? items : items.Where(item => item.Section == section).ToList();
+            if (selected == null || !shown.Any(item => item.Key == selected))
+                selected = shown.Count > 0 ? shown[0].Key : null;
             ShowDetail();
         }
 
@@ -423,6 +608,7 @@ namespace Backpacking.UI
             tile.Add(picture);
             tile.Add(gridBindings.Text(() => Find(key)?.Count() ?? "", "item-count"));
             tile.Add(gridBindings.Text(() => Find(key)?.Name() ?? "", "item-name"));
+            tile.Add(gridBindings.Text(() => Find(key)?.Where?.Invoke() ?? "", "item-where"));
             if (item.Hotbar.HasValue)
             {
                 HotbarSlot slot = item.Hotbar.Value;
@@ -466,6 +652,7 @@ namespace Backpacking.UI
                 detailName.SetText("");
                 detailCount.SetText("");
                 detailText.SetText("Your pack is empty.");
+                detailStats.SetText("");
                 detailIcon.style.backgroundImage = StyleKeyword.None;
                 return;
             }
@@ -479,6 +666,7 @@ namespace Backpacking.UI
                     return;
                 detailName.SetText(current.Name());
                 detailCount.SetText(current.Count());
+                detailStats.SetText(Stats(key));
                 detailText.SetText(current.Description());
             });
             foreach ((Func<string> label, Action action, Func<string> problem) in item.Actions)

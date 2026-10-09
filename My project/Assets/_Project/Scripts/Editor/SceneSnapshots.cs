@@ -63,7 +63,8 @@ namespace Backpacking.EditorTools
                 views.Add(("truck", t.TransformPoint(new Vector3(-4.5f, 1.8f, 5.5f)), t.TransformPoint(new Vector3(0f, 1f, 0f))));
                 views.Add(("truck-back", t.TransformPoint(new Vector3(-6f, 2.4f, -5f)), t.TransformPoint(new Vector3(0f, 0.9f, -1f))));
                 // From the driver's eyes, looking out of the windscreen.
-                Vector3 eye = t.TransformPoint(new Vector3(-0.42f, 0.58f + 1.12f, 0.12f));
+                Transform seat = t.Find("Driver Seat");
+                Vector3 eye = seat != null ? seat.position + t.up * 1.12f : t.TransformPoint(new Vector3(-0.42f, 0.58f + 1.12f, 0.12f));
                 views.Add(("truck-cab", eye, eye + t.forward * 10f - t.up * 0.8f));
                 views.Add(("truck-cab-side", eye, eye + t.forward * 4f + t.right * 6f - t.up * 1.5f));
             }

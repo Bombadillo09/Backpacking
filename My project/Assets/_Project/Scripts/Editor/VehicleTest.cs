@@ -134,6 +134,9 @@ namespace Backpacking.EditorTools
             {
                 pickup.ScriptedInput = null;
                 Physics.simulationMode = previousMode;
+                Reset(start, startRotation);
+                // Throw away everything the test moved, so a Play mode started next begins from the scene as built.
+                EditorSceneManager.OpenScene("Assets/_Project/Scenes/Prototype.unity", OpenSceneMode.Single);
             }
             return Write(log.ToString());
         }

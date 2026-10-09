@@ -170,7 +170,8 @@ namespace Backpacking.UI
             return UIBuild.Box("list-row").With(
                 UIBuild.Box("grow").With(
                     buyBindings.Text(() => entry.quantity < 0 ? item.Name : $"{item.Name}   ({entry.quantity} left)"),
-                    buyBindings.Text(() => Problem() ?? item.Description, "reason")),
+                    buyBindings.Text(() => Problem() ?? item.Description, "reason"),
+                    buyBindings.Visible(buyBindings.Text(() => item.CompareWith(backpack, Delivery) ?? "", "compare"), () => item.CompareWith(backpack, Delivery) != null)),
                 buy);
         }
 
