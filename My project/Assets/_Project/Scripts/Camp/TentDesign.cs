@@ -98,12 +98,9 @@ namespace Backpacking.Camp
         /// </summary>
         static float CanopyHeight(TentModel model, in Spec spec, float u, float v)
         {
-            // A dome's fabric slopes down between the poles to the corners.
-            return spec.Height * Slope(u, 0.8f) * Slope(v, 0.8f);
+            // Rounded on top with steep walls, ridged where the poles run corner to corner (see TentDesign.Dome).
+            return spec.Height * DomeProfile(Mathf.Max(Mathf.Abs(u), Mathf.Abs(v)));
         }
-
-        /// <summary>1 in the middle, curving down to 0 at ±1; lower <paramref name="sharpness"/> keeps it fuller.</summary>
-        static float Slope(float t, float sharpness) => Mathf.Pow(Mathf.Max(0f, Mathf.Cos(Mathf.Clamp(t, -1f, 1f) * Mathf.PI * 0.5f)), sharpness);
 
         /// <summary>1 in the middle falling to 0 at ±1, with steeper walls for higher <paramref name="power"/>.</summary>
         static float Profile(float t, float power) => Mathf.Pow(Mathf.Clamp01(1f - Mathf.Pow(Mathf.Abs(t), power)), 0.55f);
@@ -139,11 +136,17 @@ namespace Backpacking.Camp
                 part.AddComponent<MeshFilter>().sharedMesh = mesh;
                 var renderer = part.AddComponent<MeshRenderer>();
                 renderer.sharedMaterial = material;
+                tint.Clear();
                 if (colour.HasValue)
-                {
                     tint.SetColor("_BaseColor", colour.Value);
-                    renderer.SetPropertyBlock(tint);
+                // Fabric is woven and matt, not plastic.
+                if (material == materials.inner || material == materials.fly || material == materials.floor)
+                {
+                    tint.SetTexture("_BaseMap", Fabric);
+                    tint.SetFloat("_Smoothness", material == materials.fly ? 0.22f : 0.12f);
                 }
+                if (!tint.isEmpty)
+                    renderer.SetPropertyBlock(tint);
                 bounds.Encapsulate(mesh.bounds);
             }
 
@@ -164,7 +167,8 @@ namespace Backpacking.Camp
                 BuildTunnel(Add, stage, spec, materials);
                 return bounds;
             }
-            Add("Stakes", Cached(model, "stakes", () => Stakes(model, spec, stage == TentStage.Pitched)), materials.stake);
+            if (stage != TentStage.Pitched)
+                Add("Stakes", Cached(model, "stakes", () => Stakes(model, spec, false)), materials.stake);
 
             switch (stage)
             {
@@ -177,13 +181,7 @@ namespace Backpacking.Camp
                     Add("Poles", Cached(model, "poles", () => Poles(model, spec)), materials.pole);
                     break;
                 default:
-                    Add("Inner body", Cached(model, "inner", () => Canopy(model, spec, 1f, 0.97f, 0f, false)), materials.inner, spec.Inner);
-                    Add("Poles", Cached(model, "poles", () => Poles(model, spec)), materials.pole);
-                    Add("Rainfly", Cached(model, "fly", () => Canopy(model, spec, 1.05f, 1.07f, spec.Vestibule, false)), materials.fly, spec.Fly);
-                    Add("Door", Cached(model, "door", () => Canopy(model, spec, 1.05f, 1.07f, spec.Vestibule, false, 0.32f, 0.7f, 0.012f)), materials.fly,
-                        Color.Lerp(spec.Fly, Color.black, 0.45f));
-                    if (spec.GuyLines)
-                        Add("Guy lines", Cached(model, "guys", () => GuyLines(model, spec)), materials.stake);
+                    BuildDome(Add, model, spec, materials);
                     break;
             }
             return bounds;
@@ -243,7 +241,7 @@ namespace Backpacking.Camp
                 if (lift > 0f)
                     point += new Vector3(0f, lift, lift * Mathf.Sign(v));
                 vertices.Add(point);
-                uvs.Add(new Vector2(i / (float)steps, j / (float)steps));
+                uvs.Add(new Vector2(point.x * 2f, point.z * 2f));
             }
 
             var triangles = new List<int>();
@@ -381,7 +379,7 @@ namespace Backpacking.Camp
                 Vector3 point = FloorPoint(spec, u, v, 1.02f);
                 point.y = 0.006f;
                 vertices.Add(point);
-                uvs.Add(new Vector2(i / (float)steps, j / (float)steps));
+                uvs.Add(new Vector2(point.x * 2f, point.z * 2f));
             }
             for (int j = 0; j < steps; j++)
             for (int i = 0; i < steps; i++)
@@ -392,21 +390,13 @@ namespace Backpacking.Camp
             return DoubleSided(vertices, uvs, triangles);
         }
 
-        /// <summary>Stakes in the corners; once pitched, more out front holding the vestibule.</summary>
+        /// <summary>Stakes in the corners (a pitched dome's come from TentDesign.Dome).</summary>
         static Mesh Stakes(TentModel model, in Spec spec, bool pitched)
         {
             var points = new List<Vector3>();
             foreach (float u in new[] { -1f, 1f })
             foreach (float v in new[] { -1f, 1f })
                 points.Add(FloorPoint(spec, u, v, 1.04f));
-            if (pitched)
-            {
-                Vector3 porch = FloorPoint(spec, 0f, 1f, 1.07f);
-                porch.z += spec.Vestibule * spec.HalfLength;
-                points.Add(porch);
-                if (spec.GuyLines)
-                    points.AddRange(GuyStakes(model, spec));
-            }
             var combine = new List<CombineInstance>();
             foreach (Vector3 point in points)
                 combine.Add(new CombineInstance
@@ -414,35 +404,6 @@ namespace Backpacking.Camp
                     mesh = Tube(new[] { point + new Vector3(0f, -0.05f, 0f), point + new Vector3(0.02f, 0.05f, 0f) }, 0.004f, 4),
                     transform = Matrix4x4.identity,
                 });
-            var mesh = new Mesh();
-            mesh.CombineMeshes(combine.ToArray(), true, true);
-            foreach (CombineInstance part in combine)
-                Discard(part.mesh);
-            return mesh;
-        }
-
-        static IEnumerable<Vector3> GuyStakes(TentModel model, Spec spec)
-        {
-            foreach (float u in new[] { -1f, 1f })
-            foreach (float v in new[] { -0.45f, 0.45f })
-            {
-                Vector3 point = FloorPoint(spec, u, v, 1.07f);
-                point.x += Mathf.Sign(u) * 0.55f;
-                yield return point;
-            }
-        }
-
-        /// <summary>Taut lines from the fly's sides out to stakes, for a tent that has to stand up to storms.</summary>
-        static Mesh GuyLines(TentModel model, in Spec spec)
-        {
-            var combine = new List<CombineInstance>();
-            foreach (Vector3 stake in GuyStakes(model, spec))
-            {
-                float u = Mathf.Sign(stake.x) * 0.55f, v = Mathf.Sign(stake.z) * 0.45f;
-                Vector3 tie = FloorPoint(spec, u, v, 1.07f);
-                tie.y = CanopyHeight(model, spec, u, v) + 0.05f;
-                combine.Add(new CombineInstance { mesh = Tube(new[] { tie, stake + Vector3.up * 0.04f }, 0.0018f, 3), transform = Matrix4x4.identity });
-            }
             var mesh = new Mesh();
             mesh.CombineMeshes(combine.ToArray(), true, true);
             foreach (CombineInstance part in combine)

@@ -82,7 +82,8 @@ namespace Backpacking.Camp
                     if (lift > 0f)
                         point += new Vector3(Mathf.Sign(a) * lift, lift, 0f);
                     vertices.Add(point);
-                    uvs.Add(new Vector2(i / (float)across, j / (float)along));
+                    // Half-metres round and along, for the fabric's weave.
+                    uvs.Add(new Vector2(a * (section.HalfWidth + section.Height) * 2f, z * 2f));
                 }
             }
             var triangles = new List<int>();
@@ -131,6 +132,8 @@ namespace Backpacking.Camp
                     points.Add(new Vector3(width, 0f, z));
                 }
                 points.Add(new Vector3(0f, 0f, PorchTip + 0.03f));
+                foreach ((Vector3 _, Vector3 stake) in TunnelGuys())
+                    points.Add(stake);
             }
             var combine = new List<CombineInstance>();
             foreach (Vector3 point in points)
@@ -146,6 +149,45 @@ namespace Backpacking.Camp
             return mesh;
         }
 
+        /// <summary>The binding down both sides of the fly's hem, along the ground from the foot to the porch stake.</summary>
+        static Mesh TunnelHem()
+        {
+            var parts = new List<Mesh>();
+            foreach (float side in new[] { -1f, 1f })
+            {
+                var path = new List<Vector3>();
+                for (int k = 0; k <= 40; k++)
+                {
+                    float z = Mathf.Lerp(FootTip, PorchTip, k / 40f);
+                    Vector3 point = TunnelSection(z, fly: true).At(side * 0.995f, z);
+                    point.y += 0.012f;
+                    path.Add(point);
+                }
+                parts.Add(Tube(path, 0.0065f, 5));
+            }
+            return Combined(parts);
+        }
+
+        /// <summary>Where each guy line ties on high on a hoop's side, and its stake out to the side.</summary>
+        static IEnumerable<(Vector3 tie, Vector3 stake)> TunnelGuys()
+        {
+            foreach (float z in new[] { FootHoop, MainHoop })
+            foreach (float side in new[] { -1f, 1f })
+            {
+                Section section = TunnelSection(z, fly: true);
+                Vector3 tie = section.At(side * 0.62f, z) + new Vector3(side * 0.015f, 0.025f, 0f);
+                yield return (tie, new Vector3(side * (section.HalfWidth + 0.65f), 0f, z + (z > 0f ? 0.25f : -0.25f)));
+            }
+        }
+
+        static Mesh TunnelGuyLines()
+        {
+            var parts = new List<Mesh>();
+            foreach ((Vector3 tie, Vector3 stake) in TunnelGuys())
+                parts.Add(Tube(new[] { tie, stake + Vector3.up * 0.04f }, 0.0022f, 4));
+            return Combined(parts);
+        }
+
         /// <summary>The bathtub floor under the inner tent, following its outline.</summary>
         static Mesh TunnelFloor()
         {
@@ -159,8 +201,8 @@ namespace Backpacking.Camp
                 float half = TunnelSection(Mathf.Max(z, FootHoop), fly: false).HalfWidth * 0.97f;
                 vertices.Add(new Vector3(-half, 0.006f, z));
                 vertices.Add(new Vector3(half, 0.006f, z));
-                uvs.Add(new Vector2(0f, j / (float)along));
-                uvs.Add(new Vector2(1f, j / (float)along));
+                uvs.Add(new Vector2(-half * 2f, z * 2f));
+                uvs.Add(new Vector2(half * 2f, z * 2f));
                 if (j > 0)
                 {
                     int a = (j - 1) * 2;
@@ -188,7 +230,8 @@ namespace Backpacking.Camp
             add("Rainfly", Cached(model, "tunnel fly", () => TunnelSurface(true)), materials.fly, spec.Fly);
             // The poles run in dark sleeves on the outside of the fly.
             add("Pole sleeves", Cached(model, "tunnel sleeves", () => TunnelHoops(0.017f, -0.004f)), materials.fly, sleeve);
-            // The door: a panel in the porch's side, zipped round in black.
+            add("Hem", Cached(model, "tunnel hem", TunnelHem), materials.fly, sleeve);
+            add("Guy lines", Cached(model, "tunnel guys", TunnelGuyLines), materials.stake, new Color(0.86f, 0.85f, 0.78f));
             // The door: the porch's side unzipped and rolled back, a dark opening to the black inner.
             add("Door", Cached(model, "tunnel door", () => TunnelSurface(true, 0.12f, 0.97f, MainHoop + 0.05f, PorchTip - 0.3f, 0.006f)), materials.fly,
                 new Color(0.05f, 0.05f, 0.05f));
