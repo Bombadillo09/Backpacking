@@ -62,6 +62,7 @@ namespace Backpacking.EditorTools
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
             CampPrefabs prefabs = GetOrCreateCampPrefabs();
+            CoopSetup.EnsurePrefabs();
             BiomeArtSettings art = LoadBiomeArt();
             EditorUtility.DisplayProgressBar("Building prototype scene", "Generating terrain...", 0.2f);
             Terrain terrain;

@@ -86,8 +86,10 @@ namespace Backpacking.EditorTools
                     if (material != null)
                         names.Add(material.name);
                 parts.Add((renderer, names));
+                // The cab and doors use the model file's own material, which can come in empty (it depends on how
+                // Unity imports the .obj without its .mtl): those panels are bodywork too.
                 for (int i = 0; i < materials.Length; i++)
-                    materials[i] = ModelMaterial(materials[i] != null ? materials[i].name : "", paint, glass);
+                    materials[i] = materials[i] == null ? paint : ModelMaterial(materials[i].name, paint, glass);
                 renderer.sharedMaterials = materials;
             }
 
@@ -169,7 +171,11 @@ namespace Backpacking.EditorTools
 
             layout.Eye = new Vector3(0f, 1.12f, 0f);
             float eyeHeight = belt + 0.3f;
-            layout.Seat = new Vector3(-halfWidth * 0.42f, eyeHeight - layout.Eye.y, cabMiddle - 0.1f);
+            // The front seats' cushions are just ahead of the middle of the cab's glass; the back seat sits against the
+            // rear of the cab (both checked from above with PackageCheck.TruckSeatsPicture).
+            float rearSeat = cabMiddle - 0.1f - Mathf.Clamp(cabMiddle - 0.1f - (cab.min.z + 0.4f), 0.6f, 1f);
+            layout.Seat = new Vector3(-halfWidth * 0.42f, eyeHeight - layout.Eye.y, cabMiddle + 0.1f);
+            layout.RearSeatBack = layout.Seat.z - rearSeat;
             layout.DriverExit = new Vector3(-halfWidth - 0.65f, 0f, cabMiddle);
             layout.PassengerExit = new Vector3(halfWidth + 0.65f, 0f, cabMiddle);
             float lampHeight = lamps.Count > 0 ? LocalBounds(truck.transform, lamps).center.y : belt - 0.3f;

@@ -31,6 +31,8 @@ namespace Backpacking.EditorTools
             public Transform[] WheelVisuals;
             public float WheelRadius;
             public Vector3 Seat, Eye = new(0f, 1.12f, 0f);
+            /// <summary>How far behind the front seats the back seats are.</summary>
+            public float RearSeatBack = 0.85f;
             public Vector3 DriverExit, PassengerExit;
             public Vector3[] Headlights = new Vector3[2];
             public Vector3 BedCentre;
@@ -115,6 +117,14 @@ namespace Backpacking.EditorTools
                 return marker;
             }
             Transform seat = Marker("Driver Seat", layout.Seat);
+            // A crew cab: the front passenger seat beside the driver's, two more behind (for co-op).
+            Vector3 rearSeat = layout.Seat + Vector3.back * layout.RearSeatBack;
+            Transform[] passengerSeats =
+            {
+                Marker("Front Passenger Seat", new Vector3(-layout.Seat.x, layout.Seat.y, layout.Seat.z)),
+                Marker("Rear Left Seat", rearSeat),
+                Marker("Rear Right Seat", new Vector3(-rearSeat.x, rearSeat.y, rearSeat.z)),
+            };
             Transform driverExit = Marker("Driver Exit", layout.DriverExit);
             Transform passengerExit = Marker("Passenger Exit", layout.PassengerExit);
 
@@ -148,6 +158,7 @@ namespace Backpacking.EditorTools
             SetObjectArray(pickup, "wheels", wheels);
             SetObjectArray(pickup, "wheelVisuals", visuals);
             SetField(pickup, "seat", seat);
+            SetObjectArray(pickup, "passengerSeats", passengerSeats);
             Modify(pickup, "eye", property => property.vector3Value = layout.Eye);
             SetField(pickup, "steeringWheel", layout.SteeringWheel);
             SetField(pickup, "driverExit", driverExit);
@@ -168,6 +179,7 @@ namespace Backpacking.EditorTools
                 var target = part.gameObject.AddComponent<PickupPart>();
                 SetField(target, "pickup", pickup);
                 SetEnum(target, "kind", (int)kind);
+                Modify(target, "side", property => property.intValue = name.StartsWith("Left") ? -1 : name.StartsWith("Right") ? 1 : 0);
             }
 
             truck.transform.rotation = Quaternion.LookRotation(new Vector3(along.x, 0f, along.y));

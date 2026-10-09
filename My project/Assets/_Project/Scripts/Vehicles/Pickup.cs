@@ -27,6 +27,8 @@ namespace Backpacking.Vehicles
     /// reverse, A/D to steer, Space for the handbrake, E to get out once you've stopped. It's at home on the gravel
     /// road; off it the ground is rough and slow, and a little way into the woods it won't go any further.
     /// Sitting in the cab you're out of the rain and wind, the heater's on, and your feet rest.
+    /// It's a crew cab: in co-op, friends ride in the passenger seats, and the truck follows whoever is driving it
+    /// (see <see cref="Simulated"/>).
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
     public class Pickup : MonoBehaviour, IInteractable
@@ -44,6 +46,8 @@ namespace Backpacking.Vehicles
         [SerializeField] Transform[] wheelVisuals = new Transform[4];
         [Tooltip("The driver's seat, at floor level: your feet go here.")]
         [SerializeField] Transform seat;
+        [Tooltip("Passenger seats, at floor level: front right, rear left, rear right.")]
+        [SerializeField] Transform[] passengerSeats = Array.Empty<Transform>();
         [Tooltip("Your eyes, relative to the seat.")]
         [SerializeField] Vector3 eye = new(0f, 1.12f, 0f);
         [SerializeField] Transform steeringWheel;
@@ -76,16 +80,58 @@ namespace Backpacking.Vehicles
         int enteredFrame = -10;
         float nextRoughMessage;
         readonly List<Collider> playerColliders = new();
+        // Following another player's truck: where it is, and where the wheels are turned and rolled to.
+        Vector3 poseTarget, poseVelocity;
+        Quaternion poseRotation = Quaternion.identity;
+        float poseSteer, poseSpeed, wheelRoll;
+        bool hasPose;
 
         /// <summary>Your truck, wherever it's parked.</summary>
         public static Pickup Current { get; private set; }
 
         public string DisplayName => "Your pickup";
         public Backpack Bed => bed;
+        /// <summary>This player is in the driver's seat.</summary>
         public bool Driving { get; private set; }
+        /// <summary>The seat this player sits in: 0 the driver's, then front right, rear left, rear right; -1 not aboard.</summary>
+        public int LocalSeat { get; private set; } = -1;
+        public bool Aboard => LocalSeat >= 0;
+        public int SeatCount => 1 + passengerSeats.Length;
+        public Transform SeatAt(int index) => index == 0 ? seat : passengerSeats[index - 1];
+        /// <summary>Your eyes, relative to a seat.</summary>
+        public Vector3 Eye => eye;
+        /// <summary>In co-op, whether someone else is sitting in a seat; null playing alone.</summary>
+        public Func<int, bool> SeatTakenByOther { get; set; }
+        /// <summary>
+        /// Whether this game runs the truck's physics. In co-op only the driver's game does (the host's, while it's
+        /// parked); everyone else's truck follows it (<see cref="FollowPose"/>).
+        /// </summary>
+        public bool Simulated
+        {
+            get => body == null || !body.isKinematic;
+            set
+            {
+                if (body == null || body.isKinematic == !value)
+                    return;
+                body.isKinematic = !value;
+                body.interpolation = value ? RigidbodyInterpolation.Interpolate : RigidbodyInterpolation.None;
+                hasPose = false;
+                if (value)
+                {
+                    body.linearVelocity = poseVelocity;
+                    body.WakeUp();
+                }
+            }
+        }
+        /// <summary>The steering angle, for other players' views of this truck.</summary>
+        public float SteerAngle => steer;
+        /// <summary>Raised when this player gets in or out (or changes seat).</summary>
+        public static event Action<Pickup> LocalSeatChanged;
         /// <summary>For tests: drives with this input (x steer, y throttle) instead of the player's, with no one aboard.</summary>
         public Vector2? ScriptedInput { get; set; }
-        public float SpeedKmh => body != null ? Vector3.Dot(body.linearVelocity, transform.forward) * 3.6f : 0f;
+        public float SpeedKmh => body == null ? 0f : (Simulated ? Vector3.Dot(body.linearVelocity, transform.forward) : poseSpeed) * 3.6f;
+        /// <summary>The truck's velocity in m/s, wherever it comes from.</summary>
+        public Vector3 Velocity => body == null ? Vector3.zero : Simulated ? body.linearVelocity : poseVelocity;
         bool OnItsSide => transform.up.y < 0.4f;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -132,20 +178,49 @@ namespace Backpacking.Vehicles
 
         public void GetOptions(Interactor interactor, List<InteractionOption> options)
         {
-            if (Driving)
+            if (Aboard)
                 return;
             AddDoorOption(options);
             if (!OnItsSide)
                 AddBedOption(interactor, options);
         }
 
-        /// <summary>At a door: get in and drive (or, if it's over, push it back onto its wheels).</summary>
-        public void AddDoorOption(List<InteractionOption> options)
+        /// <summary>
+        /// At a door: get in and drive, or ride in a free seat on that side (or, if it's over, push it back onto its
+        /// wheels). <paramref name="side"/> is -1 for a left door, 1 for a right one, 0 if it doesn't matter.
+        /// </summary>
+        public void AddDoorOption(List<InteractionOption> options, int side = 0)
         {
             if (OnItsSide)
+            {
                 options.Add(new InteractionOption("Rock it back onto its wheels", RightItself));
+                return;
+            }
+            int free = FreeSeat(side);
+            if (free < 0)
+                options.Add(new InteractionOption("Get in", null, "Every seat is taken"));
             else
-                options.Add(new InteractionOption("Get in and drive", GetIn));
+            {
+                int chosen = free;
+                options.Add(new InteractionOption(chosen == 0 ? "Get in and drive" : chosen == 1 ? "Get in the front passenger seat" : "Get in the back seat",
+                    () => GetIn(chosen)));
+            }
+        }
+
+        bool SeatFree(int index) => index < SeatCount && SeatAt(index) != null && (SeatTakenByOther == null || !SeatTakenByOther(index));
+
+        /// <summary>
+        /// The seat a door leads to. Alone, any door gets you behind the wheel; in co-op, the left doors lead to the
+        /// driver's seat and the seat behind it, the right ones to the front passenger seat and the one behind that.
+        /// </summary>
+        int FreeSeat(int side)
+        {
+            int[] order = SeatTakenByOther == null ? new[] { 0, 1, 2, 3 }
+                : side > 0 ? new[] { 1, 3, 0, 2 } : new[] { 0, 2, 1, 3 };
+            foreach (int index in order)
+                if (SeatFree(index))
+                    return index;
+            return -1;
         }
 
         /// <summary>At the tailgate: the truck bed, to pack your backpack from or leave things in.</summary>
@@ -163,13 +238,18 @@ namespace Backpacking.Vehicles
 
         // ---------- Getting in and out ----------
 
-        public void GetIn()
+        /// <summary>Gets in behind the wheel.</summary>
+        public void GetIn() => GetIn(0);
+
+        /// <summary>Gets in a seat: 0 to drive, 1–3 to ride.</summary>
+        public void GetIn(int seatIndex)
         {
-            if (Driving || player == null)
+            if (Aboard || player == null || !SeatFree(seatIndex))
                 return;
             if (RestMode.SeatedNow)
                 RestMode.Current.StandUp();
-            Driving = true;
+            LocalSeat = seatIndex;
+            Driving = seatIndex == 0;
             enteredFrame = Time.frameCount;
             PlayerControlLock.Lock(this, needsCursor: false);
             // The player's own colliders would join the truck's body while riding in it.
@@ -180,13 +260,28 @@ namespace Backpacking.Vehicles
                     part.enabled = false;
                     playerColliders.Add(part);
                 }
-            player.MountAt(seat, eye);
+            player.MountAt(SeatAt(seatIndex), eye);
             if (vitals != null)
                 vitals.InVehicle = true;
             PlayDoor();
-            engine.Play();
-            SetHeadlights(true);
-            body.WakeUp();
+            if (Driving)
+            {
+                SetEngine(true);
+                body.WakeUp();
+            }
+            LocalSeatChanged?.Invoke(this);
+        }
+
+        /// <summary>The engine running and the headlights on (while anyone is driving).</summary>
+        public void SetEngine(bool on)
+        {
+            if (engine == null || engine.isPlaying == on)
+                return;
+            if (on)
+                engine.Play();
+            else
+                engine.Stop();
+            SetHeadlights(on);
         }
 
         void TryGetOut()
@@ -196,7 +291,10 @@ namespace Backpacking.Vehicles
                 Notifications.Post("Stop the truck before getting out.", 3f);
                 return;
             }
-            if (!FindExit(driverExit, out Vector3 spot) && !FindExit(passengerExit, out spot))
+            // Out of your own side's door, or the other side's if that's blocked.
+            bool rightSide = LocalSeat == 1 || LocalSeat == 3;
+            float along = LocalSeat >= 2 ? SeatAt(LocalSeat).localPosition.z - seat.localPosition.z : 0f;
+            if (!FindExit(rightSide ? passengerExit : driverExit, along, out Vector3 spot) && !FindExit(rightSide ? driverExit : passengerExit, along, out spot))
             {
                 Notifications.Post("There's no room to open a door here. Move the truck a little.", 4f);
                 return;
@@ -204,9 +302,22 @@ namespace Backpacking.Vehicles
             GetOut(spot);
         }
 
+        /// <summary>Gets out at once, whatever the speed (co-op: someone else was given the seat).</summary>
+        public void LeaveSeat()
+        {
+            if (!Aboard)
+                return;
+            bool rightSide = LocalSeat == 1 || LocalSeat == 3;
+            if (!FindExit(rightSide ? passengerExit : driverExit, 0f, out Vector3 spot) && !FindExit(rightSide ? driverExit : passengerExit, 0f, out spot))
+                spot = transform.position + transform.right * (rightSide ? 2f : -2f);
+            GetOut(spot);
+        }
+
         void GetOut(Vector3 spot)
         {
+            bool wasDriving = Driving;
             Driving = false;
+            LocalSeat = -1;
             player.Dismount(spot, transform.rotation);
             foreach (Collider part in playerColliders)
                 if (part != null)
@@ -216,18 +327,19 @@ namespace Backpacking.Vehicles
             if (vitals != null)
                 vitals.InVehicle = false;
             PlayDoor();
-            engine.Stop();
-            SetHeadlights(false);
+            if (wasDriving)
+                SetEngine(false);
             hint?.SetVisible(false);
+            LocalSeatChanged?.Invoke(this);
         }
 
-        /// <summary>A clear spot to stand on the ground at an exit point.</summary>
-        bool FindExit(Transform exit, out Vector3 spot)
+        /// <summary>A clear spot to stand on the ground at an exit point, moved <paramref name="along"/> metres forward (for the back doors).</summary>
+        bool FindExit(Transform exit, float along, out Vector3 spot)
         {
             spot = default;
             if (exit == null)
                 return false;
-            Vector3 above = exit.position + Vector3.up * 2f;
+            Vector3 above = exit.position + transform.forward * along + Vector3.up * 2f;
             if (!Physics.Raycast(above, Vector3.down, out RaycastHit hit, 5f, ~0, QueryTriggerInteraction.Ignore) || hit.transform.IsChildOf(transform))
                 return false;
             spot = hit.point + Vector3.up * 0.05f;
@@ -263,14 +375,21 @@ namespace Backpacking.Vehicles
 
         void Update()
         {
-            if (!Driving)
+            if (!Simulated)
+                Follow();
+            if (!Aboard)
                 return;
             bool menus = PlayerControlLock.CursorNeeded;
             if (!menus && Time.frameCount > enteredFrame + 1 && interact.WasPressedThisFrame())
             {
                 TryGetOut();
-                if (!Driving)
+                if (!Aboard)
                     return;
+            }
+            if (!Driving)
+            {
+                UpdatePassengerHint(menus);
+                return;
             }
 
             float speed = Mathf.Abs(SpeedKmh);
@@ -281,6 +400,8 @@ namespace Backpacking.Vehicles
 
         void FixedUpdate()
         {
+            if (!Simulated)
+                return;
             Vector2 input = ScriptedInput ?? (Driving && !PlayerControlLock.CursorNeeded ? Vector2.ClampMagnitude(move.ReadValue<Vector2>(), 1f) : Vector2.zero);
             bool holdingHandbrake = ScriptedInput == null && (!Driving || (!PlayerControlLock.CursorNeeded && handbrake.IsPressed()));
             float speed = Vector3.Dot(body.linearVelocity, transform.forward);
@@ -346,15 +467,59 @@ namespace Backpacking.Vehicles
 
         void LateUpdate()
         {
-            for (int i = 0; i < wheels.Length && i < wheelVisuals.Length; i++)
+            if (!Simulated)
             {
-                if (wheels[i] == null || wheelVisuals[i] == null)
-                    continue;
-                wheels[i].GetWorldPose(out Vector3 position, out Quaternion rotation);
-                wheelVisuals[i].SetPositionAndRotation(position, rotation);
+                // Following: turn and roll the wheels where they are.
+                wheelRoll += poseSpeed / 0.37f * Mathf.Rad2Deg * Time.deltaTime;
+                for (int i = 0; i < wheelVisuals.Length; i++)
+                    if (wheelVisuals[i] != null)
+                        wheelVisuals[i].localRotation = Quaternion.Euler(0f, i < 2 ? poseSteer : 0f, 0f) * Quaternion.Euler(wheelRoll, 0f, 0f);
+                steer = poseSteer;
             }
+            else
+                for (int i = 0; i < wheels.Length && i < wheelVisuals.Length; i++)
+                {
+                    if (wheels[i] == null || wheelVisuals[i] == null)
+                        continue;
+                    wheels[i].GetWorldPose(out Vector3 position, out Quaternion rotation);
+                    wheelVisuals[i].SetPositionAndRotation(position, rotation);
+                }
             if (steeringWheel != null)
                 steeringWheel.localRotation = steeringRest * Quaternion.AngleAxis(-steer * 12f, Vector3.forward);
+        }
+
+        // ---------- Following another player's truck ----------
+
+        /// <summary>Where the driving player's truck is (co-op): this one glides there, carrying anyone sitting in it.</summary>
+        public void FollowPose(Vector3 position, Quaternion rotation, Vector3 velocity, float steerAngle)
+        {
+            poseTarget = position;
+            poseRotation = rotation;
+            poseVelocity = velocity;
+            poseSteer = steerAngle;
+            poseSpeed = Vector3.Dot(velocity, rotation * Vector3.forward);
+            if (!hasPose || (transform.position - position).sqrMagnitude > 25f)
+                transform.SetPositionAndRotation(position, rotation);
+            hasPose = true;
+        }
+
+        void Follow()
+        {
+            if (!hasPose)
+                return;
+            // Run ahead on the last known speed between updates, and ease out the difference.
+            poseTarget += poseVelocity * Time.deltaTime;
+            float ease = 1f - Mathf.Exp(-12f * Time.deltaTime);
+            transform.SetPositionAndRotation(Vector3.Lerp(transform.position, poseTarget, ease), Quaternion.Slerp(transform.rotation, poseRotation, ease));
+        }
+
+        void UpdatePassengerHint(bool menus)
+        {
+            if (hint == null)
+                return;
+            hint.SetVisible(!menus);
+            if (!menus)
+                hint.SetText($"<b>{Mathf.Abs(SpeedKmh):0}</b> km/h\nRiding along   ·   <color=#E07B39><b>E</b></color> get out once it stops");
         }
 
         void UpdateHint(bool menus, float speed)
@@ -378,7 +543,7 @@ namespace Backpacking.Vehicles
         {
             if (state == null)
                 return;
-            if (Driving && player != null)
+            if (Aboard && player != null)
                 GetOut(player.transform.position);
             body.linearVelocity = Vector3.zero;
             body.angularVelocity = Vector3.zero;

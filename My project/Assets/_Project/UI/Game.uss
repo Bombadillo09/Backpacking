@@ -859,3 +859,43 @@
     font-size: 13px;
     white-space: normal;
 }
+
+/* Co-op: another hiker's name above their head, and the waiting-for-everyone line. */
+.name-tag {
+    font-size: 17px;
+    color: rgb(255, 244, 220);
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    white-space: nowrap;
+}
+
+.coop-wait {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 12%;
+    font-size: 18px;
+    color: rgb(255, 236, 200);
+    -unity-text-align: middle-center;
+}
+
+.coop-status {
+    font-size: 15px;
+    color: rgb(200, 210, 200);
+    white-space: normal;
+    margin-top: 4px;
+    margin-bottom: 4px;
+}
+
+.friend-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 3px;
+    margin-bottom: 3px;
+}
+
+.address-field {
+    flex-grow: 1;
+    font-size: 17px;
+}

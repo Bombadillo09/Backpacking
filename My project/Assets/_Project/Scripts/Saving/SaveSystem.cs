@@ -68,7 +68,7 @@ namespace Backpacking.Saving
 
         void OnWokeUp(bool inTent)
         {
-            if (inTent)
+            if (inTent && !Net.CoopSession.IsGuest)
                 Save();
         }
 
@@ -103,6 +103,11 @@ namespace Backpacking.Saving
 
         public void Save()
         {
+            if (Net.CoopSession.IsGuest)
+            {
+                Notifications.Post("On a friend's trip, the host saves the game.");
+                return;
+            }
             SaveData data = Capture();
             try
             {
@@ -119,6 +124,11 @@ namespace Backpacking.Saving
         /// <summary>Reloads the scene fresh and applies the save to it.</summary>
         public void QuickLoad()
         {
+            if (Net.CoopSession.Active)
+            {
+                Notifications.Post("Leave co-op (pause menu) before loading a save.");
+                return;
+            }
             if (!HasSave)
             {
                 Notifications.Post("No saved game yet.");
@@ -143,6 +153,12 @@ namespace Backpacking.Saving
         /// <summary>Reloads the scene to the title menu. Unsaved progress is lost.</summary>
         public void ReturnToTitle()
         {
+            // Out of co-op first: the reload waits until the session has shut down.
+            if (Net.CoopSession.Active)
+            {
+                Net.CoopSession.Instance.Leave(ReturnToTitle);
+                return;
+            }
             loadOnSceneStart = false;
             Time.timeScale = 1f;
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);

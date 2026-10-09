@@ -33,6 +33,9 @@ namespace Backpacking.World
         public string DisplayName => doorName;
         public bool IsOpen => open;
 
+        /// <summary>Raised when the player opens or closes a door (not when <see cref="SetOpen"/> does), for co-op.</summary>
+        public static event Action<Door> Toggled;
+
         void Awake()
         {
             open = startOpen;
@@ -45,7 +48,16 @@ namespace Backpacking.World
 
         public void Toggle()
         {
-            open = !open;
+            SetOpen(!open);
+            Toggled?.Invoke(this);
+        }
+
+        /// <summary>Swings the door open or shut (someone else's hand, in co-op).</summary>
+        public void SetOpen(bool shouldOpen)
+        {
+            if (open == shouldOpen)
+                return;
+            open = shouldOpen;
             if (!open)
                 Invoke(nameof(Thud), 0.45f);
         }

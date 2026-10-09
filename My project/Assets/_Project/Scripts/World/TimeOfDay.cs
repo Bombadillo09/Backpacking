@@ -46,8 +46,27 @@ namespace Backpacking.World
         public float TotalHours => (day - 1) * 24f + hour;
         /// <summary>0 at night, 1 in full daylight, in between at dawn and dusk.</summary>
         public float Daylight { get; private set; }
-        /// <summary>Current clock speed-up: the largest of all active requests, or 1.</summary>
+        /// <summary>
+        /// Current clock speed-up: the largest of all active requests, or 1; in co-op, the speed the group agreed on
+        /// (<see cref="SharedMultiplier"/>).
+        /// </summary>
         public float TimeMultiplier { get; private set; } = 1f;
+        /// <summary>The speed-up this player is asking for: the largest of their requests, or 1.</summary>
+        public float RequestedMultiplier { get; private set; } = 1f;
+        /// <summary>
+        /// In co-op, the clock runs at the speed everyone agrees on (the slowest anyone asks for), set by the network;
+        /// null playing alone, when this player's requests set it.
+        /// </summary>
+        public float? SharedMultiplier
+        {
+            get => sharedMultiplier;
+            set
+            {
+                sharedMultiplier = value;
+                TimeMultiplier = value ?? RequestedMultiplier;
+            }
+        }
+        float? sharedMultiplier;
         /// <summary>Game hours per real second at normal speed.</summary>
         public float BaseHoursPerSecond => 24f / (realMinutesPerGameDay * 60f);
         /// <summary>Game hours per real second right now, including any speed-up.</summary>
@@ -92,7 +111,8 @@ namespace Backpacking.World
             float multiplier = 1f;
             foreach (float requested in speedRequests.Values)
                 multiplier = Mathf.Max(multiplier, requested);
-            TimeMultiplier = multiplier;
+            RequestedMultiplier = multiplier;
+            TimeMultiplier = sharedMultiplier ?? multiplier;
         }
 
         /// <summary>Cloud cover from 0 (clear) to 1 (storm), set by the weather. Dims the sun and thickens the fog.</summary>

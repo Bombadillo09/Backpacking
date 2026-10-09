@@ -195,7 +195,7 @@ namespace Backpacking.EditorTools
             // A floor lamp by the rocking chair.
             Vector3 floorLamp = new(-0.45f, y, 0.4f);
             AddVisual(PrimitiveType.Cylinder, house, floorLamp + new Vector3(0f, 0.015f, 0f), Quaternion.identity, new Vector3(0.3f, 0.015f, 0.3f), metal);
-            AddVisual(PrimitiveType.Cylinder, house, floorLamp + new Vector3(0f, 0.8f, 0f), Quaternion.identity, new Vector3(0.025f, 0.8f, 0.025f), metal);
+            AddSolid(PrimitiveType.Cylinder, house, floorLamp + new Vector3(0f, 0.8f, 0f), Quaternion.identity, new Vector3(0.025f, 0.8f, 0.025f), metal);
             AddVisual(PrimitiveType.Cylinder, house, floorLamp + new Vector3(0f, 1.62f, 0f), Quaternion.identity, new Vector3(0.38f, 0.12f, 0.38f),
                 GetOrCreateEmissiveMaterial("LampShade", new Color(1f, 0.85f, 0.6f)));
             // A log basket by the stove, and the stove's legs and glass door.

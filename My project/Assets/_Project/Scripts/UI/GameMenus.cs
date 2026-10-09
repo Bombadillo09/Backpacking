@@ -9,10 +9,11 @@ using UnityEngine.UIElements;
 namespace Backpacking.UI
 {
     /// <summary>
-    /// The title menu shown on start (continue the saved trip or start a new one), the pause menu on Esc,
-    /// and the settings and controls pages both of them open. The world stays paused while either is up.
+    /// The title menu shown on start (continue the saved trip, start a new one, or join a friend's), the pause menu
+    /// on Esc, and the settings and controls pages both of them open. The world stays paused while either is up,
+    /// except in co-op, where it carries on for everyone else. Co-op's pages are in GameMenus.Coop.cs.
     /// </summary>
-    public class GameMenus : MonoBehaviour
+    public partial class GameMenus : MonoBehaviour
     {
         [SerializeField] SaveSystem saves;
         [SerializeField] CharacterCreator creator;
@@ -27,7 +28,7 @@ namespace Backpacking.UI
             "Tab|View|Backpack, leave a shop\nJ|Backpack > Journal|Trip journal\nV|RB|First or third person\nM|D-pad up|Map\nQ|D-pad down|Compass\nHold T|Hold LB|Fast-forward time\n" +
             "Right-click|B|Back, cancel placing, stop fishing\nEsc|Start|Close screen, pause\nF5 / F9|-|Quick-save / quick-load";
 
-        enum Page { None, Title, Pause, Settings, Controls, Confirm, Creator }
+        enum Page { None, Title, Pause, Settings, Controls, Confirm, Creator, Join }
 
         Page page;
         Page returnPage;
@@ -48,6 +49,9 @@ namespace Backpacking.UI
             GameUI.EscapeUnhandled += OnEscape;
             GameUI.CancelUnhandled += OnCancel;
             GameSettings.Changed += ApplyAudio;
+            Net.CoopSession.JoinRequested += OnJoinRequested;
+            Net.CoopSession.Ended += OnCoopEnded;
+            Net.CoopSession.StatusChanged += RefreshCoop;
         }
 
         void OnDisable()
@@ -55,6 +59,9 @@ namespace Backpacking.UI
             GameUI.EscapeUnhandled -= OnEscape;
             GameUI.CancelUnhandled -= OnCancel;
             GameSettings.Changed -= ApplyAudio;
+            Net.CoopSession.JoinRequested -= OnJoinRequested;
+            Net.CoopSession.Ended -= OnCoopEnded;
+            Net.CoopSession.StatusChanged -= RefreshCoop;
             AudioListener.pause = false;
         }
 
@@ -63,7 +70,12 @@ namespace Backpacking.UI
             ApplyAudio();
             BuildPages();
             if (!SaveSystem.LoadingOnSceneStart)
+            {
                 ShowTitle();
+                // Launched (or sent back to the title) to accept a Steam invite.
+                if (Net.CoopSession.PendingJoin != 0)
+                    OnJoinRequested(Net.CoopSession.PendingJoin);
+            }
         }
 
         static void ApplyAudio() => AudioListener.volume = GameSettings.MasterVolume;
@@ -81,6 +93,8 @@ namespace Backpacking.UI
                     continueButton,
                     continueSummary,
                     UIBuild.Button("New trip", NewTrip, "menu"),
+                    UIBuild.Button("Join a friend", ShowJoin, "menu"),
+                    titleCoopStatus = UIBuild.Text("", "coop-status"),
                     UIBuild.Button("Settings", () => ShowPage(Page.Settings), "menu"),
                     UIBuild.Button("Controls", () => ShowPage(Page.Controls), "menu"),
                     UIBuild.Button("Quit", QuitGame, "menu", "quiet")));
@@ -89,6 +103,7 @@ namespace Backpacking.UI
             pausePage = UIBuild.Box("panel", "menu-panel").With(
                 UIBuild.Text("Paused", "title"),
                 UIBuild.Button("Resume", Resume, "menu", "primary"),
+                BuildCoopPauseSection(),
                 skipTutorialButton = UIBuild.Button("Skip tutorial", () =>
                 {
                     if (tutorial != null)
@@ -96,7 +111,7 @@ namespace Backpacking.UI
                     PlayerPrefs.SetInt("tutorial.done", 1);
                     Resume();
                 }, "menu"),
-                UIBuild.Button("Save trip", () =>
+                saveButton = UIBuild.Button("Save trip", () =>
                 {
                     saves.Save();
                     Resume();
@@ -123,7 +138,8 @@ namespace Backpacking.UI
                     }, "primary")));
             confirmPage.style.maxWidth = 520f;
 
-            screen = UIBuild.Layer("screen-dim", "centred").With(titlePage, pausePage, settingsPage, controlsPage, confirmPage);
+            joinPage = BuildJoinPage();
+            screen = UIBuild.Layer("screen-dim", "centred").With(titlePage, pausePage, settingsPage, controlsPage, confirmPage, joinPage);
             screen.pickingMode = PickingMode.Position;
             GameUI.Current.Menus.Add(screen);
             ShowPage(Page.None);
@@ -202,14 +218,18 @@ namespace Backpacking.UI
             settingsPage.SetVisible(next == Page.Settings);
             controlsPage.SetVisible(next == Page.Controls);
             confirmPage.SetVisible(next == Page.Confirm);
+            joinPage.SetVisible(next == Page.Join);
             // The HUD would only clutter the title screen.
             GameUI.Current.Hud.SetVisible(!onTitle);
 
             if (next == Page.Pause)
             {
-                loadButton.SetEnabled(saves.HasSave);
+                // A guest's trip is the host's to save and load.
+                loadButton.SetEnabled(saves.HasSave && !Net.CoopSession.Active);
+                saveButton.SetEnabled(!Net.CoopSession.IsGuest);
                 skipTutorialButton.SetVisible(tutorial != null && tutorial.IsRunning);
             }
+            RefreshCoop();
             if (next != Page.None)
                 screen.FocusFirstButton();
         }
@@ -218,6 +238,8 @@ namespace Backpacking.UI
         {
             if (page is Page.Settings or Page.Controls or Page.Confirm)
                 ShowPage(returnPage);
+            else if (page == Page.Join)
+                ShowPage(Page.Title);
             else if (page == Page.Pause)
                 Resume();
         }
@@ -257,14 +279,19 @@ namespace Backpacking.UI
 
         void Freeze()
         {
-            timeScaleBeforePause = Time.timeScale > 0f ? Time.timeScale : 1f;
-            Time.timeScale = 0f;
+            // In co-op the world can't stop for one player's menu: it carries on, and only your controls stop.
+            if (!Net.CoopSession.Active)
+            {
+                timeScaleBeforePause = Time.timeScale > 0f ? Time.timeScale : 1f;
+                Time.timeScale = 0f;
+            }
             PlayerControlLock.Lock(this, needsCursor: true);
         }
 
         void Unfreeze()
         {
-            Time.timeScale = timeScaleBeforePause;
+            if (Time.timeScale == 0f)
+                Time.timeScale = timeScaleBeforePause;
             AudioListener.pause = false;
             PlayerControlLock.Unlock(this);
         }
@@ -326,12 +353,13 @@ namespace Backpacking.UI
         /// A fresh start begins at home with money and the clothes you stand in (plus one thing your background
         /// brings): you drive to the outdoor store, buy and pack your kit, and drive to the trailhead.
         /// </summary>
-        void BeginTrip(CharacterProfile hiker, bool freshStart)
+        void BeginTrip(CharacterProfile hiker, bool freshStart, bool guest = false)
         {
             HideAll();
             if (avatar != null)
                 avatar.Apply(hiker);
-            Backpack truckBed = Vehicles.Pickup.Current != null ? Vehicles.Pickup.Current.Bed : null;
+            // Joining a friend, the truck bed is theirs (it comes over the network): what your background brings goes in your pack.
+            Backpack truckBed = Vehicles.Pickup.Current != null && !guest ? Vehicles.Pickup.Current.Bed : null;
             if (backpack != null && freshStart)
             {
                 backpack.EmptyKit(Trip.ArrivalGuide.StartingMoney, streetClothes: true);
@@ -355,7 +383,7 @@ namespace Backpacking.UI
                     if (tutorial != null)
                         tutorial.Stop();
                     arrival.BeginAtHome(tutorialWanted);
-                    string replacesSave = saves.HasSave ? " Your next save replaces the old trip." : "";
+                    string replacesSave = saves.HasSave && !guest ? " Your next save replaces the old trip." : "";
                     Notifications.Post($"Your goal, {hiker.name}: hike the trail north to {Trip.TripLog.Destination} and sign the summit register. "
                                        + $"First, gear up: drive to {Trip.TripLog.Outfitter}.{replacesSave}", 12f);
                     return;
@@ -381,7 +409,7 @@ namespace Backpacking.UI
         void Pause()
         {
             Freeze();
-            AudioListener.pause = true;
+            AudioListener.pause = !Net.CoopSession.Active;
             ShowPage(Page.Pause);
         }
 
