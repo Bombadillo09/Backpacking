@@ -68,6 +68,7 @@ namespace Backpacking.UI
                 UIBuild.Box("panel-header").With(
                     UIBuild.Text("Backpack", "title"),
                     bindings.Text(() => backpack.Pelts > 0 ? $"${backpack.Money}    Rabbit pelts: {backpack.Pelts}" : $"${backpack.Money}", "money")),
+                PackMeter(),
                 bindings.Text(LoadDescription, "small"),
                 UIBuild.Box("columns").With(gridScroll, detail),
                 UIBuild.Box("inventory-bottom").With(
@@ -160,6 +161,53 @@ namespace Backpacking.UI
                            && Vector3.Distance(truck.transform.position, backpack.transform.position) < 6f;
             Close();
             PackingView.Current.Open(atTruck ? truck.Bed : null);
+        }
+
+        static readonly Color MeterGood = new(0.45f, 0.72f, 0.38f), MeterFull = new(0.92f, 0.68f, 0.2f), MeterOver = new(0.85f, 0.25f, 0.18f);
+
+        /// <summary>
+        /// How full the pack is at a glance: a bar for each part (inside, lid, side pockets, straps) and one for the
+        /// load, green with room to spare, amber when nearly full (or heavy), red when over.
+        /// </summary>
+        VisualElement PackMeter()
+        {
+            VisualElement row = UIBuild.Box("row");
+            row.style.marginTop = 6f;
+            row.style.marginBottom = 6f;
+
+            void Meter(string label, Func<(float used, float full, float limit, string text)> read)
+            {
+                VisualElement bar = UIBuild.Bar(out VisualElement fill);
+                bar.style.width = 170f;
+                bar.style.height = 12f;
+                Label text = UIBuild.Text("", "small");
+                VisualElement box = UIBuild.Box().With(text, bar);
+                box.style.marginRight = 28f;
+                bindings.Add(() =>
+                {
+                    (float used, float full, float limit, string value) = read();
+                    float fraction = limit > 0f ? used / limit : 0f;
+                    fill.SetFill(fraction);
+                    fill.style.backgroundColor = used > limit + 0.01f ? MeterOver : used > full ? MeterFull : MeterGood;
+                    text.SetText($"{label}   {value}");
+                    box.SetVisible(limit > 0f);
+                });
+                row.Add(box);
+            }
+
+            float Litres(PackZone zone) => backpack.UsedIn(zone);
+            Meter("INSIDE", () => (Litres(PackZone.Core), backpack.CapacityOf(PackZone.Core) * 0.85f, backpack.CapacityOf(PackZone.Core),
+                $"{Litres(PackZone.Core):0.#} / {backpack.CapacityOf(PackZone.Core):0} L"));
+            Meter("LID", () => (Litres(PackZone.Lid), backpack.CapacityOf(PackZone.Lid) * 0.85f, backpack.CapacityOf(PackZone.Lid),
+                $"{Litres(PackZone.Lid):0.#} / {backpack.CapacityOf(PackZone.Lid):0} L"));
+            Meter("SIDE POCKETS", () => (Litres(PackZone.Pockets), backpack.CapacityOf(PackZone.Pockets) * 0.85f, backpack.CapacityOf(PackZone.Pockets),
+                $"{Litres(PackZone.Pockets):0.#} / {backpack.CapacityOf(PackZone.Pockets):0} L"));
+            Meter("STRAPS", () => (Litres(PackZone.Straps), backpack.CapacityOf(PackZone.Straps) - 0.5f, backpack.CapacityOf(PackZone.Straps),
+                $"{Litres(PackZone.Straps):0} / {backpack.CapacityOf(PackZone.Straps):0} used"));
+            Meter("WEIGHT", () => (backpack.TotalWeight, backpack.ComfortableLoad, backpack.MaxLoad,
+                $"{backpack.TotalWeight:0.0} kg  (easy to {backpack.ComfortableLoad:0}, max {backpack.MaxLoad:0})"));
+            bindings.Visible(row, () => backpack.HasPack);
+            return row;
         }
 
         string PackDescription()
@@ -563,7 +611,8 @@ namespace Backpacking.UI
             string feel = backpack.IsOverloaded ? "Overloaded: very slow, no sprinting. Drop something."
                 : weight > backpack.ComfortableLoad ? "Heavy: slower, and tiring."
                 : "Comfortable.";
-            return $"Pack weight: {weight:0.0} kg  (comfortable up to {backpack.ComfortableLoad:0} kg, max {backpack.MaxLoad:0} kg).  {feel}";
+            // The numbers are on the weight bar above; this says how it feels.
+            return backpack.HasPack ? feel : $"Carrying {weight:0.0} kg in your hands and pockets. {feel}";
         }
 
         static string FormatHours(float hours) => hours >= 48f ? $"{hours / 24f:0} days" : $"{Mathf.CeilToInt(hours)} h";

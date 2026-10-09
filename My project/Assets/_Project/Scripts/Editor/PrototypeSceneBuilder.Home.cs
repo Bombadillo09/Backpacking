@@ -84,6 +84,12 @@ namespace Backpacking.EditorTools
             AddWindow(house, new Vector3(right, floorTop + 1.7f, -2f), 90f, new Vector2(0.6f, 0.5f), glass, trim);
 
             BuildPorch(house, doorX, halfDepth, floorTop, wood, roof, floor);
+            // Doors that open: the front door swings in, the bedroom and bathroom doors swing into their rooms.
+            Material brass = GetOrCreateMaterial("Brass", new Color(0.78f, 0.62f, 0.3f), 0.7f);
+            AddDoor(house, "Front door", floorTop, front, 2.1f, GetOrCreateMaterial("FrontDoor", new Color(0.35f, 0.15f, 0.1f)), brass, null, false,
+                (doorX - 0.5f, 1f, 1f, 90f));
+            AddDoor(house, "Bedroom door", floorTop, 0f, 2.05f, wood, brass, null, true, (bedroomDoor - 0.45f, 1f, 0.9f, 90f));
+            AddDoor(house, "Bathroom door", floorTop, 0f, 2.05f, wood, brass, null, false, (bathroomDoor - 0.4f, 1f, 0.8f, 90f));
             FurnishLivingRoom(house, floorTop, wood, metal);
             FurnishKitchen(house, floorTop, wood, metal, trim);
             FurnishBedroom(house, floorTop, wood, trim);
@@ -119,9 +125,54 @@ namespace Backpacking.EditorTools
             // A railing either side of the steps.
             foreach (float x in new[] { doorX - width / 2f + 0.1f, doorX + width / 2f - 0.1f })
                 AddVisual(PrimitiveType.Cube, house, new Vector3(x, floorTop + 0.85f, z), Quaternion.identity, new Vector3(0.06f, 0.06f, depth), wood);
-            // The front door, standing open against the inside of the wall.
-            AddVisual(PrimitiveType.Cube, house, new Vector3(doorX - 0.97f, floorTop + 1.05f, halfDepth - 0.21f), Quaternion.identity,
-                new Vector3(0.95f, 2.08f, 0.05f), GetOrCreateMaterial("FrontDoor", new Color(0.35f, 0.15f, 0.1f)));
+        }
+
+        /// <summary>
+        /// A working door in a doorway along a wall that runs along local X. Each leaf hangs on a hinge at
+        /// <c>hinge.x</c> and reaches <c>width</c> metres toward +X (<c>reach</c> 1) or −X (−1); it swings
+        /// <c>openAngle</c> degrees to open (positive swings toward −Z from a +X leaf). Panels, a knob each side,
+        /// and an optional glass pane in the top half.
+        /// </summary>
+        static void AddDoor(GameObject root, string name, float floorTop, float wallZ, float height, Material material, Material knob,
+            Material glass, bool startOpen, params (float hinge, float reach, float width, float openAngle)[] leafs)
+        {
+            var doorObject = new GameObject(name);
+            doorObject.transform.SetParent(root.transform, false);
+            var door = doorObject.AddComponent<World.Door>();
+            Material panel = GetOrCreateMaterial("DoorPanel", Color.Lerp(material.color, Color.black, 0.25f));
+            var hinges = new Transform[leafs.Length];
+            for (int i = 0; i < leafs.Length; i++)
+            {
+                (float hingeX, float reach, float width, _) = leafs[i];
+                var hinge = new GameObject("Hinge").transform;
+                hinge.SetParent(doorObject.transform, false);
+                hinge.localPosition = new Vector3(hingeX, floorTop, wallZ);
+                hinges[i] = hinge;
+                GameObject leaf = hinge.gameObject;
+                float middle = reach * width / 2f;
+                AddSolid(PrimitiveType.Cube, leaf, new Vector3(middle, height / 2f, 0f), Quaternion.identity, new Vector3(width - 0.01f, height - 0.01f, 0.045f), material);
+                foreach (float face in new[] { -1f, 1f })
+                {
+                    if (glass != null)
+                        AddVisual(PrimitiveType.Cube, leaf, new Vector3(middle, height * 0.68f, face * 0.024f), Quaternion.identity, new Vector3(width * 0.7f, height * 0.42f, 0.006f), glass);
+                    else
+                        AddVisual(PrimitiveType.Cube, leaf, new Vector3(middle, height * 0.7f, face * 0.024f), Quaternion.identity, new Vector3(width * 0.62f, height * 0.36f, 0.006f), panel);
+                    AddVisual(PrimitiveType.Cube, leaf, new Vector3(middle, height * 0.27f, face * 0.024f), Quaternion.identity, new Vector3(width * 0.62f, height * 0.32f, 0.006f), panel);
+                    AddVisual(PrimitiveType.Sphere, leaf, new Vector3(reach * (width - 0.09f), 0.98f, face * 0.05f), Quaternion.identity, Vector3.one * 0.06f, knob);
+                }
+            }
+            SetString(door, "doorName", name);
+            SetBool(door, "startOpen", startOpen);
+            Modify(door, "leaves", property =>
+            {
+                property.arraySize = leafs.Length;
+                for (int i = 0; i < leafs.Length; i++)
+                {
+                    UnityEditor.SerializedProperty entry = property.GetArrayElementAtIndex(i);
+                    entry.FindPropertyRelative("hinge").objectReferenceValue = hinges[i];
+                    entry.FindPropertyRelative("openAngle").floatValue = leafs[i].openAngle;
+                }
+            });
         }
 
         /// <summary>Front left: a sofa and armchair round a coffee table on a rug, a wood stove and a bookshelf.</summary>

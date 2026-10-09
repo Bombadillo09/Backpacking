@@ -308,6 +308,10 @@ namespace Backpacking.EditorTools
                 Undo.RecordObject(sign, "Set sign");
                 sign.text = stop.Name.ToUpperInvariant();
                 PrefabUtility.RecordPrefabInstancePropertyModifications(sign);
+                var lettering = sign.GetComponent<MeshRenderer>();
+                Undo.RecordObject(lettering, "Set sign material");
+                lettering.sharedMaterial = GetOrCreateWorldTextMaterial(sign.font);
+                PrefabUtility.RecordPrefabInstancePropertyModifications(lettering);
             }
         }
 

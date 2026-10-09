@@ -44,6 +44,7 @@ namespace Backpacking.UI
                 UIBuild.Box("panel-header").With(
                     title,
                     bindings.Text(() => $"${backpack.Money}", "money")),
+                bindings.Text(PackLine, "small"),
                 UIBuild.Box("columns").With(
                     UIBuild.Box("column").With(UIBuild.Text("BUY", "heading"), buyList),
                     UIBuild.Box("column", "next").With(UIBuild.Text("SELL", "heading"), sellList)),
@@ -54,6 +55,16 @@ namespace Backpacking.UI
             screen = UIBuild.Layer("centred").With(panel);
             screen.SetVisible(false);
             GameUI.Current.Screens.Add(screen);
+        }
+
+        /// <summary>How full the pack is, so you can tell what will fit before you buy.</summary>
+        string PackLine()
+        {
+            if (!backpack.HasPack)
+                return "No backpack yet: buy one first (you wear it out of the shop).";
+            string truck = Delivery != backpack ? "  ·  Purchases go to your truck bed." : "";
+            return $"Your {backpack.Pack.Name}: {backpack.UsedIn(PackZone.Core):0} of {backpack.CapacityOf(PackZone.Core):0} L inside, "
+                   + $"{backpack.TotalWeight:0.0} kg (comfortable up to {backpack.ComfortableLoad:0}).{truck}";
         }
 
         public void Open(Vendor trader)
@@ -111,20 +122,22 @@ namespace Backpacking.UI
         {
             buyBindings.Clear();
             buyList.Clear();
-            foreach (bool gear in new[] { false, true })
+            // Grouped by kind of thing: packs, shelter and sleeping, cooking, water, food, clothing, tools, first aid.
+            foreach (string category in ShopCatalog.Categories)
             {
                 bool headed = false;
                 foreach (StockEntry entry in vendor.Stock)
                 {
-                    ShopItem item = ShopCatalog.Get(entry.item);
-                    if (item.IsGear != gear)
+                    if (ShopCatalog.CategoryOf(entry.item) != category)
                         continue;
                     if (!headed)
                     {
-                        buyList.Add(UIBuild.Text(gear ? "Gear" : "Supplies", "small"));
+                        Label heading = UIBuild.Text(category.ToUpperInvariant(), "heading");
+                        heading.style.marginTop = buyList.childCount > 0 ? 14f : 0f;
+                        buyList.Add(heading);
                         headed = true;
                     }
-                    buyList.Add(BuyRow(entry, item));
+                    buyList.Add(BuyRow(entry, ShopCatalog.Get(entry.item)));
                 }
             }
             buyList.scrollOffset = Vector2.zero;

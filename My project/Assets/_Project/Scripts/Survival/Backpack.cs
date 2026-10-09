@@ -698,6 +698,18 @@ namespace Backpacking.Survival
 
         public void PourOutUntreatedWater() => untreatedWater = 0f;
 
+        /// <summary>Fills the bottle at a tap: clean water, so any untreated water is poured away first. Returns the litres added.</summary>
+        public float FillWithTapWater()
+        {
+            untreatedWater = 0f;
+            float added = Mathf.Max(0f, waterCapacity - safeWater);
+            safeWater = waterCapacity;
+            return added;
+        }
+
+        /// <summary>A drink straight from a tap: clean, so no risk of sickness.</summary>
+        public void DrinkTapWater(float litres) => vitals.Drink(litres * hydrationPerLitre);
+
         public void DrinkSafeWater()
         {
             float litres = Mathf.Min(sipLitres, safeWater);

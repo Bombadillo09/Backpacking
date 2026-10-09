@@ -551,6 +551,10 @@ namespace Backpacking.EditorTools
 
             const float width = 12f, depth = 9f, floorTop = 0.3f, wallHeight = 3.4f, wall = 0.2f;
             BuildRoom(building, width, depth, floorTop, wallHeight, wall, 0f, 1.8f, 2.4f, walls, floor);
+            // Glass double doors that swing out.
+            AddDoor(building, "Store doors", floorTop, depth / 2f - wall / 2f, 2.4f, timber, GetOrCreateMaterial("Steel", new Color(0.7f, 0.72f, 0.74f), 0.7f),
+                GetOrCreateGlassMaterial(), false, (-0.9f, 1f, 0.9f, -100f), (0.9f, -1f, 0.9f, 100f));
+            BuildWaterTap(building, new Vector3(width / 2f, 0f, depth / 2f - 1.5f), timber);
             AddSolid(PrimitiveType.Cube, building, new Vector3(0f, 0.08f, depth / 2f + 0.5f), Quaternion.identity, new Vector3(3f, 0.16f, 0.8f), floor);
             float top = floorTop + wallHeight;
             AddVisual(PrimitiveType.Cube, building, new Vector3(0f, top + 0.12f, 0.2f), Quaternion.identity, new Vector3(width + 0.8f, 0.25f, depth + 1.2f), roof);
@@ -618,6 +622,34 @@ namespace Backpacking.EditorTools
             storeDoor = pointObject.transform;
         }
 
+        /// <summary>
+        /// The outdoor tap on the side of the store, at <paramref name="wall"/> (the outside of the wall, local to the
+        /// building): a pipe up the wall, a brass tap with a wheel, a drain pad below, a bucket and a sign.
+        /// </summary>
+        static void BuildWaterTap(GameObject building, Vector3 wall, Material timber)
+        {
+            Material pipe = GetOrCreateMaterial("Pipe", new Color(0.45f, 0.47f, 0.48f), 0.5f);
+            Material brass = GetOrCreateMaterial("Brass", new Color(0.78f, 0.62f, 0.3f), 0.7f);
+            Material concrete = GetOrCreateMaterial("Concrete", new Color(0.6f, 0.6f, 0.58f));
+            Material wheel = GetOrCreateMaterial("TapWheel", new Color(0.7f, 0.12f, 0.1f), 0.4f);
+            var tap = new GameObject("Water Tap");
+            tap.transform.SetParent(building.transform, false);
+            tap.transform.SetLocalPositionAndRotation(wall + new Vector3(0.06f, 0f, 0f), Quaternion.Euler(0f, 90f, 0f));
+            // Local to the tap now: +Z points away from the wall.
+            AddVisual(PrimitiveType.Cylinder, tap, new Vector3(0f, 0.5f, 0.04f), Quaternion.identity, new Vector3(0.05f, 0.5f, 0.05f), pipe);
+            AddVisual(PrimitiveType.Cylinder, tap, new Vector3(0f, 0.92f, 0.12f), Quaternion.Euler(90f, 0f, 0f), new Vector3(0.05f, 0.08f, 0.05f), brass);
+            AddVisual(PrimitiveType.Cylinder, tap, new Vector3(0f, 0.86f, 0.19f), Quaternion.identity, new Vector3(0.035f, 0.05f, 0.035f), brass);
+            AddVisual(PrimitiveType.Cylinder, tap, new Vector3(0f, 0.99f, 0.13f), Quaternion.identity, new Vector3(0.1f, 0.01f, 0.1f), wheel);
+            AddVisual(PrimitiveType.Cube, tap, new Vector3(0f, 0.03f, 0.3f), Quaternion.identity, new Vector3(0.5f, 0.06f, 0.45f), concrete);
+            AddVisual(PrimitiveType.Cylinder, tap, new Vector3(0.35f, 0.17f, 0.35f), Quaternion.identity, new Vector3(0.26f, 0.14f, 0.26f), pipe);
+            AddVisual(PrimitiveType.Cube, tap, new Vector3(0f, 1.45f, 0.01f), Quaternion.identity, new Vector3(0.55f, 0.28f, 0.02f), timber);
+            AddSignText(tap, "DRINKING WATER", new Vector3(0f, 1.45f, 0.025f), 0.022f);
+            var collider = tap.AddComponent<BoxCollider>();
+            collider.center = new Vector3(0f, 0.85f, 0.15f);
+            collider.size = new Vector3(0.45f, 0.5f, 0.35f);
+            tap.AddComponent<WaterTap>();
+        }
+
         static void AddSignText(GameObject root, string text, Vector3 position, float characterSize)
         {
             var signObject = new GameObject("Sign");
@@ -633,7 +665,28 @@ namespace Backpacking.EditorTools
             sign.color = new Color(0.95f, 0.9f, 0.75f);
             Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             sign.font = font;
-            signObject.GetComponent<MeshRenderer>().sharedMaterial = font.material;
+            signObject.GetComponent<MeshRenderer>().sharedMaterial = GetOrCreateWorldTextMaterial(font);
+        }
+
+        /// <summary>
+        /// Lettering that's hidden behind walls and only seen from the front (the font's own material draws on top of
+        /// everything, so signs showed through buildings, mirrored).
+        /// </summary>
+        static Material GetOrCreateWorldTextMaterial(Font font)
+        {
+            string path = $"{GeneratedFolder}/WorldText.mat";
+            var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material == null)
+            {
+                Shader shader = Shader.Find("Backpacking/World Text");
+                if (shader == null)
+                    return font.material;
+                material = new Material(shader);
+                AssetDatabase.CreateAsset(material, path);
+            }
+            material.mainTexture = font.material.mainTexture;
+            EditorUtility.SetDirty(material);
+            return material;
         }
 
         // ---------- Trailhead parking ----------

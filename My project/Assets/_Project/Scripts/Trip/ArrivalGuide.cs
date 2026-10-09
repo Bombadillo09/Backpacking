@@ -185,7 +185,8 @@ namespace Backpacking.Trip
                       + $"Gear is carried out to your truck bed. ${backpack.Money} left."
                     : $"Buy what else you need (${backpack.Money} left), then go out to the truck to pack it.",
                 ArrivalPhase.Packing => $"Look at the truck and choose {Key}Pack your backpack{End}. Heavy things carry best in the "
-                                        + $"{Key}core{End}, against your back; light, bulky ones at the bottom. Leave what you won't need. Then drive on east.",
+                                        + $"{Key}core{End}, against your back; light, bulky ones at the bottom. Leave what you won't need. "
+                                        + $"Fill your water bottle at the {Key}tap{End} on the side of the store, then drive on east.",
                 ArrivalPhase.Driving => $"Drive on east to the {Key}trailhead parking{End} where the road ends, then set off on foot with your pack on.",
                 _ => "",
             };

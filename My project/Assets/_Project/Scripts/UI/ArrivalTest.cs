@@ -105,6 +105,20 @@ namespace Backpacking.UI
             Check(!backpack.HasPack && backpack.Money == ArrivalGuide.StartingMoney, $"at home with no pack and ${backpack.Money}");
             Check(guide.Phase == ArrivalPhase.AtHome, $"the guide says: at home ({guide.Phase})");
             Check(truck.Bed.HasMachete, "the ranger's machete from home is in the truck bed");
+            // The house's doors work.
+            World.Door frontDoor = FindObjectsByType<World.Door>().FirstOrDefault(door => door.DisplayName == "Front door");
+            Check(frontDoor != null && !frontDoor.IsOpen, "the front door is there, shut");
+            if (frontDoor != null)
+            {
+                var doorOptions = new System.Collections.Generic.List<InteractionOption>();
+                frontDoor.GetOptions(interactor, doorOptions);
+                Quaternion shut = frontDoor.transform.GetChild(0).localRotation;
+                doorOptions[0].Execute();
+                yield return new WaitForSeconds(1.2f);
+                Check(frontDoor.IsOpen && Quaternion.Angle(shut, frontDoor.transform.GetChild(0).localRotation) > 80f,
+                    $"\"{doorOptions[0].Label}\" swings it open");
+            }
+            Check(FindObjectsByType<World.Door>().Length >= 4, $"{FindObjectsByType<World.Door>().Length} doors in the house and store");
             Check(Vector3.Distance(player.transform.position, truck.transform.position) < 20f, "the truck is parked just outside");
 
             // Get in and drive (teleported) to the store's lot, then get out.
@@ -165,6 +179,8 @@ namespace Backpacking.UI
             }
             log.AppendLine($"      spent ${spent}, ${backpack.Money} left");
             Check(backpack.HasPack && backpack.BootsName == "Trail hiking boots", "wearing the new pack and boots");
+            yield return new WaitForEndOfFrame();
+            SaveScreen("play-shop");
             interactor.Shop.Close();
             yield return new WaitForSeconds(0.3f);
 
@@ -190,7 +206,30 @@ namespace Backpacking.UI
                            + $"{truck.Bed.Contents().Count} kinds left in the truck");
             Check(truck.Bed.Contents().Count == 0, "everything packed from the truck bed");
             Check(backpack.OwnsTent && backpack.HasSleepingBag && backpack.OwnsStove && backpack.WaterCapacity > 0f && backpack.HasMachete, "tent, bag, stove, bottle and machete are in the pack");
+            yield return new WaitForEndOfFrame();
+            SaveScreen("play-packing");
             PackingView.Current.Close();
+            yield return null;
+            FindAnyObjectByType<BackpackView>().Show();
+            yield return new WaitForSeconds(0.3f);
+            yield return new WaitForEndOfFrame();
+            SaveScreen("play-inventory");
+            GameUI.CloseAllScreens();
+            yield return new WaitForSeconds(0.3f);
+
+            // Fill the new bottle at the store's tap.
+            var tap = FindAnyObjectByType<World.WaterTap>();
+            Check(tap != null, "there's a tap on the store");
+            if (tap != null)
+            {
+                var tapOptions = new System.Collections.Generic.List<InteractionOption>();
+                tap.GetOptions(interactor, tapOptions);
+                InteractionOption fill = tapOptions.FirstOrDefault(option => option.Label.Contains("Fill") || option.Label.Contains("fill"));
+                Check(fill.Label != null && fill.Enabled, $"the tap offers: {string.Join(" / ", tapOptions.Select(option => option.Label))}");
+                fill.Execute?.Invoke();
+                yield return new WaitUntil(() => !player.GetComponent<PlayerActivity>().IsBusy);
+                Check(backpack.SafeWater >= backpack.WaterCapacity - 0.01f && backpack.WaterCapacity > 0f, $"bottle filled with clean water ({backpack.SafeWater:0.0} L)");
+            }
             yield return new WaitForSeconds(0.3f);
 
             // Drive on to the trailhead.
@@ -208,6 +247,15 @@ namespace Backpacking.UI
             Check(tutorial != null && tutorial.IsRunning, "the tutorial starts at the trailhead");
             if (TripLog.Current != null)
                 log.AppendLine("      journal:\n        " + string.Join("\n        ", TripLog.Current.CaptureState().entries.Select(entry => entry.text)));
+        }
+
+        /// <summary>The whole game view with its UI (screens are drawn over the camera, so a camera render misses them).</summary>
+        static void SaveScreen(string name)
+        {
+            Texture2D shot = ScreenCapture.CaptureScreenshotAsTexture();
+            Directory.CreateDirectory("Logs/SceneSnapshots");
+            File.WriteAllBytes($"Logs/SceneSnapshots/{name}.png", shot.EncodeToPNG());
+            Destroy(shot);
         }
 
         static void Teleport(FirstPersonController player, Vector3 position)

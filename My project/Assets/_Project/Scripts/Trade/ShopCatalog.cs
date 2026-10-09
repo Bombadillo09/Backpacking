@@ -258,6 +258,28 @@ namespace Backpacking.Trade
 
         public static ShopItem Get(ShopItemId id) => items[id];
 
+        /// <summary>The sections of a shop's list, in the order they're shown.</summary>
+        public static readonly string[] Categories =
+        {
+            "Packs", "Shelter & sleeping", "Cooking & fuel", "Water", "Food", "Clothing & boots", "Tools & hunting", "First aid",
+        };
+
+        /// <summary>Which section of the shop list an item is in.</summary>
+        public static string CategoryOf(ShopItemId id) => id switch
+        {
+            ShopItemId.UltralightPack or ShopItemId.TrekkingPack or ShopItemId.ExpeditionPack => "Packs",
+            ShopItemId.OnePersonTent or ShopItemId.TwoPersonTent or ShopItemId.FourSeasonTent or ShopItemId.SummerBag
+                or ShopItemId.ThreeSeasonBag or ShopItemId.WinterSleepingBag or ShopItemId.FoamMat or ShopItemId.InflatableMat
+                or ShopItemId.CampChair => "Shelter & sleeping",
+            ShopItemId.Stove or ShopItemId.GasCanister or ShopItemId.Matches => "Cooking & fuel",
+            ShopItemId.WaterBottle or ShopItemId.WaterBladder or ShopItemId.WaterFilter => "Water",
+            ShopItemId.TrailMix or ShopItemId.DehydratedMeal => "Food",
+            ShopItemId.BaseLayer or ShopItemId.Fleece or ShopItemId.RainShell or ShopItemId.DownJacket or ShopItemId.WoolHatAndGloves
+                or ShopItemId.InsulatedPants or ShopItemId.HikingBoots or ShopItemId.LeatherBoots or ShopItemId.MountaineeringBoots => "Clothing & boots",
+            ShopItemId.Bandages or ShopItemId.Antibiotics => "First aid",
+            _ => "Tools & hunting",
+        };
+
         /// <summary>A tent can only be traded in while it's packed away in your backpack.</summary>
         static string TentAwayProblem(Backpack backpack) => backpack.OwnsTent && !backpack.HasTent ? "Pack your tent away first" : null;
 
